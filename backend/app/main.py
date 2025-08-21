@@ -1,4 +1,3 @@
-# backend/app/main.py
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -15,7 +14,7 @@ DATA = Path(DATA_DIR)
 SEEDS = Path(SEED_DIR)
 DATA.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="Narrative Heatmap API", version="0.2.0")
+app = FastAPI(title="Narrative Heatmap API", version="0.2.1")
 
 def _read_json(path: Path):
     if not path.exists():
@@ -29,34 +28,55 @@ def _write_json(path: Path, payload):
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
+def _parent_symbols(seed_entry) -> list[str]:
+    """Accept parents as strings or dicts; return list of symbols."""
+    symbols: list[str] = []
+    for p in seed_entry.get("parents", []) or []:
+        if isinstance(p, str):
+            symbols.append(p)
+        elif isinstance(p, dict):
+            sym = p.get("symbol") or p.get("sym") or p.get("token")
+            if sym:
+                symbols.append(sym)
+    # dedupe, preserve order
+    seen = set()
+    out = []
+    for s in symbols:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out
+
 def build_live_narratives(window: str = "24h"):
     seeds = load_narrative_seeds()
     adapter = make_onchain_adapter(PROVIDER)
 
-    # fetch metrics for all parent symbols
-    all_parents = []
+    # collect all parent symbols across seeds
+    all_parent_syms: list[str] = []
     for s in seeds:
-        all_parents.extend(s.get("parents", []))
-    all_parents = list(dict.fromkeys(all_parents))  # dedupe
+        all_parent_syms.extend(_parent_symbols(s))
+    # dedupe, preserve order
+    seen = set()
+    all_parent_syms = [s for s in all_parent_syms if not (s in seen or seen.add(s))]
 
-    metrics = adapter.fetch_token_metrics(all_parents) if all_parents else {}
+    metrics = adapter.fetch_token_metrics(all_parent_syms) if all_parent_syms else {}
 
-    # build narrative payloads by summing parent metrics
     narratives = []
     for s in seeds:
-        parents = [p["symbol"] for p in s.get("parents", [])]
-        sum_vol = sum((metrics.get(p, {}).get("volume24hUsd") or 0.0) for p in parents)
-        sum_liq = sum((metrics.get(p, {}).get("liquidityUsd") or 0.0) for p in parents)
+        parents_syms = _parent_symbols(s)
+        sum_vol = sum((metrics.get(p, {}).get("volume24hUsd") or 0.0) for p in parents_syms)
+        sum_liq = sum((metrics.get(p, {}).get("liquidityUsd") or 0.0) for p in parents_syms)
         n = {
             "narrative": s["narrative"],
-            "heatScore": 0.0,  # replaced by compute_heat
+            "heatScore": 0.0,  # will be filled by compute_heat
             "window": window,
             "signals": {
                 "onchainVolumeUsd": float(sum_vol),
                 "onchainLiquidityUsd": float(sum_liq),
                 "ctMentions": 0
             },
-            "parents": parents,
+            # expose only symbols here to keep payload compact
+            "parents": parents_syms,
             "lastUpdated": _now_iso(),
         }
         narratives.append(n)
@@ -69,8 +89,8 @@ def build_live_parents(narrative: str, window: str = "24h"):
     if not seed:
         return []
     adapter = make_onchain_adapter(PROVIDER)
-    parents = seed.get("parents", []) or []
-    rows = build_parent_ecosystems(narrative, parents, adapter)
+    parents_objs = seed.get("parents", []) or []  # pass full dicts (symbol + match)
+    rows = build_parent_ecosystems(narrative, parents_objs, adapter)
     for r in rows:
         r["lastUpdated"] = _now_iso()
     return rows
@@ -84,7 +104,6 @@ def refresh(window: str = Query("24h")):
     narratives = build_live_narratives(window=window)
     _write_json(DATA / f"narratives-{window}.json", narratives)
 
-    # write parent files per narrative
     for n in narratives:
         rows = build_live_parents(n["narrative"], window=window)
         _write_json(DATA / f"parents-{n['narrative']}-{window}.json", rows)
