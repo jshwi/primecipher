@@ -1,0 +1,5 @@
+*.pyc
+.next
+.venv
+data
+node_modules
