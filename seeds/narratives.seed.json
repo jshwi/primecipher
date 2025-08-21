@@ -1,5 +1,27 @@
 [
-  { "narrative": "dogs", "keywords": ["wif","dog","moodeng"], "parents": ["WIF","MOODENG"] },
-  { "narrative": "ai",   "keywords": ["ai","gpt","tao","fet"], "parents": ["FET","TAO"] }
+  {
+    "narrative": "dogs",
+    "keywords": [
+      "wif",
+      "dog",
+      "moodeng"
+    ],
+    "parents": [
+      "WIF",
+      "MOODENG"
+    ]
+  },
+  {
+    "narrative": "ai",
+    "keywords": [
+      "ai",
+      "gpt",
+      "tao",
+      "fet"
+    ],
+    "parents": [
+      "FET",
+      "TAO"
+    ]
+  }
 ]
-

@@ -5,7 +5,7 @@ export default async function Page() {
   const narratives = await fetchJSON('/narratives?window=24h');
   return (
     <main style={{ padding: 24, fontFamily: 'ui-sans-serif, system-ui' }}>
-      <h1 style={{ fontSize: 28, marginBottom: 16 }}>Narrative Heatmap (stub)</h1>
+      <h1 style={{ fontSize: 28, marginBottom: 16 }}>Narrative Heatmap</h1>
       <ul style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
         {narratives.map((n: any) => (
           <li key={n.narrative} style={{ border: '1px solid #333', borderRadius: 8, padding: 12 }}>

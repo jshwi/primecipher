@@ -24,7 +24,7 @@ export default async function Page({ params }: Props) {
               <td style={{ padding: 8, textAlign: 'right', borderBottom: '1px solid #333' }}>{r.childrenCount}</td>
               <td style={{ padding: 8, textAlign: 'right', borderBottom: '1px solid #333' }}>{(r.survivalRates.h24 * 100).toFixed(2)}%</td>
               <td style={{ padding: 8, textAlign: 'right', borderBottom: '1px solid #333' }}>{r.topChild.symbol}</td>
-              <td style={{ padding: 8, textAlign: 'right', borderBottom: '1px solid #333' }}>${r.topChild.volume24hUsd.toLocaleString()}</td>
+              <td style={{ padding: 8, textAlign: 'right', borderBottom: '1px solid #333' }}>${'{'}r.topChild.volume24hUsd.toLocaleString(){'}'}</td>
             </tr>
           ))}
         </tbody>
