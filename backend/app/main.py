@@ -44,7 +44,7 @@ def build_live_narratives(window: str = "24h"):
     # build narrative payloads by summing parent metrics
     narratives = []
     for s in seeds:
-        parents = s.get("parents", [])
+        parents = [p["symbol"] for p in s.get("parents", [])]
         sum_vol = sum((metrics.get(p, {}).get("volume24hUsd") or 0.0) for p in parents)
         sum_liq = sum((metrics.get(p, {}).get("liquidityUsd") or 0.0) for p in parents)
         n = {

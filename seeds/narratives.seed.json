@@ -1,27 +1,19 @@
 [
   {
     "narrative": "dogs",
-    "keywords": [
-      "wif",
-      "dog",
-      "moodeng"
-    ],
+    "keywords": ["wif", "dog", "moodeng"],
     "parents": [
-      "WIF",
-      "MOODENG"
+      { "symbol": "WIF",    "match": ["wif", "dogwifhat", "wifhat", "dogwif"] },
+      { "symbol": "MOODENG","match": ["moodeng"] }
     ]
   },
   {
     "narrative": "ai",
-    "keywords": [
-      "ai",
-      "gpt",
-      "tao",
-      "fet"
-    ],
+    "keywords": ["ai", "gpt", "tao", "fet"],
     "parents": [
-      "FET",
-      "TAO"
+      { "symbol": "FET", "match": ["fet", "fetch.ai", "fetchai"] },
+      { "symbol": "TAO", "match": ["tao", "bittensor"] }
     ]
   }
 ]
+

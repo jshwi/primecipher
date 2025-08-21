@@ -1,5 +1,6 @@
+# backend/app/adapters/onchain.py
 from __future__ import annotations
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
 import httpx
 from ..config import HTTP_TIMEOUT, CHAIN_ID, DEX_IDS, LIQ_MAX_USD, VOL_MIN_USD
 
@@ -34,18 +35,14 @@ class DexScreenerAdapter:
         return out
 
     def _prefer(self, pairs: List[Dict[str, Any]], symbol: str) -> Optional[Dict[str, Any]]:
-        # 1) filter by chain + dex + sanity
         flt = self._filter_pairs(pairs)
         if not flt:
             return None
-        # 2) prefer exact base token symbol
         exact = [p for p in flt if (p.get("baseToken") or {}).get("symbol", "").lower() == symbol.lower()]
         pool = exact or flt
-        # 3) choose highest 24h volume
         return max(pool, key=lambda p: float((p.get("volume") or {}).get("h24") or 0.0))
 
     def fetch_token_metrics(self, symbols: List[str]) -> Dict[str, Dict[str, float]]:
-        """Return per-symbol {volume24hUsd, liquidityUsd}, filtered to our chain/DEXes."""
         out: Dict[str, Dict[str, float]] = {}
         for sym in symbols:
             pairs = self._search_pairs(sym)
@@ -58,25 +55,36 @@ class DexScreenerAdapter:
             out[sym] = {"volume24hUsd": vol, "liquidityUsd": liq}
         return out
 
-    def fetch_children_for_parent(self, parent_symbol: str, limit: int = 50) -> List[Dict[str, Any]]:
-        """Find derivative symbols containing the parent symbol; return top by 24h volume."""
-        pairs = self._search_pairs(parent_symbol)
-        flt = self._filter_pairs(pairs)
-        # exclude exact same symbol; keep ones that contain the parent substring
-        children = []
-        for p in flt:
-            base = (p.get("baseToken") or {}).get("symbol", "") or ""
-            if base.lower() == parent_symbol.lower():
-                continue
-            if parent_symbol.lower() not in base.lower():
-                continue
-            children.append({
-                "symbol": base,
-                "volume24hUsd": float((p.get("volume") or {}).get("h24") or 0.0),
-                "liquidityUsd": float((p.get("liquidity") or {}).get("usd") or 0.0),
-                "pairCreatedAt": p.get("pairCreatedAt"),
-                "holders": None,
-            })
+    def fetch_children_for_parent(self, parent_symbol: str, match_terms: List[str], limit: int = 50) -> List[Dict[str, Any]]:
+        terms = list({(parent_symbol or "").lower(), *(t.lower() for t in (match_terms or []))})
+        seen: Set[str] = set()
+        children: List[Dict[str, Any]] = []
+
+        # search for each term and merge
+        for term in terms:
+            pairs = self._filter_pairs(self._search_pairs(term))
+            for p in pairs:
+                base = (p.get("baseToken") or {})
+                sym = (base.get("symbol") or "").lower()
+                name = (base.get("name") or "").lower()
+                addr = (base.get("address") or "") or (p.get("baseToken") or {}).get("address") or (p.get("pairAddress") or "")
+                if sym == (parent_symbol or "").lower():
+                    continue
+                # require any term in symbol OR name
+                if not any(t in sym or t in name for t in terms):
+                    continue
+                if addr and addr in seen:
+                    continue
+                seen.add(addr)
+                children.append({
+                    "symbol": base.get("symbol") or "",
+                    "name": base.get("name") or "",
+                    "volume24hUsd": float((p.get("volume") or {}).get("h24") or 0.0),
+                    "liquidityUsd": float((p.get("liquidity") or {}).get("usd") or 0.0),
+                    "pairCreatedAt": p.get("pairCreatedAt"),
+                    "holders": None,
+                })
+
         children.sort(key=lambda x: x["volume24hUsd"], reverse=True)
         return children[:limit]
 
