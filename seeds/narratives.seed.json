@@ -3,8 +3,8 @@
     "narrative": "dogs",
     "keywords": ["wif", "dog", "moodeng"],
     "parents": [
-      { "symbol": "WIF",    "match": ["wif", "dogwifhat", "wifhat", "dogwif"] },
-      { "symbol": "MOODENG","match": ["moodeng"] }
+      { "symbol": "WIF",     "match": ["wif", "dogwifhat", "wifhat", "dogwif", "dog with hat"] },
+      { "symbol": "MOODENG", "match": ["moodeng", "mood", "mdeng"] }
     ]
   },
   {
