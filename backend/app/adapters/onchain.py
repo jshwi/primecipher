@@ -55,7 +55,6 @@ class DexScreenerAdapter:
         norm_target = _norm_symbol(symbol)
         exact = [p for p in flt if _norm_symbol((p.get("baseToken") or {}).get("symbol")) == norm_target]
         pool = exact or flt
-        # Highest 24h volume
         return max(pool, key=lambda p: float((p.get("volume") or {}).get("h24") or 0.0))
 
     def fetch_token_metrics(self, symbols: List[str]) -> Dict[str, Dict[str, float]]:
@@ -78,7 +77,11 @@ class DexScreenerAdapter:
         children: List[Dict[str, Any]] = []
 
         for term in terms:
-            pairs = self._filter_pairs(self._search_pairs(term), min_vol=CHILD_VOL_MIN_USD, min_liq=CHILD_LIQ_MIN_USD)
+            pairs = self._filter_pairs(
+                self._search_pairs(term),
+                min_vol=CHILD_VOL_MIN_USD,
+                min_liq=CHILD_LIQ_MIN_USD,
+            )
             for p in pairs:
                 base = (p.get("baseToken") or {})
                 sym_raw = base.get("symbol") or ""
@@ -86,32 +89,30 @@ class DexScreenerAdapter:
                 addr = base.get("address") or p.get("pairAddress") or ""
                 if not addr or addr in seen:
                     continue
-
-                # Exclude parent symbol (normalize both)
+                # exclude the parent itself (handles "$WIF" vs "WIF")
                 if _norm_symbol(sym_raw) == norm_parent:
                     continue
-
                 sym = sym_raw.lower()
                 name = name_raw.lower()
                 if not any(t in sym or t in name for t in terms):
                     continue
-
-                age_h = _age_hours_ms(p.get("pairCreatedAt"))
                 children.append({
                     "symbol": sym_raw,
                     "name": name_raw,
                     "volume24hUsd": float((p.get("volume") or {}).get("h24") or 0.0),
                     "liquidityUsd": float((p.get("liquidity") or {}).get("usd") or 0.0),
                     "pairCreatedAt": p.get("pairCreatedAt"),
-                    "ageHours": age_h,
+                    "ageHours": _age_hours_ms(p.get("pairCreatedAt")),
                     "holders": None,
                 })
                 seen.add(addr)
 
         children.sort(key=lambda x: x["volume24hUsd"], reverse=True)
-        # Optionally keep recent children within discovery window first
+        # prioritize recent within CHILD_MAX_AGE_HOURS
         recent = [c for c in children if (c.get("ageHours") or 1e9) <= CHILD_MAX_AGE_HOURS]
         rest = [c for c in children if c not in recent]
-        ordered = recent + rest
-        return ordered[:limit]
+        return (recent + rest)[:limit]
+
+def make_onchain_adapter(name: str = "dexscreener") -> DexScreenerAdapter:
+    return DexScreenerAdapter()
 
