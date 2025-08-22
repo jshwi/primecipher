@@ -1,6 +1,7 @@
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 import json
 from datetime import datetime, timezone
 
@@ -10,6 +11,7 @@ from .compute import compute_heat
 from .parents import build_parent_ecosystems
 from .adapters.onchain import make_onchain_adapter
 from .debug import router as debug_router
+from .config import CORS_ALLOW_ORIGINS
 
 
 DATA = Path(DATA_DIR)
@@ -19,6 +21,14 @@ DATA.mkdir(parents=True, exist_ok=True)
 app = FastAPI(title="Narrative Heatmap API", version="0.2.2")
 
 app.include_router(debug_router, prefix="/debug")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[o.strip() for o in CORS_ALLOW_ORIGINS.split(",") if o.strip()],
+    allow_methods=["GET", "OPTIONS"],
+    allow_headers=["*"],
+    allow_credentials=False,
+)
 
 def _read_json(path: Path):
     if not path.exists():

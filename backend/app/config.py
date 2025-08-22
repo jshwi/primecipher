@@ -26,3 +26,7 @@ DEX_IDS = {d.strip().lower() for d in os.getenv("DEX_IDS", "raydium,orca,pump").
 DATA_DIR = os.getenv("DATA_DIR", str((Path(__file__).resolve().parents[2] / "data")))
 SEED_DIR = os.getenv("SEED_DIR", str((Path(__file__).resolve().parents[2] / "seeds")))
 
+CORS_ALLOW_ORIGINS = os.getenv(
+    "CORS_ALLOW_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000"
+)
