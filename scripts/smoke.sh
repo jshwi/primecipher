@@ -63,7 +63,7 @@ if [[ ! -f backend/app/tools/__init__.py ]]; then
   echo "# package marker" > backend/app/tools/__init__.py
 fi
 
-python -m app.tools.synthetic_backfill --window "${HOLD}" --narrative "${NARRATIVE}" --parent "${PARENT}" || fail "synthetic_backfill failed"
+PYTHONPATH=backend python -m app.tools.synthetic_backfill --window "${HOLD}" --narrative "${NARRATIVE}" --parent "${PARENT}"
 
 WALK_JSON="$(curl -fsS "${API_BASE}/backtest/walk?narrative=${NARRATIVE}&parent=${PARENT}&hold=${HOLD}&minLiqUsd=${MIN_LIQ}&toleranceMin=${TOL_MIN}")" || fail "backtest/walk fetch failed"
 echo "$WALK_JSON" | jq -e '.summary.n_trades' >/dev/null || fail "backtest/walk missing .summary.n_trades"
