@@ -43,11 +43,255 @@ type DebugResp = {
   };
 };
 
-function fmtUsd(n?: number) {
+type BacktestTrade = {
+  parent: string;
+  symbol: string;
+  pairAddress?: string | null;
+  liq?: number | null;
+  vol24h?: number | null;
+  ageHours?: number | null;
+  return?: number | null; // decimal (0.05 => +5%)
+};
+
+type BacktestSummary = {
+  hold: 'm5' | 'h1' | 'h6' | 'h24';
+  n_trades: number;
+  n_with_return: number;
+  winrate_gt0: number | null;
+  mean_return: number | null;
+  median_return: number | null;
+  min_return: number | null;
+  max_return: number | null;
+};
+
+type BacktestResp = {
+  params: Record<string, any>;
+  summary: BacktestSummary;
+  trades: BacktestTrade[];
+};
+
+function fmtUsd(n?: number | null) {
   const v = typeof n === 'number' ? n : 0;
   return `$${Math.round(v).toLocaleString()}`;
 }
 
+function pct(n?: number | null) {
+  if (typeof n !== 'number') return '—';
+  return `${(n * 100).toFixed(2)}%`;
+}
+
+/** =========================
+ * Backtest panel (new)
+ * ========================= */
+function BacktestPanel({ narrative, parents }: { narrative: string; parents: string[] }) {
+  const [parent, setParent] = useState<string>('ALL');
+  const [hold, setHold] = useState<'m5' | 'h1' | 'h6' | 'h24'>('h24');
+  const [liqMin, setLiqMin] = useState<number>(50000);
+  const [maxAge, setMaxAge] = useState<string>(''); // empty => no filter
+  const [loading, setLoading] = useState(false);
+  const [resp, setResp] = useState<BacktestResp | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const runBacktest = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setResp(null);
+    try {
+      const p = new URLSearchParams();
+      p.set('narrative', narrative);
+      p.set('hold', hold);
+      p.set('liqMinUsd', String(liqMin));
+      if (parent !== 'ALL') p.set('parent', parent);
+      if (maxAge.trim().length > 0) p.set('maxAgeHours', maxAge.trim());
+
+      const url = `${API_BASE}/backtest?${p.toString()}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: BacktestResp = await res.json();
+      setResp(json);
+    } catch (e: any) {
+      setError('Backtest failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [narrative, parent, hold, liqMin, maxAge]);
+
+  const trades = resp?.trades ?? [];
+
+  const csvHref = useMemo(() => {
+    if (!trades.length) return null;
+    const header = ['parent', 'symbol', 'pairAddress', 'liq', 'vol24h', 'ageHours', 'return'].join(',');
+    const rows = trades.map((t) =>
+      [t.parent, t.symbol, t.pairAddress ?? '', t.liq ?? '', t.vol24h ?? '', t.ageHours ?? '', t.return ?? ''].join(',')
+    );
+    const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv' });
+    return URL.createObjectURL(blob);
+  }, [trades]);
+
+  return (
+    <div style={{ border: '1px solid #222', borderRadius: 8, marginTop: 12, padding: 12, background: '#0f0f0f' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontWeight: 600 }}>Quick Backtest</div>
+        <div style={{ fontSize: 12, opacity: 0.6 }}>
+          Uses Dexscreener priceChange windows (not a historical walk-forward test).
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Parent</div>
+          <select
+            value={parent}
+            onChange={(e) => setParent(e.target.value)}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
+          >
+            <option value="ALL">All parents</option>
+            {parents.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Hold</div>
+          <select
+            value={hold}
+            onChange={(e) => setHold(e.target.value as any)}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
+          >
+            <option value="m5">5 minutes</option>
+            <option value="h1">1 hour</option>
+            <option value="h6">6 hours</option>
+            <option value="h24">24 hours</option>
+          </select>
+        </div>
+
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Min Liquidity (USD)</div>
+          <input
+            type="number"
+            value={liqMin}
+            onChange={(e) => setLiqMin(Number(e.target.value || 0))}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
+            min={0}
+          />
+        </div>
+
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Max Age (hours, optional)</div>
+          <input
+            placeholder="e.g., 168"
+            value={maxAge}
+            onChange={(e) => setMaxAge(e.target.value)}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'end' }}>
+          <button
+            onClick={runBacktest}
+            disabled={loading}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #333',
+              borderRadius: 6,
+              background: '#121212',
+              cursor: 'pointer',
+              fontSize: 13,
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? 'Running…' : 'Run backtest'}
+          </button>
+        </div>
+      </div>
+
+      {error && <div style={{ color: '#f66', marginTop: 8, fontSize: 13 }}>{error}</div>}
+
+      {resp && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 13 }}>
+            <div>hold: <strong>{resp.summary.hold}</strong></div>
+            <div>trades: <strong>{resp.summary.n_trades}</strong></div>
+            <div>winrate: <strong>{resp.summary.winrate_gt0 != null ? (resp.summary.winrate_gt0 * 100).toFixed(1) + '%' : '—'}</strong></div>
+            <div>mean: <strong>{pct(resp.summary.mean_return)}</strong></div>
+            <div>median: <strong>{pct(resp.summary.median_return)}</strong></div>
+            <div>min: <strong>{pct(resp.summary.min_return)}</strong></div>
+            <div>max: <strong>{pct(resp.summary.max_return)}</strong></div>
+            {csvHref && (
+              <a
+                href={csvHref}
+                download={`backtest_${narrative}_${parent}_${hold}.csv`}
+                style={{ marginLeft: 'auto', color: '#68a0ff', fontSize: 12 }}
+              >
+                Download CSV
+              </a>
+            )}
+          </div>
+
+          <div style={{ border: '1px solid #222', borderRadius: 6, overflow: 'hidden', marginTop: 10 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '120px 140px 120px 120px 100px 100px',
+                padding: '8px 10px',
+                background: '#111',
+                fontSize: 12,
+                opacity: 0.85,
+              }}
+            >
+              <div>Parent</div>
+              <div>Symbol</div>
+              <div>Liquidity</div>
+              <div>Vol 24h</div>
+              <div>Age</div>
+              <div>Return</div>
+            </div>
+            {trades.map((t, i) => {
+              const link = t.pairAddress ? `https://dexscreener.com/solana/${t.pairAddress}` : undefined;
+              return (
+                <div
+                  key={`${t.symbol || '—'}-${i}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '120px 140px 120px 120px 100px 100px',
+                    padding: '8px 10px',
+                    borderTop: '1px solid #191919',
+                    fontSize: 13,
+                  }}
+                >
+                  <div>{t.parent}</div>
+                  <div>
+                    {link ? (
+                      <a href={link} target="_blank" rel="noreferrer" style={{ color: '#68a0ff' }}>
+                        {t.symbol}
+                      </a>
+                    ) : (
+                      t.symbol
+                    )}
+                  </div>
+                  <div>{fmtUsd(t.liq)}</div>
+                  <div>{fmtUsd(t.vol24h)}</div>
+                  <div>{typeof t.ageHours === 'number' ? `${t.ageHours.toFixed(1)}h` : '—'}</div>
+                  <div>{pct(t.return)}</div>
+                </div>
+              );
+            })}
+            {trades.length === 0 && (
+              <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>No trades matched your filters.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** =========================
+ * Children drawer (existing, with pagination)
+ * ========================= */
 function ParentRowItem({ r }: { r: ParentRow }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -294,6 +538,8 @@ function ParentRowItem({ r }: { r: ParentRow }) {
 }
 
 export default function ParentsTable({ rows }: { rows: ParentRow[] }) {
+  const narrative = rows[0]?.narrative ?? '';
+
   return (
     <div style={{ border: '1px solid #222', borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
       <div
@@ -313,6 +559,8 @@ export default function ParentsTable({ rows }: { rows: ParentRow[] }) {
       </div>
 
       {rows.length === 0 && <div style={{ padding: 16, fontSize: 14, opacity: 0.7 }}>No data yet for this narrative.</div>}
+
+      {rows.length > 0 && <BacktestPanel narrative={narrative} parents={rows.map((r) => r.parent)} />}
 
       {rows.map((r) => (
         <ParentRowItem key={r.parent} r={r} />
