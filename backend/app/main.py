@@ -15,6 +15,7 @@ from .config import CORS_ALLOW_ORIGINS
 from . import backtest
 from . import backtest_walk
 from . import storage
+from .api.routes import narratives as narratives_routes
 
 
 DATA = Path(DATA_DIR)
@@ -36,6 +37,8 @@ app.add_middleware(
 app.include_router(backtest.router)  # mount at /backtest
 
 app.include_router(backtest_walk.router)
+
+app.include_router(narratives_routes.router)
 
 @app.on_event("startup")
 def _ensure_db():
