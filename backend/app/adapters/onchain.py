@@ -9,6 +9,7 @@ from ..config import (
 )
 
 DEX_SEARCH = "https://api.dexscreener.com/latest/dex/search"
+STOP_SYMS = {"WITH"}  # obvious false-positive for WIF
 
 def _norm_symbol(s: Optional[str]) -> str:
     # Remove non-alphanumerics and uppercase so "$WIF" == "WIF"
@@ -89,13 +90,24 @@ class DexScreenerAdapter:
                 addr = base.get("address") or p.get("pairAddress") or ""
                 if not addr or addr in seen:
                     continue
+
                 # exclude the parent itself (handles "$WIF" vs "WIF")
                 if _norm_symbol(sym_raw) == norm_parent:
                     continue
+                if sym_raw.upper() in STOP_SYMS:
+                    # only allow if it's a strong symbol match anyway (which it won't be)
+                    continue
+
                 sym = sym_raw.lower()
                 name = name_raw.lower()
-                if not any(t in sym or t in name for t in terms):
+
+                # --- NEW: symbol-first match; only allow name matches for longer terms (>=5 chars)
+                sym_hit = any(t in sym for t in terms)
+                name_hit = any(len(t) >= 5 and t in name for t in terms)
+                if not (sym_hit or name_hit):
                     continue
+                # ---------------------------------------------
+
                 children.append({
                     "symbol": sym_raw,
                     "name": name_raw,
@@ -108,7 +120,6 @@ class DexScreenerAdapter:
                 seen.add(addr)
 
         children.sort(key=lambda x: x["volume24hUsd"], reverse=True)
-        # prioritize recent within CHILD_MAX_AGE_HOURS
         recent = [c for c in children if (c.get("ageHours") or 1e9) <= CHILD_MAX_AGE_HOURS]
         rest = [c for c in children if c not in recent]
         return (recent + rest)[:limit]

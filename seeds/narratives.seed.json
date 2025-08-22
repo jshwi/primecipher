@@ -4,7 +4,7 @@
     "keywords": ["wif", "dog", "moodeng"],
     "parents": [
       { "symbol": "WIF",     "match": ["wif", "dogwifhat", "wifhat", "dogwif", "dog with hat"] },
-      { "symbol": "MOODENG", "match": ["moodeng", "mood", "mdeng"] }
+      { "symbol": "MOODENG", "match": ["moodeng", "mdeng", "mood eng", "moodeng hat"] }
     ]
   },
   {
