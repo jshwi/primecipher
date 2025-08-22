@@ -21,16 +21,21 @@ def _age_hours_ms(created_ms: Optional[int]) -> Optional[float]:
 
 class DexScreenerAdapter:
     def __init__(self, client: Optional[httpx.Client] = None):
+        # Give connects a short leash, reads a longer one (env-configurable)
         self.client = client or httpx.Client(
-            timeout=HTTP_TIMEOUT,
-            headers={"User-Agent": "narrative-heatmap/0.3"}
+            timeout=httpx.Timeout(connect=3.0, read=HTTP_TIMEOUT, write=HTTP_TIMEOUT, pool=HTTP_TIMEOUT),
+            headers={"User-Agent": "narrative-heatmap/0.4"}
         )
 
     def _search_pairs(self, query: str) -> List[Dict[str, Any]]:
-        r = self.client.get(DEX_SEARCH, params={"q": query})
-        r.raise_for_status()
-        data = r.json()
-        return data.get("pairs", []) or []
+        try:
+            r = self.client.get(DEX_SEARCH, params={"q": query})
+            r.raise_for_status()
+            data = r.json()
+            return data.get("pairs", []) or []
+        except (httpx.TimeoutException, httpx.HTTPError, ValueError):
+            # Timeout or bad response: treat as no results instead of crashing
+            return []
 
     def _filter_pairs(self, pairs: List[Dict[str, Any]], *, min_vol: float, min_liq: float, dex_ids: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
         allow = dex_ids or DEX_IDS
@@ -106,7 +111,7 @@ class DexScreenerAdapter:
         discovery: Optional[Dict[str, Any]] = None,
     ) -> List[Dict[str, Any]]:
         norm_parent = _norm_alnum_upper(parent_symbol)
-        # dedupe + keep order
+        # dedupe ordered terms
         terms = []
         seen_t = set()
         for t in ([parent_symbol] + (match_terms or [])):
@@ -142,7 +147,6 @@ class DexScreenerAdapter:
                 addr = base.get("address") or p.get("pairAddress") or ""
                 if not addr or addr in seen_addr:
                     continue
-                # exclude parent itself
                 if _norm_alnum_upper(sym_raw) == norm_parent:
                     continue
 
