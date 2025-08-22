@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict, List, Any, Optional, Set
+from typing import Dict, List, Any, Optional, Set, Tuple
 from datetime import datetime, timezone
 import httpx
 from ..config import (
@@ -9,10 +9,8 @@ from ..config import (
 )
 
 DEX_SEARCH = "https://api.dexscreener.com/latest/dex/search"
-STOP_SYMS = {"WITH"}  # obvious false-positive for WIF
 
-def _norm_symbol(s: Optional[str]) -> str:
-    # Remove non-alphanumerics and uppercase so "$WIF" == "WIF"
+def _norm_alnum_upper(s: Optional[str]) -> str:
     return "".join(ch for ch in (s or "") if ch.isalnum()).upper()
 
 def _age_hours_ms(created_ms: Optional[int]) -> Optional[float]:
@@ -49,12 +47,13 @@ class DexScreenerAdapter:
             out.append(p)
         return out
 
+    # ---------- Parent metrics ----------
     def _prefer_parent_pair(self, pairs: List[Dict[str, Any]], symbol: str) -> Optional[Dict[str, Any]]:
         flt = self._filter_pairs(pairs, min_vol=VOL_MIN_USD, min_liq=1.0)
         if not flt:
             return None
-        norm_target = _norm_symbol(symbol)
-        exact = [p for p in flt if _norm_symbol((p.get("baseToken") or {}).get("symbol")) == norm_target]
+        norm_target = _norm_alnum_upper(symbol)
+        exact = [p for p in flt if _norm_alnum_upper((p.get("baseToken") or {}).get("symbol")) == norm_target]
         pool = exact or flt
         return max(pool, key=lambda p: float((p.get("volume") or {}).get("h24") or 0.0))
 
@@ -71,9 +70,28 @@ class DexScreenerAdapter:
             out[sym] = {"volume24hUsd": vol, "liquidityUsd": liq}
         return out
 
+    # ---------- Child discovery ----------
+    def _match_terms_debug(self, symbol: str, name: str, terms: List[str]) -> Tuple[bool, Optional[Dict[str, str]]]:
+        """
+        Symbol-first matching; allow name matches only for longer terms (>=5 chars).
+        Returns (matched?, debug_info).
+        """
+        sym_l = (symbol or "").lower()
+        name_l = (name or "").lower()
+
+        for t in terms:
+            t_l = t.lower()
+            if t_l in sym_l:
+                return True, {"field": "symbol", "term": t}
+        for t in terms:
+            if len(t) >= 5 and t.lower() in name_l:
+                return True, {"field": "name", "term": t}
+        return False, None
+
     def fetch_children_for_parent(self, parent_symbol: str, match_terms: List[str], limit: int = 50) -> List[Dict[str, Any]]:
-        norm_parent = _norm_symbol(parent_symbol)
-        terms = list({t.lower() for t in ([parent_symbol] + (match_terms or []))})
+        norm_parent = _norm_alnum_upper(parent_symbol)
+        # dedupe terms, keep originals for debug
+        terms = list({t for t in ([parent_symbol] + (match_terms or [])) if t})
         seen: Set[str] = set()
         children: List[Dict[str, Any]] = []
 
@@ -91,23 +109,15 @@ class DexScreenerAdapter:
                 if not addr or addr in seen:
                     continue
 
-                # exclude the parent itself (handles "$WIF" vs "WIF")
-                if _norm_symbol(sym_raw) == norm_parent:
-                    continue
-                if sym_raw.upper() in STOP_SYMS:
-                    # only allow if it's a strong symbol match anyway (which it won't be)
+                # Exclude the parent itself (handles "$WIF" vs "WIF")
+                if _norm_alnum_upper(sym_raw) == norm_parent:
                     continue
 
-                sym = sym_raw.lower()
-                name = name_raw.lower()
-
-                # --- NEW: symbol-first match; only allow name matches for longer terms (>=5 chars)
-                sym_hit = any(t in sym for t in terms)
-                name_hit = any(len(t) >= 5 and t in name for t in terms)
-                if not (sym_hit or name_hit):
+                matched, dbg = self._match_terms_debug(sym_raw, name_raw, terms)
+                if not matched:
                     continue
-                # ---------------------------------------------
 
+                seen.add(addr)
                 children.append({
                     "symbol": sym_raw,
                     "name": name_raw,
@@ -116,12 +126,14 @@ class DexScreenerAdapter:
                     "pairCreatedAt": p.get("pairCreatedAt"),
                     "ageHours": _age_hours_ms(p.get("pairCreatedAt")),
                     "holders": None,
+                    "matched": {**(dbg or {}), "dexId": p.get("dexId"), "pairAddress": p.get("pairAddress")},
                 })
-                seen.add(addr)
 
-        children.sort(key=lambda x: x["volume24hUsd"], reverse=True)
+        # Order: recent first (within window), then by 24h volume
         recent = [c for c in children if (c.get("ageHours") or 1e9) <= CHILD_MAX_AGE_HOURS]
         rest = [c for c in children if c not in recent]
+        recent.sort(key=lambda x: x["volume24hUsd"], reverse=True)
+        rest.sort(key=lambda x: x["volume24hUsd"], reverse=True)
         return (recent + rest)[:limit]
 
 def make_onchain_adapter(name: str = "dexscreener") -> DexScreenerAdapter:
