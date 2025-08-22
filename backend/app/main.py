@@ -14,7 +14,7 @@ DATA = Path(DATA_DIR)
 SEEDS = Path(SEED_DIR)
 DATA.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="Narrative Heatmap API", version="0.2.1")
+app = FastAPI(title="Narrative Heatmap API", version="0.2.2")
 
 def _read_json(path: Path):
     if not path.exists():
@@ -28,38 +28,32 @@ def _write_json(path: Path, payload):
 def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
+def _parent_objs(seed_entry) -> list[dict]:
+    return [p for p in (seed_entry.get("parents") or []) if isinstance(p, dict) and p.get("symbol")]
+
 def _parent_symbols(seed_entry) -> list[str]:
-    """Accept parents as strings or dicts; return list of symbols."""
-    symbols: list[str] = []
-    for p in seed_entry.get("parents", []) or []:
-        if isinstance(p, str):
-            symbols.append(p)
-        elif isinstance(p, dict):
-            sym = p.get("symbol") or p.get("sym") or p.get("token")
-            if sym:
-                symbols.append(sym)
-    # dedupe, preserve order
-    seen = set()
-    out = []
-    for s in symbols:
+    seen = set(); out = []
+    for p in _parent_objs(seed_entry):
+        s = p["symbol"]
         if s not in seen:
-            seen.add(s)
-            out.append(s)
+            seen.add(s); out.append(s)
     return out
 
 def build_live_narratives(window: str = "24h"):
     seeds = load_narrative_seeds()
     adapter = make_onchain_adapter(PROVIDER)
 
-    # collect all parent symbols across seeds
-    all_parent_syms: list[str] = []
-    for s in seeds:
-        all_parent_syms.extend(_parent_symbols(s))
-    # dedupe, preserve order
+    # collect all parent objects across seeds (to use addresses)
+    all_parent_objs = []
     seen = set()
-    all_parent_syms = [s for s in all_parent_syms if not (s in seen or seen.add(s))]
+    for s in seeds:
+        for p in _parent_objs(s):
+            key = p["symbol"]
+            if key not in seen:
+                seen.add(key)
+                all_parent_objs.append(p)
 
-    metrics = adapter.fetch_token_metrics(all_parent_syms) if all_parent_syms else {}
+    metrics = adapter.fetch_parent_metrics(all_parent_objs) if all_parent_objs else {}
 
     narratives = []
     for s in seeds:
@@ -68,14 +62,13 @@ def build_live_narratives(window: str = "24h"):
         sum_liq = sum((metrics.get(p, {}).get("liquidityUsd") or 0.0) for p in parents_syms)
         n = {
             "narrative": s["narrative"],
-            "heatScore": 0.0,  # will be filled by compute_heat
+            "heatScore": 0.0,
             "window": window,
             "signals": {
                 "onchainVolumeUsd": float(sum_vol),
                 "onchainLiquidityUsd": float(sum_liq),
                 "ctMentions": 0
             },
-            # expose only symbols here to keep payload compact
             "parents": parents_syms,
             "lastUpdated": _now_iso(),
         }
@@ -89,7 +82,8 @@ def build_live_parents(narrative: str, window: str = "24h"):
     if not seed:
         return []
     adapter = make_onchain_adapter(PROVIDER)
-    parents_objs = seed.get("parents", []) or []  # pass full dicts (symbol + match)
+    parents_objs = _parent_objs(seed)
+    # nameMatchAllowed handled in parents.py
     rows = build_parent_ecosystems(narrative, parents_objs, adapter)
     for r in rows:
         r["lastUpdated"] = _now_iso()
@@ -103,28 +97,20 @@ def healthz():
 def refresh(window: str = Query("24h")):
     narratives = build_live_narratives(window=window)
     _write_json(DATA / f"narratives-{window}.json", narratives)
-
     for n in narratives:
         rows = build_live_parents(n["narrative"], window=window)
         _write_json(DATA / f"parents-{n['narrative']}-{window}.json", rows)
-
     return {"ok": True, "updated": [p["narrative"] for p in narratives]}
 
 @app.get("/narratives")
 def get_narratives(window: str = "24h", source: str = "file"):
     if source == "live":
-        narratives = build_live_narratives(window=window)
-        return JSONResponse(narratives)
-    fname = f"narratives-{window}.json"
-    payload = _read_json(DATA / fname)
-    return JSONResponse(payload)
+        return JSONResponse(build_live_narratives(window=window))
+    return JSONResponse(_read_json(DATA / f"narratives-{window}.json"))
 
 @app.get("/parents/{narrative}")
 def get_parents(narrative: str, window: str = "24h", source: str = "file"):
     if source == "live":
-        rows = build_live_parents(narrative, window=window)
-        return JSONResponse(rows)
-    fname = f"parents-{narrative}-{window}.json"
-    payload = _read_json(DATA / fname)
-    return JSONResponse(payload)
+        return JSONResponse(build_live_parents(narrative, window=window))
+    return JSONResponse(_read_json(DATA / f"parents-{narrative}-{window}.json"))
 
