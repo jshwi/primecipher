@@ -37,10 +37,7 @@ def _seed_parent_cfg(narrative: str, parent_sym: str) -> Dict[str, Any]:
     seed = _get_seed(narrative) or {}
     parents = seed.get("parents") or []
     upper = parent_sym.upper()
-    return next(
-        (p for p in parents if (p.get("symbol") or "").upper() == upper),
-        {}
-    )
+    return next((p for p in parents if (p.get("symbol") or "").upper() == upper), {})  # type: ignore[return-value]
 
 
 def _child_pair(child: Dict[str, Any]) -> Optional[str]:
@@ -65,7 +62,7 @@ def _window_key(hold: str) -> str:
 async def _fetch_pair_change(
     client: httpx.AsyncClient, pair_address: str, window_key: str
 ) -> Optional[float]:
-    # Dexscreener returns percent changes; we convert to decimal (e.g. 7.0 -> 0.07)
+    # Dexscreener returns percent changes; convert to decimal (e.g. 7.0 -> 0.07)
     url = f"https://api.dexscreener.com/latest/dex/pairs/solana/{pair_address}"
     try:
         r = await client.get(url)
@@ -81,34 +78,27 @@ async def _fetch_pair_change(
 @router.get("/backtest")
 async def backtest(
     narrative: str = Query(..., description="Narrative key, e.g. 'dogs'"),
-    parent: Optional[str] = Query(
-        None, description="Limit to a single parent symbol (e.g., 'WIF')."
-    ),
-    hold: str = Query(
-        "h6", description="Hold horizon: m5|h1|h6|h24 (uses Dexscreener priceChange fields)"
-    ),
+    parent: Optional[str] = Query(None, description="Limit to a single parent symbol (e.g., 'WIF')."),
+    hold: str = Query("h6", description="Hold horizon: m5|h1|h6|h24 (Dexscreener priceChange)"),
     liqMinUsd: float = Query(25_000.0, ge=0.0, description="Min liquidity USD filter"),
     vol24hMinUsd: float = Query(0.0, ge=0.0, description="Min 24h volume USD filter"),
-    maxAgeHours: float = Query(14 * 24.0, ge=0.0, description="Max token age (hours)"),
+    maxAgeHours: Optional[float] = Query(  # ← now optional (no age filter by default)
+        None, ge=0.0, description="Max token age (hours). Omit to ignore age."
+    ),
     limitPerParent: int = Query(200, ge=1, le=500),
-    allowNameMatch: Optional[bool] = Query(
-        None, description="Override seed nameMatchAllowed"
-    ),
-    applyBlocklist: bool = Query(
-        True, description="Apply seed blocklist to discovered children"
-    ),
+    allowNameMatch: Optional[bool] = Query(None, description="Override seed nameMatchAllowed"),
+    applyBlocklist: bool = Query(True, description="Apply seed blocklist to discovered children"),
 ):
     """
     Lightweight 'hold-only' backtest:
       - Parents come from seeds (or a single `parent` override).
-      - For each parent's children, filter by liq/vol/age (and optional blocklist).
+      - For each parent's children, filter by liq/vol/age (age optional).
       - For each child's pair, read Dexscreener priceChange[hold].
       - Summarize decimal returns.
 
-    NOTE: This is not a full historical backtest; it's a quick signal check.
+    NOTE: This is a quick signal check; not a historical walk-forward test.
     """
     # Resolve parents
-    parents: List[str]
     if parent:
         parents = [parent.upper()]
     else:
@@ -147,7 +137,7 @@ async def backtest(
             if c.get("volume24hUsd", 0.0) < vol24hMinUsd:
                 continue
             age = c.get("ageHours")
-            if age is not None and age > maxAgeHours:
+            if (maxAgeHours is not None) and (age is not None) and (age > maxAgeHours):
                 continue
             if not _child_pair(c):
                 continue
@@ -155,7 +145,7 @@ async def backtest(
             discovered.append(c)
 
     # Concurrent fetch of Dexscreener priceChange
-    async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "narrative-heatmap/0.6"}) as client:
+    async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "narrative-heatmap/0.7"}) as client:
         sem = asyncio.Semaphore(16)
 
         async def task(child: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[float]]:
