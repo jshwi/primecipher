@@ -48,20 +48,42 @@ class DexScreenerAdapter:
         return out
 
     # ---------- Parent metrics ----------
-    def _prefer_parent_pair(self, pairs: List[Dict[str, Any]], symbol: str) -> Optional[Dict[str, Any]]:
+    def _prefer_parent_pair(self, pairs: List[Dict[str, Any]], symbol: str, address: Optional[str]) -> Optional[Dict[str, Any]]:
         flt = self._filter_pairs(pairs, min_vol=VOL_MIN_USD, min_liq=1.0)
         if not flt:
             return None
+        # 1) prefer exact base address match when provided
+        if address:
+            addr_l = address.lower()
+            addr_hits = [p for p in flt if ((p.get("baseToken") or {}).get("address","").lower() == addr_l)]
+            if addr_hits:
+                return max(addr_hits, key=lambda p: float((p.get("volume") or {}).get("h24") or 0.0))
+        # 2) else prefer exact base symbol
         norm_target = _norm_alnum_upper(symbol)
         exact = [p for p in flt if _norm_alnum_upper((p.get("baseToken") or {}).get("symbol")) == norm_target]
         pool = exact or flt
+        # 3) rank by 24h volume
         return max(pool, key=lambda p: float((p.get("volume") or {}).get("h24") or 0.0))
 
-    def fetch_token_metrics(self, symbols: List[str]) -> Dict[str, Dict[str, float]]:
+    def fetch_parent_metrics(self, parents: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
+        """
+        parents: [{symbol, address?}, ...]
+        Returns {symbol: {volume24hUsd, liquidityUsd}}
+        """
         out: Dict[str, Dict[str, float]] = {}
-        for sym in symbols:
-            pairs = self._search_pairs(sym)
-            best = self._prefer_parent_pair(pairs, sym)
+        for p in parents:
+            sym = p.get("symbol")
+            addr = p.get("address")
+            # try address as query first (dexscreener supports address in search),
+            # fall back to symbol
+            queries = [q for q in [addr, sym] if q]
+            best = None
+            for q in queries:
+                pairs = self._search_pairs(q)
+                cand = self._prefer_parent_pair(pairs, symbol=sym or "", address=addr)
+                if cand:
+                    best = cand
+                    break
             if not best:
                 out[sym] = {"volume24hUsd": 0.0, "liquidityUsd": 0.0}
                 continue
@@ -107,6 +129,7 @@ class DexScreenerAdapter:
                 addr = base.get("address") or p.get("pairAddress") or ""
                 if not addr or addr in seen:
                     continue
+                # Exclude the parent itself (handles "$WIF" vs "WIF")
                 if _norm_alnum_upper(sym_raw) == norm_parent:
                     continue
 
@@ -134,7 +157,8 @@ class DexScreenerAdapter:
                         "pairAddress": p.get("pairAddress"),
                     },
                 })
-        # order recent then by volume
+
+        # Order: recent first, then by 24h volume
         recent = [c for c in children if (c.get("ageHours") or 1e9) <= CHILD_MAX_AGE_HOURS]
         rest = [c for c in children if c not in recent]
         recent.sort(key=lambda x: x["volume24hUsd"], reverse=True)
