@@ -12,6 +12,7 @@ from .parents import build_parent_ecosystems
 from .adapters.onchain import make_onchain_adapter
 from .debug import router as debug_router
 from .config import CORS_ALLOW_ORIGINS
+from . import backtest
 
 
 DATA = Path(DATA_DIR)
@@ -29,6 +30,8 @@ app.add_middleware(
     allow_headers=["*"],
     allow_credentials=False,
 )
+
+app.include_router(backtest.router)  # mount at /backtest
 
 def _read_json(path: Path):
     if not path.exists():
