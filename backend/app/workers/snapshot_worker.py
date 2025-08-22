@@ -20,7 +20,14 @@ DEX_LATEST_URL = "https://api.dexscreener.com/latest/dex/pairs/solana/{}"
 # Tunables (env)
 DISCOVERY_LIQ_MIN_USD = float(os.getenv("DISCOVERY_LIQ_MIN_USD", "50000"))
 DISCOVERY_VOL24H_MIN_USD = float(os.getenv("DISCOVERY_VOL24H_MIN_USD", "0"))
-DISCOVERY_MAX_AGE_HOURS = float(os.getenv("DISCOVERY_MAX_AGE_HOURS", ""))
+
+# Optional max-age filter: None when unset/blank/invalid
+_raw_age = (os.getenv("DISCOVERY_MAX_AGE_HOURS") or "").strip()
+try:
+    DISCOVERY_MAX_AGE_HOURS: Optional[float] = float(_raw_age) if _raw_age else None
+except ValueError:
+    DISCOVERY_MAX_AGE_HOURS = None
+
 MAX_IDLE_HOURS = float(os.getenv("SNAPSHOT_MAX_IDLE_HOURS", "72"))  # which tracked pairs to snapshot
 CONCURRENCY = int(os.getenv("SNAPSHOT_CONCURRENCY", "16"))
 
@@ -38,14 +45,10 @@ def _filtered(child: Dict[str, Any]) -> bool:
         return False
     if (child.get("volume24hUsd") or 0.0) < DISCOVERY_VOL24H_MIN_USD:
         return False
-    age = child.get("ageHours")
-    if os.getenv("DISCOVERY_MAX_AGE_HOURS"):
-        try:
-            max_age = float(os.getenv("DISCOVERY_MAX_AGE_HOURS"))
-            if age is not None and age > max_age:
-                return False
-        except Exception:
-            pass
+    if DISCOVERY_MAX_AGE_HOURS is not None:
+        age = child.get("ageHours")
+        if age is not None and age > DISCOVERY_MAX_AGE_HOURS:
+            return False
     return True
 
 
@@ -91,6 +94,7 @@ async def snapshot_once(parents: Optional[List[str]] = None, narrative: Optional
 
     async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "narrative-heatmap/0.8"}) as client:
         sem = asyncio.Semaphore(CONCURRENCY)
+
         async def task(pair_address: str) -> None:
             async with sem:
                 try:
