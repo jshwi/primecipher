@@ -51,35 +51,66 @@ function fmtUsd(n?: number) {
 function ParentRowItem({ r }: { r: ParentRow }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [resp, setResp] = useState<DebugResp | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const debugHref = useMemo(() => {
-    return `${API_BASE}/debug/children/${encodeURIComponent(r.parent)}?narrative=${encodeURIComponent(
-      r.narrative
-    )}&limit=100&applyBlocklist=true`;
-  }, [r.parent, r.narrative]);
+  // pagination state
+  const [items, setItems] = useState<DebugChild[]>([]);
+  const [counts, setCounts] = useState<DebugResp['counts'] | null>(null);
+  const [offset, setOffset] = useState(0);
+  const limit = 50; // page size
 
-  const onToggle = useCallback(async () => {
-    const next = !open;
-    setOpen(next);
-    if (next && !resp && !loading) {
+  const hasMore = useMemo(() => {
+    const total = counts?.total ?? 0;
+    return items.length < total;
+  }, [items.length, counts?.total]);
+
+  const baseParams = useMemo(() => {
+    const p = new URLSearchParams();
+    p.set('narrative', r.narrative);
+    p.set('applyBlocklist', 'true');
+    p.set('limit', String(limit));
+    return p;
+  }, [r.narrative]);
+
+  const pageUrl = useCallback(
+    (ofs: number) => {
+      const p = new URLSearchParams(baseParams);
+      p.set('offset', String(ofs));
+      return `${API_BASE}/debug/children/${encodeURIComponent(r.parent)}?${p.toString()}`;
+    },
+    [r.parent, baseParams]
+  );
+
+  const fetchPage = useCallback(
+    async (ofs: number) => {
+      setLoading(true);
+      setError(null);
       try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(debugHref);
+        const res = await fetch(pageUrl(ofs));
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: DebugResp = await res.json();
-        setResp(json);
+
+        // append or set
+        setItems((prev) => (ofs === 0 ? json.children ?? [] : [...prev, ...(json.children ?? [])]));
+        setCounts(json.counts ?? null);
+        setOffset(ofs + (json.counts?.returned ?? json.children?.length ?? 0));
       } catch (e: any) {
         setError('Failed to load children');
       } finally {
         setLoading(false);
       }
-    }
-  }, [open, resp, loading, debugHref]);
+    },
+    [pageUrl]
+  );
 
-  const children = resp?.children ?? [];
+  const onToggle = useCallback(async () => {
+    const next = !open;
+    setOpen(next);
+    if (next && items.length === 0 && !loading) {
+      // first page
+      await fetchPage(0);
+    }
+  }, [open, items.length, loading, fetchPage]);
 
   return (
     <>
@@ -94,11 +125,11 @@ function ParentRowItem({ r }: { r: ParentRow }) {
         <div style={{ fontWeight: 600 }}>{r.parent}</div>
 
         <div style={{ fontSize: 13, opacity: 0.9 }}>
-          <div>{r.childrenCount} ({r.childrenNew24h})</div>
+          <div>
+            {r.childrenCount} ({r.childrenNew24h})
+          </div>
           <a
-            href={`${API_BASE}/debug/children/${encodeURIComponent(r.parent)}?narrative=${encodeURIComponent(
-              r.narrative
-            )}&limit=100&applyBlocklist=true`}
+            href={`${API_BASE}/debug/children/${encodeURIComponent(r.parent)}?${baseParams.toString()}`}
             target="_blank"
             rel="noreferrer"
             style={{ fontSize: 12, opacity: 0.9, color: '#68a0ff' }}
@@ -119,8 +150,7 @@ function ParentRowItem({ r }: { r: ParentRow }) {
             <>
               <div style={{ opacity: 0.5 }}>·</div>
               <div>
-                top child:{' '}
-                <strong>{r.topChild.symbol || '—'}</strong>{' '}
+                top child: <strong>{r.topChild.symbol || '—'}</strong>{' '}
                 {typeof r.topChild.liq === 'number' && <>· liq {fmtUsd(r.topChild.liq)}</>}
                 {typeof r.topChild.vol24h === 'number' && <> · vol24h {fmtUsd(r.topChild.vol24h)}</>}
                 {typeof r.topChild.ageHours === 'number' && <> · age {r.topChild.ageHours.toFixed(1)}h</>}
@@ -138,9 +168,7 @@ function ParentRowItem({ r }: { r: ParentRow }) {
                     </a>
                   </>
                 )}
-                {r.topChild.matchedTerms?.length ? (
-                  <span style={{ opacity: 0.6 }}> (match: {r.topChild.matchedTerms.join(' & ')})</span>
-                ) : null}
+                {r.topChild.matchedTerms?.length ? <span style={{ opacity: 0.6 }}> (match: {r.topChild.matchedTerms.join(' & ')})</span> : null}
               </div>
             </>
           )}
@@ -163,78 +191,99 @@ function ParentRowItem({ r }: { r: ParentRow }) {
 
       {open && (
         <div style={{ borderTop: '1px dashed #222', background: '#0c0c0c', padding: '10px 12px' }}>
-          {loading && <div style={{ fontSize: 13, opacity: 0.8 }}>Loading children…</div>}
+          {loading && items.length === 0 && <div style={{ fontSize: 13, opacity: 0.8 }}>Loading children…</div>}
           {error && <div style={{ fontSize: 13, color: '#f66' }}>{error}</div>}
 
-          {!loading && !error && (
+          {!error && (
             <>
               {/* Counts + filters summary */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, opacity: 0.8, marginBottom: 8 }}>
-                <div>returned: {resp?.counts?.returned ?? children.length}</div>
-                {resp?.counts?.total != null ? <div>total: {resp.counts.total}</div> : null}
-                {resp?.counts?.offset != null ? <div>offset: {resp.counts.offset}</div> : null}
-                {resp?.counts?.limit != null ? <div>limit: {resp.counts.limit}</div> : null}
-                {resp?.resolved?.terms?.length ? <div>terms: {resp?.resolved?.terms?.join(' + ')}</div> : null}
-                {resp?.resolved?.discovery?.dexIds?.length ? <div>DEX: {resp?.resolved?.discovery?.dexIds?.join(', ')}</div> : null}
-                {resp?.resolved?.discovery?.volMinUsd != null ? <div>vol≥{resp?.resolved?.discovery?.volMinUsd}</div> : null}
-                {resp?.resolved?.discovery?.liqMinUsd != null ? <div>liq≥{resp?.resolved?.discovery?.liqMinUsd}</div> : null}
+                <div>returned: {counts?.returned ?? items.length}</div>
+                {counts?.total != null ? <div>total: {counts.total}</div> : null}
+                {counts?.offset != null ? <div>offset: {counts.offset}</div> : null}
+                {counts?.limit != null ? <div>limit: {counts.limit}</div> : null}
               </div>
 
               {/* Neutral empty state (not an error) */}
-              {children.length === 0 && <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>No matches.</div>}
+              {items.length === 0 && !loading && <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>No matches.</div>}
 
-              {children.length > 0 && (
-                <div style={{ border: '1px solid #222', borderRadius: 6, overflow: 'hidden' }}>
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '140px 120px 120px 100px 1fr',
-                      padding: '8px 10px',
-                      background: '#111',
-                      fontSize: 12,
-                      opacity: 0.85,
-                    }}
-                  >
-                    <div>Symbol</div>
-                    <div>Liq</div>
-                    <div>Vol24h</div>
-                    <div>Age</div>
-                    <div>Match</div>
+              {items.length > 0 && (
+                <>
+                  <div style={{ border: '1px solid #222', borderRadius: 6, overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '140px 120px 120px 100px 1fr',
+                        padding: '8px 10px',
+                        background: '#111',
+                        fontSize: 12,
+                        opacity: 0.85,
+                      }}
+                    >
+                      <div>Symbol</div>
+                      <div>Liq</div>
+                      <div>Vol24h</div>
+                      <div>Age</div>
+                      <div>Match</div>
+                    </div>
+                    {items.map((c, i) => {
+                      const link = c.matched?.pairAddress ? `https://dexscreener.com/solana/${c.matched.pairAddress}` : undefined;
+                      const age = c.ageHours != null ? `${c.ageHours.toFixed(1)}h` : '—';
+                      const matchTerms = c.matched?.terms?.length ? c.matched.terms.join(' & ') : c.matched?.term || '—';
+                      return (
+                        <div
+                          key={`${c.symbol || '—'}-${i}`}
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '140px 120px 120px 100px 1fr',
+                            padding: '8px 10px',
+                            borderTop: '1px solid #191919',
+                            fontSize: 13,
+                          }}
+                        >
+                          <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
+                            {c.symbol || '—'}
+                          </div>
+                          <div>{fmtUsd(c.liquidityUsd)}</div>
+                          <div>{fmtUsd(c.volume24hUsd)}</div>
+                          <div>{age}</div>
+                          <div>
+                            {link ? (
+                              <a href={link} target="_blank" rel="noreferrer" style={{ color: '#68a0ff' }}>
+                                {matchTerms}
+                              </a>
+                            ) : (
+                              matchTerms
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                  {children.map((c, i) => {
-                    const link = c.matched?.pairAddress ? `https://dexscreener.com/solana/${c.matched.pairAddress}` : undefined;
-                    const age = c.ageHours != null ? `${c.ageHours.toFixed(1)}h` : '—';
-                    const matchTerms = c.matched?.terms?.length ? c.matched.terms.join(' & ') : c.matched?.term || '—';
-                    return (
-                      <div
-                        key={`${c.symbol || '—'}-${i}`}
+
+                  {/* Load more */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+                    {hasMore ? (
+                      <button
+                        onClick={() => fetchPage(offset)}
+                        disabled={loading}
                         style={{
-                          display: 'grid',
-                          gridTemplateColumns: '140px 120px 120px 100px 1fr',
-                          padding: '8px 10px',
-                          borderTop: '1px solid #191919',
-                          fontSize: 13,
+                          padding: '6px 10px',
+                          border: '1px solid #333',
+                          borderRadius: 6,
+                          background: '#0f0f0f',
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          opacity: loading ? 0.6 : 1,
                         }}
                       >
-                        <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' }}>
-                          {c.symbol || '—'}
-                        </div>
-                        <div>{fmtUsd(c.liquidityUsd)}</div>
-                        <div>{fmtUsd(c.volume24hUsd)}</div>
-                        <div>{age}</div>
-                        <div>
-                          {link ? (
-                            <a href={link} target="_blank" rel="noreferrer" style={{ color: '#68a0ff' }}>
-                              {matchTerms}
-                            </a>
-                          ) : (
-                            matchTerms
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        {loading ? 'Loading…' : 'Load more'}
+                      </button>
+                    ) : (
+                      <div style={{ fontSize: 12, opacity: 0.6 }}>End of results</div>
+                    )}
+                  </div>
+                </>
               )}
             </>
           )}
