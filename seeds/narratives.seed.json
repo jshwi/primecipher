@@ -3,16 +3,17 @@
     "narrative": "dogs",
     "keywords": ["wif", "dog", "moodeng"],
     "parents": [
-      { "symbol": "WIF", "match": ["wif", "dogwifhat", "wifhat", "dogwif", "dog with hat"], "block": ["WITH", "SANTA"] },
-      { "symbol": "MOODENG", "match": ["moodeng", "mdeng", "mood eng", "moodeng hat", "moodengdog"] }
+      { "symbol": "WIF", "match": ["wif","dogwifhat","wifhat","dogwif","dog with hat"], "block": ["WITH","SANTA"], "nameMatchAllowed": false },
+      { "symbol": "MOODENG", "match": ["moodeng","mdeng","mood eng","moodeng hat","moodengdog"] }
     ]
   },
   {
     "narrative": "ai",
-    "keywords": ["ai", "gpt", "tao", "fet"],
+    "keywords": ["ai","gpt","tao","fet"],
     "parents": [
-      { "symbol": "FET", "match": ["fet", "fetch.ai", "fetchai"] },
-      { "symbol": "TAO", "match": ["tao", "bittensor"] }
+      { "symbol": "FET", "match": ["fet","fetch.ai","fetchai"] },
+      { "symbol": "TAO", "match": ["tao","bittensor"] }
     ]
   }
 ]
+
