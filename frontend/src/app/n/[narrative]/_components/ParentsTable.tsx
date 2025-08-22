@@ -769,7 +769,7 @@ function ParentRowItem({ r }: { r: ParentRow }) {
                         disabled={loading}
                         style={{
                           padding: '6px 10px',
-                          border: '1px solid '#333',
+                          border: '1px solid #333',
                           borderRadius: 6,
                           background: '#0f0f0f',
                           cursor: 'pointer',
