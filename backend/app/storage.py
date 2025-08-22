@@ -5,9 +5,15 @@ import os
 import sqlite3
 import time
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
-SNAPSHOT_DB_PATH = os.getenv("SNAPSHOT_DB_PATH", "./data/snapshots.db")
+# Anchor DB to the backend folder by default (stable regardless of CWD)
+def _default_db_path() -> str:
+    here = Path(__file__).resolve()
+    backend_dir = here.parent.parent  # .../backend
+    return str(backend_dir / "data" / "snapshots.db")
+
+SNAPSHOT_DB_PATH = os.getenv("SNAPSHOT_DB_PATH", _default_db_path())
 Path(SNAPSHOT_DB_PATH).parent.mkdir(parents=True, exist_ok=True)
 
 
@@ -49,7 +55,6 @@ def upsert_tracked_pair(pair_address: str, parent: str, narrative: str, symbol: 
     now = int(time.time())
     conn = connect()
     cur = conn.cursor()
-    # REPLACE keeps it simple for MVP; we preserve first_seen if exists
     cur.execute("SELECT first_seen FROM tracked_pairs WHERE pair_address = ?", (pair_address,))
     row = cur.fetchone()
     first_seen = row["first_seen"] if row else now
@@ -65,7 +70,7 @@ def upsert_tracked_pair(pair_address: str, parent: str, narrative: str, symbol: 
     conn.commit()
 
 
-def recent_pairs(max_idle_hours: float = 72.0, parents: Optional[Iterable[str]] = None, narrative: Optional[str] = None) -> list[str]:
+def recent_pairs(max_idle_hours: float = 72.0, parents: Optional[list[str]] = None, narrative: Optional[str] = None) -> list[str]:
     conn = connect()
     cur = conn.cursor()
     cutoff = int(time.time() - max_idle_hours * 3600)
