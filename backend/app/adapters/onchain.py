@@ -88,9 +88,8 @@ class DexScreenerAdapter:
                 return True, {"field": "name", "term": t}
         return False, None
 
-    def fetch_children_for_parent(self, parent_symbol: str, match_terms: List[str], limit: int = 50) -> List[Dict[str, Any]]:
+    def fetch_children_for_parent(self, parent_symbol: str, match_terms: List[str], allow_name_match: bool = True, limit: int = 50) -> List[Dict[str, Any]]:
         norm_parent = _norm_alnum_upper(parent_symbol)
-        # dedupe terms, keep originals for debug
         terms = list({t for t in ([parent_symbol] + (match_terms or [])) if t})
         seen: Set[str] = set()
         children: List[Dict[str, Any]] = []
@@ -108,13 +107,15 @@ class DexScreenerAdapter:
                 addr = base.get("address") or p.get("pairAddress") or ""
                 if not addr or addr in seen:
                     continue
-
-                # Exclude the parent itself (handles "$WIF" vs "WIF")
                 if _norm_alnum_upper(sym_raw) == norm_parent:
                     continue
 
-                matched, dbg = self._match_terms_debug(sym_raw, name_raw, terms)
-                if not matched:
+                # symbol-first; name allowed only if flag is true and term is long
+                sym = sym_raw.lower()
+                name = name_raw.lower()
+                sym_hit = any(t.lower() in sym for t in terms)
+                name_hit = allow_name_match and any(len(t) >= 5 and t.lower() in name for t in terms)
+                if not (sym_hit or name_hit):
                     continue
 
                 seen.add(addr)
@@ -126,10 +127,14 @@ class DexScreenerAdapter:
                     "pairCreatedAt": p.get("pairCreatedAt"),
                     "ageHours": _age_hours_ms(p.get("pairCreatedAt")),
                     "holders": None,
-                    "matched": {**(dbg or {}), "dexId": p.get("dexId"), "pairAddress": p.get("pairAddress")},
+                    "matched": {
+                        "field": "symbol" if sym_hit else "name",
+                        "term": next((t for t in terms if (t.lower() in sym) or (allow_name_match and len(t) >= 5 and t.lower() in name)), None),
+                        "dexId": p.get("dexId"),
+                        "pairAddress": p.get("pairAddress"),
+                    },
                 })
-
-        # Order: recent first (within window), then by 24h volume
+        # order recent then by volume
         recent = [c for c in children if (c.get("ageHours") or 1e9) <= CHILD_MAX_AGE_HOURS]
         rest = [c for c in children if c not in recent]
         recent.sort(key=lambda x: x["volume24hUsd"], reverse=True)
