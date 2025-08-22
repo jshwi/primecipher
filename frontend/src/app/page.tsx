@@ -1,85 +1,86 @@
 // frontend/src/app/page.tsx
 import Link from 'next/link';
-import LiveToolbar from './_components/LiveToolbar';
-import { fetchJSON } from '@/lib/api';
 
-export const dynamic = 'force-dynamic';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
+export const revalidate = 0; // always fresh during dev
 
-type NarrativeRow = {
-  narrative: string;
-  heatScore: number;
-  window: string;
-  signals: { onchainVolumeUsd: number; onchainLiquidityUsd: number; ctMentions: number };
-  parents: string[];
-  lastUpdated?: string;
-};
+type Narr = { key: string; parents: string[]; num_parents: number };
+type Resp = { narratives: Narr[] };
 
-export default async function Page({ searchParams }: { searchParams?: { [key: string]: string | string[] | undefined } }) {
-  const source = typeof searchParams?.source === 'string' ? (searchParams!.source as string) : '';
-  const isLive = source.toLowerCase() === 'live';
-  const query = `/narratives?window=24h${isLive ? '&source=live' : ''}`;
-
-  let data: NarrativeRow[] = [];
+export default async function Home() {
+  let items: Narr[] = [];
   try {
-    data = await fetchJSON(query);
+    const res = await fetch(`${API_BASE}/narratives`, { cache: 'no-store' });
+    if (res.ok) {
+      const data: unknown = await res.json();
+      // Accept either { narratives: [...] } or a bare array (defensive)
+      if (Array.isArray(data)) {
+        items = data as Narr[];
+      } else if (data && typeof data === 'object' && Array.isArray((data as Resp).narratives)) {
+        items = (data as Resp).narratives;
+      }
+    }
   } catch {
-    data = [];
+    // best-effort: leave items empty
   }
 
   return (
-    <main style={{ padding: 24, fontFamily: 'ui-sans-serif, system-ui' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-        <h1 style={{ fontSize: 28, marginBottom: 0 }}>Narratives</h1>
-        <span style={{ fontSize: 12, opacity: 0.7 }}>Window: 24h</span>
-        <span style={{ marginLeft: 'auto' }}>
-          <LiveToolbar windowParam="24h" />
-        </span>
+    <div style={{ maxWidth: 960, margin: '24px auto', padding: '0 16px' }}>
+      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>Narratives</h1>
+      <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 16 }}>
+        Pick a narrative to open its heatmap and backtests.
       </div>
 
-      <div style={{ marginTop: 16, border: '1px solid #333', borderRadius: 8, overflow: 'hidden' }}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: '160px 100px 220px 1fr',
-            padding: '10px 12px',
-            background: '#111',
-            fontSize: 12,
-            opacity: 0.85,
-          }}
-        >
-          <div>Narrative</div>
-          <div>Heat</div>
-          <div>On-chain (vol / liq)</div>
-          <div>Parents</div>
+      {items.length === 0 && (
+        <div style={{ border: '1px solid #222', borderRadius: 8, padding: 16, background: '#0f0f0f' }}>
+          No narratives found. Make sure the backend is running and seeds are loaded.
         </div>
+      )}
 
-        {data.length === 0 && (
-          <div style={{ padding: 16, fontSize: 14, opacity: 0.7 }}>No narratives yet. Try “Refresh”.</div>
-        )}
-
-        {data.map((n) => (
-          <div
-            key={n.narrative}
-            style={{ display: 'grid', gridTemplateColumns: '160px 100px 220px 1fr', padding: '12px', borderTop: '1px solid #222' }}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+          gap: 12,
+        }}
+      >
+        {items.map((n) => (
+          <Link
+            key={n.key}
+            href={`/n/${encodeURIComponent(n.key)}`}
+            style={{
+              border: '1px solid #222',
+              borderRadius: 10,
+              background: '#0f0f0f',
+              padding: 14,
+              textDecoration: 'none',
+              color: 'white',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+            }}
           >
-            <div>
-              <Link href={`/n/${n.narrative}${isLive ? '?source=live' : ''}`} style={{ textDecoration: 'underline' }}>
-                {n.narrative}
-              </Link>
-              {n.lastUpdated && <div style={{ fontSize: 11, opacity: 0.6 }}>updated {n.lastUpdated}</div>}
+            <div style={{ fontWeight: 700, fontSize: 16, textTransform: 'lowercase' }}>{n.key}</div>
+            <div style={{ fontSize: 13, opacity: 0.8 }}>
+              {n.num_parents} parent{n.num_parents === 1 ? '' : 's'}
             </div>
-            <div>{n.heatScore.toFixed(1)}</div>
-            <div>
-              ${Math.round(n.signals.onchainVolumeUsd).toLocaleString()} / $
-              {Math.round(n.signals.onchainLiquidityUsd).toLocaleString()}
-            </div>
-            <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {n.parents?.join(', ') || '—'}
-            </div>
-          </div>
+            {n.parents?.length > 0 && (
+              <div
+                style={{
+                  fontSize: 12,
+                  opacity: 0.7,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {n.parents.join(' · ')}
+              </div>
+            )}
+          </Link>
         ))}
       </div>
-    </main>
+    </div>
   );
 }
 
