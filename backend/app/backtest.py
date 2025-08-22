@@ -6,15 +6,44 @@ import statistics
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from .adapters.onchain import make_onchain_adapter
 from .config import PROVIDER
+from .seeds import load_narrative_seeds
 
 router = APIRouter(tags=["backtest"])
 
 
-def _child_has_pair(child: Dict[str, Any]) -> Optional[str]:
+def _get_seed(narrative: str) -> Optional[Dict[str, Any]]:
+    seeds = load_narrative_seeds()
+    return next((s for s in seeds if s.get("narrative") == narrative), None)
+
+
+def _seed_parents(narrative: str) -> List[str]:
+    seed = _get_seed(narrative)
+    if not seed:
+        return []
+    parents = seed.get("parents") or []
+    out: List[str] = []
+    for p in parents:
+        sym = (p.get("symbol") or "").strip()
+        if sym:
+            out.append(sym.upper())
+    return out
+
+
+def _seed_parent_cfg(narrative: str, parent_sym: str) -> Dict[str, Any]:
+    seed = _get_seed(narrative) or {}
+    parents = seed.get("parents") or []
+    upper = parent_sym.upper()
+    return next(
+        (p for p in parents if (p.get("symbol") or "").upper() == upper),
+        {}
+    )
+
+
+def _child_pair(child: Dict[str, Any]) -> Optional[str]:
     m = child.get("matched") or {}
     addr = m.get("pairAddress")
     if isinstance(addr, str) and addr.strip():
@@ -22,23 +51,21 @@ def _child_has_pair(child: Dict[str, Any]) -> Optional[str]:
     return None
 
 
-def _choose_window_key(hold: str) -> str:
-    # normalize to Dexscreener keys
-    hold = hold.lower()
-    if hold in ("m5", "5m"):
+def _window_key(hold: str) -> str:
+    h = hold.lower()
+    if h in ("m5", "5m"):
         return "m5"
-    if hold in ("h1", "1h"):
+    if h in ("h1", "1h"):
         return "h1"
-    if hold in ("h6", "6h"):
+    if h in ("h6", "6h"):
         return "h6"
-    return "h24"  # default
+    return "h24"
 
 
 async def _fetch_pair_change(
     client: httpx.AsyncClient, pair_address: str, window_key: str
 ) -> Optional[float]:
-    # Dexscreener latest pair endpoint shape:
-    # { "pairs": [ { "priceChange": { "m5": 1.2, "h1": -3.4, "h6": 5.6, "h24": 12.3 }, ... } ] }
+    # Dexscreener returns percent changes; we convert to decimal (e.g. 7.0 -> 0.07)
     url = f"https://api.dexscreener.com/latest/dex/pairs/solana/{pair_address}"
     try:
         r = await client.get(url)
@@ -46,10 +73,7 @@ async def _fetch_pair_change(
         data = r.json()
         pair = (data.get("pairs") or [None])[0] or {}
         change = (pair.get("priceChange") or {}).get(window_key)
-        if change is None:
-            return None
-        # Dexscreener returns % change; convert to decimal return (e.g., 5.0 -> 0.05)
-        return float(change) / 100.0
+        return None if change is None else float(change) / 100.0
     except Exception:
         return None
 
@@ -58,7 +82,7 @@ async def _fetch_pair_change(
 async def backtest(
     narrative: str = Query(..., description="Narrative key, e.g. 'dogs'"),
     parent: Optional[str] = Query(
-        None, description="Limit to a single parent symbol (e.g. 'WIF')."
+        None, description="Limit to a single parent symbol (e.g., 'WIF')."
     ),
     hold: str = Query(
         "h6", description="Hold horizon: m5|h1|h6|h24 (uses Dexscreener priceChange fields)"
@@ -68,43 +92,56 @@ async def backtest(
     maxAgeHours: float = Query(14 * 24.0, ge=0.0, description="Max token age (hours)"),
     limitPerParent: int = Query(200, ge=1, le=500),
     allowNameMatch: Optional[bool] = Query(
-        None, description="Override seed allowNameMatch if needed"
+        None, description="Override seed nameMatchAllowed"
+    ),
+    applyBlocklist: bool = Query(
+        True, description="Apply seed blocklist to discovered children"
     ),
 ):
     """
     Lightweight 'hold-only' backtest:
-    - Discover children for the narrative (optionally one parent).
-    - Filter by liq/vol/age.
-    - For each child's pair, read Dexscreener `priceChange[hold]`.
-    - Summarize returns (decimal) as if entered exactly `hold` ago and exited now.
+      - Parents come from seeds (or a single `parent` override).
+      - For each parent's children, filter by liq/vol/age (and optional blocklist).
+      - For each child's pair, read Dexscreener priceChange[hold].
+      - Summarize decimal returns.
 
-    NOTE: This is NOT a full historical backtest; it uses Dexscreener point-in-time deltas.
-    Next step is snapshotting OHLC over time for true walk-forward testing.
+    NOTE: This is not a full historical backtest; it's a quick signal check.
     """
-    adapter = make_onchain_adapter(PROVIDER)
-    window_key = _choose_window_key(hold)
-
-    # Choose parents to evaluate
+    # Resolve parents
     parents: List[str]
     if parent:
         parents = [parent.upper()]
     else:
-        # Reuse your "parents list" endpoint via adapter: ask for narrative parents
-        # We approximate by reading discovery with wide terms = narrative key itself.
-        # If your project already exposes parents for a narrative, replace this with that call.
-        parents = adapter.list_parents_for_narrative(narrative)  # type: ignore[attr-defined]
+        parents = _seed_parents(narrative)
+        if not parents:
+            raise HTTPException(status_code=400, detail=f"No parents found in seeds for narrative '{narrative}'.")
 
-    # Discover & filter children
+    adapter = make_onchain_adapter(PROVIDER)
+    window = _window_key(hold)
+
     discovered: List[Dict[str, Any]] = []
+
     for p in parents:
+        cfg = _seed_parent_cfg(narrative, p)
+        terms: List[str] = (cfg.get("match") or [p.lower()])
+        allow_name = allowNameMatch if allowNameMatch is not None else cfg.get("nameMatchAllowed", True)
+        discovery = cfg.get("discovery") or {}
+        block = set(cfg.get("block") or []) if applyBlocklist else set()
+
+        # Discover children for this parent (seed-driven)
         kids = adapter.fetch_children_for_parent(
             parent_symbol=p,
-            match_terms=[p.lower()],  # seed matching is applied inside adapter
-            allow_name_match=True if allowNameMatch is None else allowNameMatch,
+            match_terms=terms,
+            allow_name_match=allow_name,
             limit=limitPerParent,
-            discovery={},  # keep defaults; adjust if needed
+            discovery=discovery,
         )
+
+        # Filter + tag parent
         for c in kids:
+            sym_up = (c.get("symbol") or "").upper()
+            if sym_up in block:
+                continue
             if c.get("liquidityUsd", 0.0) < liqMinUsd:
                 continue
             if c.get("volume24hUsd", 0.0) < vol24hMinUsd:
@@ -112,35 +149,34 @@ async def backtest(
             age = c.get("ageHours")
             if age is not None and age > maxAgeHours:
                 continue
-            if not _child_has_pair(c):
+            if not _child_pair(c):
                 continue
             c["__parent"] = p
             discovered.append(c)
 
-    # Concurrently fetch per-pair price change
-    async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "narrative-heatmap/0.5"}) as client:
+    # Concurrent fetch of Dexscreener priceChange
+    async with httpx.AsyncClient(timeout=10.0, headers={"User-Agent": "narrative-heatmap/0.6"}) as client:
         sem = asyncio.Semaphore(16)
 
         async def task(child: Dict[str, Any]) -> Tuple[Dict[str, Any], Optional[float]]:
             async with sem:
-                pair = _child_has_pair(child)
-                change = await _fetch_pair_change(client, pair, window_key) if pair else None
-                return child, change
+                pair = _child_pair(child)
+                ret = await _fetch_pair_change(client, pair, window) if pair else None
+                return child, ret
 
         results = await asyncio.gather(*(task(c) for c in discovered))
 
     trades: List[Dict[str, Any]] = []
     rets: List[float] = []
     for child, ret in results:
-        pair = _child_has_pair(child)
         d: Dict[str, Any] = {
             "parent": child.get("__parent"),
             "symbol": child.get("symbol"),
-            "pairAddress": pair,
+            "pairAddress": _child_pair(child),
             "liq": child.get("liquidityUsd"),
             "vol24h": child.get("volume24hUsd"),
             "ageHours": child.get("ageHours"),
-            "return": ret,  # decimal (0.05 = +5%)
+            "return": ret,  # decimal (0.05 => +5%)
         }
         trades.append(d)
         if isinstance(ret, (int, float)):
@@ -148,7 +184,7 @@ async def backtest(
 
     n = len(rets)
     summary = {
-        "hold": window_key,
+        "hold": window,
         "n_trades": len(trades),
         "n_with_return": n,
         "winrate_gt0": (sum(1 for r in rets if r > 0) / n) if n else None,
@@ -162,12 +198,13 @@ async def backtest(
         "params": {
             "narrative": narrative,
             "parents": parents,
-            "hold": window_key,
+            "hold": window,
             "liqMinUsd": liqMinUsd,
             "vol24hMinUsd": vol24hMinUsd,
             "maxAgeHours": maxAgeHours,
             "limitPerParent": limitPerParent,
             "allowNameMatch": allowNameMatch,
+            "applyBlocklist": applyBlocklist,
         },
         "summary": summary,
         "trades": trades,
