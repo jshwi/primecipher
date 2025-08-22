@@ -7,12 +7,13 @@ from .config import SEED_DIR
 
 def _norm_parent(p: Any) -> Dict[str, Any]:
     if isinstance(p, str):
-        return {"symbol": p, "match": [p.lower()]}
+        return {"symbol": p, "match": [p.lower()], "block": []}
     if isinstance(p, dict):
-        sym = p.get("symbol") or p.get("sym") or p.get("token")
-        match = p.get("match") or ([sym.lower()] if sym else [])
+        sym = (p.get("symbol") or p.get("sym") or p.get("token") or "").upper()
+        match = [m.lower() for m in (p.get("match") or ([sym.lower()] if sym else []))]
+        block = [b.upper() for b in (p.get("block") or [])]
         addr = p.get("address")
-        return {"symbol": sym, "match": [m.lower() for m in match], "address": addr}
+        return {"symbol": sym, "match": match, "block": block, "address": addr}
     return {}
 
 def _normalize_seed(seed: Dict[str, Any]) -> Dict[str, Any]:
