@@ -32,13 +32,14 @@ class DexScreenerAdapter:
         data = r.json()
         return data.get("pairs", []) or []
 
-    def _filter_pairs(self, pairs: List[Dict[str, Any]], *, min_vol: float, min_liq: float) -> List[Dict[str, Any]]:
+    def _filter_pairs(self, pairs: List[Dict[str, Any]], *, min_vol: float, min_liq: float, dex_ids: Optional[Set[str]] = None) -> List[Dict[str, Any]]:
+        allow = dex_ids or DEX_IDS
         out = []
         for p in pairs:
             if (p.get("chainId") or "").lower() != CHAIN_ID:
                 continue
             dex = (p.get("dexId") or "").lower()
-            if dex and DEX_IDS and dex not in DEX_IDS:
+            if dex and allow and dex not in allow:
                 continue
             liq = float((p.get("liquidity") or {}).get("usd") or 0.0)
             vol = float((p.get("volume") or {}).get("h24") or 0.0)
@@ -52,30 +53,21 @@ class DexScreenerAdapter:
         flt = self._filter_pairs(pairs, min_vol=VOL_MIN_USD, min_liq=1.0)
         if not flt:
             return None
-        # 1) prefer exact base address match when provided
         if address:
             addr_l = address.lower()
             addr_hits = [p for p in flt if ((p.get("baseToken") or {}).get("address","").lower() == addr_l)]
             if addr_hits:
                 return max(addr_hits, key=lambda p: float((p.get("volume") or {}).get("h24") or 0.0))
-        # 2) else prefer exact base symbol
         norm_target = _norm_alnum_upper(symbol)
         exact = [p for p in flt if _norm_alnum_upper((p.get("baseToken") or {}).get("symbol")) == norm_target]
         pool = exact or flt
-        # 3) rank by 24h volume
         return max(pool, key=lambda p: float((p.get("volume") or {}).get("h24") or 0.0))
 
     def fetch_parent_metrics(self, parents: List[Dict[str, Any]]) -> Dict[str, Dict[str, float]]:
-        """
-        parents: [{symbol, address?}, ...]
-        Returns {symbol: {volume24hUsd, liquidityUsd}}
-        """
         out: Dict[str, Dict[str, float]] = {}
         for p in parents:
             sym = p.get("symbol")
             addr = p.get("address")
-            # try address as query first (dexscreener supports address in search),
-            # fall back to symbol
             queries = [q for q in [addr, sym] if q]
             best = None
             for q in queries:
@@ -94,13 +86,8 @@ class DexScreenerAdapter:
 
     # ---------- Child discovery ----------
     def _match_terms_debug(self, symbol: str, name: str, terms: List[str]) -> Tuple[bool, Optional[Dict[str, str]]]:
-        """
-        Symbol-first matching; allow name matches only for longer terms (>=5 chars).
-        Returns (matched?, debug_info).
-        """
         sym_l = (symbol or "").lower()
         name_l = (name or "").lower()
-
         for t in terms:
             t_l = t.lower()
             if t_l in sym_l:
@@ -110,17 +97,34 @@ class DexScreenerAdapter:
                 return True, {"field": "name", "term": t}
         return False, None
 
-    def fetch_children_for_parent(self, parent_symbol: str, match_terms: List[str], allow_name_match: bool = True, limit: int = 50) -> List[Dict[str, Any]]:
+    def fetch_children_for_parent(
+        self,
+        parent_symbol: str,
+        match_terms: List[str],
+        allow_name_match: bool = True,
+        limit: int = 50,
+        discovery: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         norm_parent = _norm_alnum_upper(parent_symbol)
         terms = list({t for t in ([parent_symbol] + (match_terms or [])) if t})
         seen: Set[str] = set()
         children: List[Dict[str, Any]] = []
 
+        # per-parent overrides
+        dex_ids = set((discovery or {}).get("dexIds") or []) or None
+        vol_min = (discovery or {}).get("volMinUsd")
+        liq_min = (discovery or {}).get("liqMinUsd")
+        max_age = (discovery or {}).get("maxAgeHours")
+        vol_floor = float(vol_min) if vol_min is not None else CHILD_VOL_MIN_USD
+        liq_floor = float(liq_min) if liq_min is not None else CHILD_LIQ_MIN_USD
+        max_age_h = float(max_age) if max_age is not None else CHILD_MAX_AGE_HOURS
+
         for term in terms:
             pairs = self._filter_pairs(
                 self._search_pairs(term),
-                min_vol=CHILD_VOL_MIN_USD,
-                min_liq=CHILD_LIQ_MIN_USD,
+                min_vol=vol_floor,
+                min_liq=liq_floor,
+                dex_ids=dex_ids,
             )
             for p in pairs:
                 base = (p.get("baseToken") or {})
@@ -129,11 +133,9 @@ class DexScreenerAdapter:
                 addr = base.get("address") or p.get("pairAddress") or ""
                 if not addr or addr in seen:
                     continue
-                # Exclude the parent itself (handles "$WIF" vs "WIF")
                 if _norm_alnum_upper(sym_raw) == norm_parent:
                     continue
 
-                # symbol-first; name allowed only if flag is true and term is long
                 sym = sym_raw.lower()
                 name = name_raw.lower()
                 sym_hit = any(t.lower() in sym for t in terms)
@@ -142,7 +144,7 @@ class DexScreenerAdapter:
                     continue
 
                 seen.add(addr)
-                children.append({
+                child = {
                     "symbol": sym_raw,
                     "name": name_raw,
                     "volume24hUsd": float((p.get("volume") or {}).get("h24") or 0.0),
@@ -156,10 +158,11 @@ class DexScreenerAdapter:
                         "dexId": p.get("dexId"),
                         "pairAddress": p.get("pairAddress"),
                     },
-                })
+                }
+                children.append(child)
 
-        # Order: recent first, then by 24h volume
-        recent = [c for c in children if (c.get("ageHours") or 1e9) <= CHILD_MAX_AGE_HOURS]
+        # Order recent first, then by volume
+        recent = [c for c in children if (c.get("ageHours") or 1e9) <= max_age_h]
         rest = [c for c in children if c not in recent]
         recent.sort(key=lambda x: x["volume24hUsd"], reverse=True)
         rest.sort(key=lambda x: x["volume24hUsd"], reverse=True)
