@@ -3,16 +3,27 @@
     "narrative": "dogs",
     "keywords": ["wif", "dog", "moodeng"],
     "parents": [
-      { "symbol": "WIF", "address": "<SOL_MINT_WIF>", "match": ["wif","dogwifhat","wifhat","dogwif","dog with hat"], "block": ["WITH","SANTA"], "nameMatchAllowed": false },
-      { "symbol": "MOODENG", "address": "<SOL_MINT_MOODENG>", "match": ["moodeng","mdeng","mood eng","moodeng hat","moodengdog"] }
+      {
+        "symbol": "WIF",
+        "address": "<SOL_MINT_WIF>",
+        "match": ["wif", "dogwifhat", "wifhat", "dogwif", "dog with hat"],
+        "block": ["WITH", "SANTA"],
+        "nameMatchAllowed": false
+      },
+      {
+        "symbol": "MOODENG",
+        "address": "<SOL_MINT_MOODENG>",
+        "match": ["moodeng", "mdeng", "mood eng", "moodeng hat", "moodengdog"],
+        "nameMatchAllowed": true
+      }
     ]
   },
   {
     "narrative": "ai",
-    "keywords": ["ai","gpt","tao","fet"],
+    "keywords": ["ai", "gpt", "tao", "fet"],
     "parents": [
-      { "symbol": "FET", "address": "<SOL_MINT_FET>", "match": ["fet","fetch.ai","fetchai"] },
-      { "symbol": "TAO", "address": "<SOL_MINT_TAO>", "match": ["tao","bittensor"] }
+      { "symbol": "FET", "address": "<SOL_MINT_FET>", "match": ["fet", "fetch.ai", "fetchai"] },
+      { "symbol": "TAO", "address": "<SOL_MINT_TAO>", "match": ["tao", "bittensor"] }
     ]
   }
 ]
