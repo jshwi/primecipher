@@ -70,24 +70,70 @@ type BacktestResp = {
   trades: BacktestTrade[];
 };
 
+type WalkTrade = {
+  pairAddress: string;
+  parent: string;
+  narrative: string;
+  entryTs: number;
+  exitTs: number;
+  entryPrice: number;
+  exitPrice: number;
+  exitLiq: number | null;
+  return: number; // decimal
+};
+
+type WalkSummary = {
+  hold: 'm5' | 'h1' | 'h6' | 'h24';
+  n_trades: number;
+  n_with_return: number;
+  winrate_gt0: number | null;
+  mean_return: number | null;
+  median_return: number | null;
+  min_return: number | null;
+  max_return: number | null;
+  tolerance_min: number;
+  note?: string | null;
+};
+
+type WalkDiagnostics = {
+  pairs_considered: number;
+  entry_target_ts: number;
+  exit_target_ts: number;
+  tolerance_sec: number;
+  entry_found_any: number;
+  exit_found_any: number;
+  entry_within_tolerance: number;
+  exit_within_tolerance: number;
+  priced_pairs: number;
+  liq_ok_pairs: number;
+};
+
+type WalkResp = {
+  summary: WalkSummary;
+  diagnostics: WalkDiagnostics;
+  trades: WalkTrade[];
+};
+
 function fmtUsd(n?: number | null) {
   const v = typeof n === 'number' ? n : 0;
   return `$${Math.round(v).toLocaleString()}`;
 }
-
 function pct(n?: number | null) {
   if (typeof n !== 'number') return '—';
   return `${(n * 100).toFixed(2)}%`;
 }
+function ts(ts: number) {
+  return new Date(ts * 1000).toLocaleString();
+}
 
 /** =========================
- * Backtest panel (new)
+ * Quick Backtest panel (existing)
  * ========================= */
 function BacktestPanel({ narrative, parents }: { narrative: string; parents: string[] }) {
   const [parent, setParent] = useState<string>('ALL');
   const [hold, setHold] = useState<'m5' | 'h1' | 'h6' | 'h24'>('h24');
   const [liqMin, setLiqMin] = useState<number>(50000);
-  const [maxAge, setMaxAge] = useState<string>(''); // empty => no filter
+  const [maxAge, setMaxAge] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<BacktestResp | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -109,7 +155,7 @@ function BacktestPanel({ narrative, parents }: { narrative: string; parents: str
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json: BacktestResp = await res.json();
       setResp(json);
-    } catch (e: any) {
+    } catch {
       setError('Backtest failed');
     } finally {
       setLoading(false);
@@ -290,7 +336,222 @@ function BacktestPanel({ narrative, parents }: { narrative: string; parents: str
 }
 
 /** =========================
- * Children drawer (existing, with pagination)
+ * Walk-Forward Backtest panel (new)
+ * ========================= */
+function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: string[] }) {
+  const [parent, setParent] = useState<string>('ALL');
+  const [hold, setHold] = useState<'m5' | 'h1' | 'h6' | 'h24'>('h6');
+  const [minLiq, setMinLiq] = useState<number>(50000);
+  const [tolMin, setTolMin] = useState<number>(20);
+  const [loading, setLoading] = useState(false);
+  const [resp, setResp] = useState<WalkResp | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const runWalk = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    setResp(null);
+    try {
+      const p = new URLSearchParams();
+      p.set('hold', hold);
+      p.set('minLiqUsd', String(minLiq));
+      p.set('toleranceMin', String(tolMin));
+      if (narrative) p.set('narrative', narrative);
+      if (parent !== 'ALL') p.set('parent', parent);
+
+      const url = `${API_BASE}/backtest/walk?${p.toString()}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json: WalkResp = await res.json();
+      setResp(json);
+    } catch {
+      setError('Walk-forward backtest failed');
+    } finally {
+      setLoading(false);
+    }
+  }, [narrative, parent, hold, minLiq, tolMin]);
+
+  const trades = resp?.trades ?? [];
+
+  const csvHref = useMemo(() => {
+    if (!trades.length) return null;
+    const header = ['parent', 'pairAddress', 'entryTs', 'exitTs', 'entryPrice', 'exitPrice', 'exitLiq', 'return'].join(',');
+    const rows = trades.map((t) =>
+      [t.parent, t.pairAddress, t.entryTs, t.exitTs, t.entryPrice, t.exitPrice, t.exitLiq ?? '', t.return].join(',')
+    );
+    const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv' });
+    return URL.createObjectURL(blob);
+  }, [trades]);
+
+  return (
+    <div style={{ border: '1px solid #222', borderRadius: 8, marginTop: 12, padding: 12, background: '#0f0f0f' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ fontWeight: 600 }}>Walk-Forward Backtest</div>
+        <div style={{ fontSize: 12, opacity: 0.6 }}>
+          Uses your local snapshots; needs ≥2 timepoints spanning the hold window.
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Parent</div>
+          <select
+            value={parent}
+            onChange={(e) => setParent(e.target.value)}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
+          >
+            <option value="ALL">All parents</option>
+            {parents.map((p) => (
+              <option key={p} value={p}>
+                {p}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Hold</div>
+          <select
+            value={hold}
+            onChange={(e) => setHold(e.target.value as any)}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
+          >
+            <option value="m5">5 minutes</option>
+            <option value="h1">1 hour</option>
+            <option value="h6">6 hours</option>
+            <option value="h24">24 hours</option>
+          </select>
+        </div>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Min Liquidity (USD)</div>
+          <input
+            type="number"
+            value={minLiq}
+            onChange={(e) => setMinLiq(Number(e.target.value || 0))}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
+            min={0}
+          />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Tolerance (minutes)</div>
+          <input
+            type="number"
+            value={tolMin}
+            onChange={(e) => setTolMin(Number(e.target.value || 0))}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
+            min={1}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'end' }}>
+          <button
+            onClick={runWalk}
+            disabled={loading}
+            style={{
+              padding: '8px 12px',
+              border: '1px solid #333',
+              borderRadius: 6,
+              background: '#121212',
+              cursor: 'pointer',
+              fontSize: 13,
+              opacity: loading ? 0.6 : 1,
+            }}
+          >
+            {loading ? 'Running…' : 'Run walk-forward'}
+          </button>
+        </div>
+      </div>
+
+      {error && <div style={{ color: '#f66', marginTop: 8, fontSize: 13 }}>{error}</div>}
+
+      {resp && (
+        <div style={{ marginTop: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 13, flexWrap: 'wrap' }}>
+            <div>hold: <strong>{resp.summary.hold}</strong></div>
+            <div>trades: <strong>{resp.summary.n_trades}</strong></div>
+            <div>winrate: <strong>{resp.summary.winrate_gt0 != null ? (resp.summary.winrate_gt0 * 100).toFixed(1) + '%' : '—'}</strong></div>
+            <div>mean: <strong>{pct(resp.summary.mean_return)}</strong></div>
+            <div>median: <strong>{pct(resp.summary.median_return)}</strong></div>
+            <div>min: <strong>{pct(resp.summary.min_return)}</strong></div>
+            <div>max: <strong>{pct(resp.summary.max_return)}</strong></div>
+            {resp.summary.note && <div style={{ marginLeft: 'auto', fontSize: 12, opacity: 0.7 }}>{resp.summary.note}</div>}
+            {csvHref && (
+              <a
+                href={csvHref}
+                download={`walk_${narrative}_${parent}_${hold}.csv`}
+                style={{ marginLeft: 'auto', color: '#68a0ff', fontSize: 12 }}
+              >
+                Download CSV
+              </a>
+            )}
+          </div>
+
+          {/* Diagnostics */}
+          <div style={{ fontSize: 12, opacity: 0.75, marginTop: 8, display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            <div>pairs: {resp.diagnostics.pairs_considered}</div>
+            <div>entry tol ok: {resp.diagnostics.entry_within_tolerance}</div>
+            <div>exit tol ok: {resp.diagnostics.exit_within_tolerance}</div>
+            <div>priced: {resp.diagnostics.priced_pairs}</div>
+            <div>liq ok: {resp.diagnostics.liq_ok_pairs}</div>
+          </div>
+
+          {/* Trades */}
+          <div style={{ border: '1px solid #222', borderRadius: 6, overflow: 'hidden', marginTop: 10 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '110px 220px 160px 160px 120px 120px 100px',
+                padding: '8px 10px',
+                background: '#111',
+                fontSize: 12,
+                opacity: 0.85,
+              }}
+            >
+              <div>Parent</div>
+              <div>Pair</div>
+              <div>Entry</div>
+              <div>Exit</div>
+              <div>Entry Price</div>
+              <div>Exit Price</div>
+              <div>Return</div>
+            </div>
+            {trades.map((t, i) => {
+              const link = `https://dexscreener.com/solana/${t.pairAddress}`;
+              return (
+                <div
+                  key={`${t.pairAddress}-${i}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '110px 220px 160px 160px 120px 120px 100px',
+                    padding: '8px 10px',
+                    borderTop: '1px solid #191919',
+                    fontSize: 13,
+                  }}
+                >
+                  <div>{t.parent}</div>
+                  <div>
+                    <a href={link} target="_blank" rel="noreferrer" style={{ color: '#68a0ff' }}>
+                      {t.pairAddress}
+                    </a>
+                  </div>
+                  <div>{ts(t.entryTs)}</div>
+                  <div>{ts(t.exitTs)}</div>
+                  <div>{t.entryPrice?.toFixed(6)}</div>
+                  <div>{t.exitPrice?.toFixed(6)}</div>
+                  <div>{pct(t.return)}</div>
+                </div>
+              );
+            })}
+            {trades.length === 0 && (
+              <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>No trades (yet). Let the snapshot worker run or try a shorter hold.</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** =========================
+ * Children drawer (with pagination)
  * ========================= */
 function ParentRowItem({ r }: { r: ParentRow }) {
   const [open, setOpen] = useState(false);
@@ -301,7 +562,7 @@ function ParentRowItem({ r }: { r: ParentRow }) {
   const [items, setItems] = useState<DebugChild[]>([]);
   const [counts, setCounts] = useState<DebugResp['counts'] | null>(null);
   const [offset, setOffset] = useState(0);
-  const limit = 50; // page size
+  const limit = 50;
 
   const hasMore = useMemo(() => {
     const total = counts?.total ?? 0;
@@ -334,11 +595,10 @@ function ParentRowItem({ r }: { r: ParentRow }) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const json: DebugResp = await res.json();
 
-        // append or set
         setItems((prev) => (ofs === 0 ? json.children ?? [] : [...prev, ...(json.children ?? [])]));
         setCounts(json.counts ?? null);
         setOffset(ofs + (json.counts?.returned ?? json.children?.length ?? 0));
-      } catch (e: any) {
+      } catch {
         setError('Failed to load children');
       } finally {
         setLoading(false);
@@ -351,7 +611,6 @@ function ParentRowItem({ r }: { r: ParentRow }) {
     const next = !open;
     setOpen(next);
     if (next && items.length === 0 && !loading) {
-      // first page
       await fetchPage(0);
     }
   }, [open, items.length, loading, fetchPage]);
@@ -440,7 +699,6 @@ function ParentRowItem({ r }: { r: ParentRow }) {
 
           {!error && (
             <>
-              {/* Counts + filters summary */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, opacity: 0.8, marginBottom: 8 }}>
                 <div>returned: {counts?.returned ?? items.length}</div>
                 {counts?.total != null ? <div>total: {counts.total}</div> : null}
@@ -448,7 +706,6 @@ function ParentRowItem({ r }: { r: ParentRow }) {
                 {counts?.limit != null ? <div>limit: {counts.limit}</div> : null}
               </div>
 
-              {/* Neutral empty state (not an error) */}
               {items.length === 0 && !loading && <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>No matches.</div>}
 
               {items.length > 0 && (
@@ -505,7 +762,6 @@ function ParentRowItem({ r }: { r: ParentRow }) {
                     })}
                   </div>
 
-                  {/* Load more */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
                     {hasMore ? (
                       <button
@@ -513,7 +769,7 @@ function ParentRowItem({ r }: { r: ParentRow }) {
                         disabled={loading}
                         style={{
                           padding: '6px 10px',
-                          border: '1px solid #333',
+                          border: '1px solid '#333',
                           borderRadius: 6,
                           background: '#0f0f0f',
                           cursor: 'pointer',
@@ -539,6 +795,7 @@ function ParentRowItem({ r }: { r: ParentRow }) {
 
 export default function ParentsTable({ rows }: { rows: ParentRow[] }) {
   const narrative = rows[0]?.narrative ?? '';
+  const parentList = rows.map((r) => r.parent);
 
   return (
     <div style={{ border: '1px solid #222', borderRadius: 8, overflow: 'hidden', marginTop: 14 }}>
@@ -560,7 +817,13 @@ export default function ParentsTable({ rows }: { rows: ParentRow[] }) {
 
       {rows.length === 0 && <div style={{ padding: 16, fontSize: 14, opacity: 0.7 }}>No data yet for this narrative.</div>}
 
-      {rows.length > 0 && <BacktestPanel narrative={narrative} parents={rows.map((r) => r.parent)} />}
+      {/* New research panels */}
+      {rows.length > 0 && (
+        <>
+          <BacktestPanel narrative={narrative} parents={parentList} />
+          <WalkForwardPanel narrative={narrative} parents={parentList} />
+        </>
+      )}
 
       {rows.map((r) => (
         <ParentRowItem key={r.parent} r={r} />
