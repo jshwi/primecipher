@@ -24,6 +24,7 @@ jobs:
 
       - name: Install backend deps
         run: |
+          set -euo pipefail
           cd backend
           python -m venv .venv
           . .venv/bin/activate
@@ -37,27 +38,47 @@ jobs:
 
       - name: Start API (uvicorn)
         run: |
+          set -euo pipefail
           cd backend
           . .venv/bin/activate
-          # NOTE: correct module path + bind to all interfaces
-          nohup uvicorn app.api.main:app --host 0.0.0.0 --port 8000 > ../uvicorn.log 2>&1 &
-          # Wait for /docs up to ~60s
+
+          # Use local SQLite in CI so the API can start without Postgres
+          mkdir -p data
+          export DATABASE_URL="sqlite:///./data/smoke.db"
+          export PYTHONUNBUFFERED=1
+
+          # Correct module path; bind to all interfaces
+          nohup uvicorn app.main:app --host 0.0.0.0 --port 8000 > ../uvicorn.log 2>&1 &
+
+          # Wait for /docs up to ~60s; if it fails, dump diagnostics and fail
           for i in {1..30}; do
-            curl -fsS http://127.0.0.1:8000/docs >/dev/null && break || sleep 2
+            if curl -fsS http://127.0.0.1:8000/docs >/dev/null; then
+              echo "API is up"
+              exit 0
+            fi
+            sleep 2
           done
-          curl -fsS http://127.0.0.1:8000/docs >/dev/null
+
+          echo "Startup failed. Diagnostics:"
+          echo "----- ps -----"; ps aux | grep -E "uvicorn|python" | grep -v grep || true
+          echo "----- uvicorn.log (tail) -----"; tail -n +1 ../uvicorn.log || true
+          echo "----- lsof:8000 -----"; (command -v lsof && lsof -i :8000) || true
+          exit 1
 
       - name: Run smoke script
         env:
           BASE_URL: http://127.0.0.1:8000
+          API_BASE: http://127.0.0.1:8000  # backward-compat if script still reads API_BASE
         run: |
           bash scripts/smoke.sh
 
-      - name: Upload logs on failure
+      - name: Upload logs & DB on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-logs
+          name: backend-logs-and-db
           path: |
             uvicorn.log
+            backend/uvicorn.log
+            backend/data/*.db
 
