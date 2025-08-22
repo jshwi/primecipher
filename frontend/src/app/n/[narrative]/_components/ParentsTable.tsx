@@ -5,6 +5,9 @@ import { useCallback, useMemo, useState } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || '';
 
+/** =========================
+ * Types
+ * ========================= */
 type ParentRow = {
   parent: string;
   narrative: string;
@@ -79,6 +82,7 @@ type WalkTrade = {
   entryPrice: number;
   exitPrice: number;
   exitLiq: number | null;
+  entryAgeHours?: number | null; // NEW
   return: number; // decimal
 };
 
@@ -106,6 +110,7 @@ type WalkDiagnostics = {
   exit_within_tolerance: number;
   priced_pairs: number;
   liq_ok_pairs: number;
+  entry_age_kept: number; // NEW
 };
 
 type WalkResp = {
@@ -114,6 +119,9 @@ type WalkResp = {
   trades: WalkTrade[];
 };
 
+/** =========================
+ * Utils
+ * ========================= */
 function fmtUsd(n?: number | null) {
   const v = typeof n === 'number' ? n : 0;
   return `$${Math.round(v).toLocaleString()}`;
@@ -127,7 +135,7 @@ function ts(ts: number) {
 }
 
 /** =========================
- * Quick Backtest panel (existing)
+ * Quick Backtest panel (point-in-time priceChange)
  * ========================= */
 function BacktestPanel({ narrative, parents }: { narrative: string; parents: string[] }) {
   const [parent, setParent] = useState<string>('ALL');
@@ -336,13 +344,14 @@ function BacktestPanel({ narrative, parents }: { narrative: string; parents: str
 }
 
 /** =========================
- * Walk-Forward Backtest panel (new)
+ * Walk-Forward Backtest panel (snapshots)
  * ========================= */
 function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: string[] }) {
   const [parent, setParent] = useState<string>('ALL');
   const [hold, setHold] = useState<'m5' | 'h1' | 'h6' | 'h24'>('h6');
   const [minLiq, setMinLiq] = useState<number>(50000);
   const [tolMin, setTolMin] = useState<number>(20);
+  const [maxEntryAge, setMaxEntryAge] = useState<string>(''); // NEW
   const [loading, setLoading] = useState(false);
   const [resp, setResp] = useState<WalkResp | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -358,6 +367,7 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
       p.set('toleranceMin', String(tolMin));
       if (narrative) p.set('narrative', narrative);
       if (parent !== 'ALL') p.set('parent', parent);
+      if (maxEntryAge.trim().length > 0) p.set('maxEntryAgeHours', maxEntryAge.trim());
 
       const url = `${API_BASE}/backtest/walk?${p.toString()}`;
       const res = await fetch(url);
@@ -369,15 +379,15 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
     } finally {
       setLoading(false);
     }
-  }, [narrative, parent, hold, minLiq, tolMin]);
+  }, [narrative, parent, hold, minLiq, tolMin, maxEntryAge]);
 
   const trades = resp?.trades ?? [];
 
   const csvHref = useMemo(() => {
     if (!trades.length) return null;
-    const header = ['parent', 'pairAddress', 'entryTs', 'exitTs', 'entryPrice', 'exitPrice', 'exitLiq', 'return'].join(',');
+    const header = ['parent', 'pairAddress', 'entryTs', 'exitTs', 'entryPrice', 'exitPrice', 'exitLiq', 'entryAgeHours', 'return'].join(',');
     const rows = trades.map((t) =>
-      [t.parent, t.pairAddress, t.entryTs, t.exitTs, t.entryPrice, t.exitPrice, t.exitLiq ?? '', t.return].join(',')
+      [t.parent, t.pairAddress, t.entryTs, t.exitTs, t.entryPrice, t.exitPrice, t.exitLiq ?? '', t.entryAgeHours ?? '', t.return].join(',')
     );
     const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv' });
     return URL.createObjectURL(blob);
@@ -392,7 +402,7 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr auto', gap: 8 }}>
         <div>
           <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Parent</div>
           <select
@@ -439,6 +449,15 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
             onChange={(e) => setTolMin(Number(e.target.value || 0))}
             style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
             min={1}
+          />
+        </div>
+        <div>
+          <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Max Entry Age (hours, optional)</div>
+          <input
+            placeholder="e.g., 24"
+            value={maxEntryAge}
+            onChange={(e) => setMaxEntryAge(e.target.value)}
+            style={{ width: '100%', background: '#0a0a0a', border: '1px solid #333', color: 'white', padding: 6, borderRadius: 6 }}
           />
         </div>
         <div style={{ display: 'flex', alignItems: 'end' }}>
@@ -491,6 +510,7 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
             <div>exit tol ok: {resp.diagnostics.exit_within_tolerance}</div>
             <div>priced: {resp.diagnostics.priced_pairs}</div>
             <div>liq ok: {resp.diagnostics.liq_ok_pairs}</div>
+            <div>entry age kept: {resp.diagnostics.entry_age_kept}</div>
           </div>
 
           {/* Trades */}
@@ -498,7 +518,7 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
             <div
               style={{
                 display: 'grid',
-                gridTemplateColumns: '110px 220px 160px 160px 120px 120px 100px',
+                gridTemplateColumns: '110px 220px 160px 160px 120px 120px 110px 100px',
                 padding: '8px 10px',
                 background: '#111',
                 fontSize: 12,
@@ -511,6 +531,7 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
               <div>Exit</div>
               <div>Entry Price</div>
               <div>Exit Price</div>
+              <div>Entry Age</div>
               <div>Return</div>
             </div>
             {trades.map((t, i) => {
@@ -520,7 +541,7 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
                   key={`${t.pairAddress}-${i}`}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '110px 220px 160px 160px 120px 120px 100px',
+                    gridTemplateColumns: '110px 220px 160px 160px 120px 120px 110px 100px',
                     padding: '8px 10px',
                     borderTop: '1px solid #191919',
                     fontSize: 13,
@@ -536,12 +557,15 @@ function WalkForwardPanel({ narrative, parents }: { narrative: string; parents: 
                   <div>{ts(t.exitTs)}</div>
                   <div>{t.entryPrice?.toFixed(6)}</div>
                   <div>{t.exitPrice?.toFixed(6)}</div>
+                  <div>{typeof t.entryAgeHours === 'number' ? `${t.entryAgeHours.toFixed(1)}h` : '—'}</div>
                   <div>{pct(t.return)}</div>
                 </div>
               );
             })}
             {trades.length === 0 && (
-              <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>No trades (yet). Let the snapshot worker run or try a shorter hold.</div>
+              <div style={{ padding: 10, fontSize: 13, opacity: 0.7 }}>
+                No trades (yet). Let the snapshot worker run, try a shorter hold, or loosen tolerance.
+              </div>
             )}
           </div>
         </div>
@@ -793,6 +817,9 @@ function ParentRowItem({ r }: { r: ParentRow }) {
   );
 }
 
+/** =========================
+ * Table wrapper
+ * ========================= */
 export default function ParentsTable({ rows }: { rows: ParentRow[] }) {
   const narrative = rows[0]?.narrative ?? '';
   const parentList = rows.map((r) => r.parent);
@@ -817,7 +844,6 @@ export default function ParentsTable({ rows }: { rows: ParentRow[] }) {
 
       {rows.length === 0 && <div style={{ padding: 16, fontSize: 14, opacity: 0.7 }}>No data yet for this narrative.</div>}
 
-      {/* New research panels */}
       {rows.length > 0 && (
         <>
           <BacktestPanel narrative={narrative} parents={parentList} />
