@@ -1,0 +1,58 @@
+name: Backend Smoke
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install backend deps
+        run: |
+          cd backend
+          python -m venv .venv
+          . .venv/bin/activate
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            # minimal deps for this backend
+            pip install fastapi uvicorn httpx
+          fi
+
+      - name: Start API (uvicorn)
+        run: |
+          cd backend
+          . .venv/bin/activate
+          nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > ../uvicorn.log 2>&1 &
+          # Wait for /docs up to ~60s
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8000/docs >/dev/null && break || sleep 2
+          done
+          curl -fsS http://127.0.0.1:8000/docs >/dev/null
+
+      - name: Run smoke script
+        env:
+          API_BASE: http://127.0.0.1:8000
+        run: |
+          bash scripts/smoke.sh
+
+      - name: Upload logs & DB on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-logs-and-db
+          path: |
+            uvicorn.log
+            backend/data/snapshots.db
+
