@@ -26,14 +26,20 @@ def backtest_walk(
     hold: str = Query("h6", description="Hold window: m5|h1|h6|h24"),
     toleranceMin: int = Query(15, ge=1, le=60, description="Time tolerance (minutes) for snapshot alignment"),
     minLiqUsd: float = Query(0.0, ge=0.0, description="Filter by minimum liquidity at exit snapshot"),
+    maxEntryAgeHours: Optional[float] = Query(  # NEW
+        None,
+        ge=0.0,
+        description="Only include trades where (entry time - first_seen) <= this many hours. Omit to disable.",
+    ),
 ) -> Dict[str, Any]:
     """
     Walk-forward backtest using locally stored snapshots:
       - Entry snapshot near (now - hold), within tolerance.
       - Exit snapshot near now, within tolerance.
+      - Optional 'enter-on-new' via maxEntryAgeHours.
       - Return = (price_exit / price_entry - 1).
 
-    Adds a helpful `summary.note` when no trades match and `diagnostics` counts to debug gaps.
+    Adds a helpful `summary.note` when no trades match and `diagnostics` counters.
     """
     hold_map = {"m5": 5 * 60, "h1": 3600, "h6": 6 * 3600, "h24": 24 * 3600}
     hold_s = hold_map.get(hold.lower(), 6 * 3600)
@@ -44,8 +50,8 @@ def backtest_walk(
     conn = _connect()
     cur = conn.cursor()
 
-    # Choose candidate pairs
-    q = "SELECT pair_address, parent, narrative FROM tracked_pairs WHERE 1=1"
+    # Choose candidate pairs (include first_seen for entry-age filter)
+    q = "SELECT pair_address, parent, narrative, first_seen FROM tracked_pairs WHERE 1=1"
     args: List[Any] = []
     if narrative:
         q += " AND narrative = ?"
@@ -57,7 +63,7 @@ def backtest_walk(
     cur.execute(q, args)
     pairs = cur.fetchall()
 
-    # Diagnostics counters
+    # Diagnostics
     diag_total_pairs = len(pairs)
     diag_entry_found = 0
     diag_exit_found = 0
@@ -65,12 +71,14 @@ def backtest_walk(
     diag_exit_within_tol = 0
     diag_priced_pairs = 0
     diag_liq_ok = 0
+    diag_entry_age_kept = 0  # NEW
 
     trades: List[Dict[str, Any]] = []
     returns: List[float] = []
 
     for row in pairs:
         pair = row["pair_address"]
+        first_seen = row["first_seen"]  # epoch seconds
 
         # Entry snapshot (nearest to target entry time)
         cur.execute(
@@ -112,6 +120,14 @@ def backtest_walk(
         else:
             continue
 
+        # NEW: enter-on-new filter (age at entry)
+        entry_age_hours: Optional[float] = None
+        if isinstance(first_seen, int):
+            entry_age_hours = max(0.0, (t_entry - first_seen) / 3600.0)
+            if maxEntryAgeHours is not None and entry_age_hours > maxEntryAgeHours:
+                continue
+            diag_entry_age_kept += 1
+
         p0 = entry["price_usd"]
         p1 = exit_["price_usd"]
         if p0 is None or p1 is None or p0 <= 0:
@@ -132,6 +148,7 @@ def backtest_walk(
             "entryPrice": p0,
             "exitPrice": p1,
             "exitLiq": exit_["liquidity_usd"],
+            "entryAgeHours": entry_age_hours,  # NEW
             "return": ret,
         }
         trades.append(t)
@@ -148,7 +165,6 @@ def backtest_walk(
         "min_return": (min(returns) if n else None),
         "max_return": (max(returns) if n else None),
         "tolerance_min": toleranceMin,
-        # ⬇️ Guardrail note goes RIGHT AFTER building trades/returns:
         "note": (
             "No matching snapshots; ensure at least two timepoints spanning the hold window, "
             "or use the synthetic_backfill tool to seed entries."
@@ -168,6 +184,7 @@ def backtest_walk(
         "exit_within_tolerance": diag_exit_within_tol,
         "priced_pairs": diag_priced_pairs,
         "liq_ok_pairs": diag_liq_ok,
+        "entry_age_kept": diag_entry_age_kept,  # NEW
     }
 
     return {"summary": summary, "diagnostics": diagnostics, "trades": trades}
