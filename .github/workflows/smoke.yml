@@ -12,6 +12,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: System deps (jq)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -26,15 +31,16 @@ jobs:
           if [ -f requirements.txt ]; then
             pip install -r requirements.txt
           else
-            # minimal deps for this backend
-            pip install fastapi uvicorn httpx
+            # minimal deps if requirements.txt is absent
+            pip install fastapi uvicorn httpx sqlalchemy
           fi
 
       - name: Start API (uvicorn)
         run: |
           cd backend
           . .venv/bin/activate
-          nohup uvicorn app.main:app --host 127.0.0.1 --port 8000 > ../uvicorn.log 2>&1 &
+          # NOTE: correct module path + bind to all interfaces
+          nohup uvicorn app.api.main:app --host 0.0.0.0 --port 8000 > ../uvicorn.log 2>&1 &
           # Wait for /docs up to ~60s
           for i in {1..30}; do
             curl -fsS http://127.0.0.1:8000/docs >/dev/null && break || sleep 2
@@ -43,16 +49,15 @@ jobs:
 
       - name: Run smoke script
         env:
-          API_BASE: http://127.0.0.1:8000
+          BASE_URL: http://127.0.0.1:8000
         run: |
           bash scripts/smoke.sh
 
-      - name: Upload logs & DB on failure
+      - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: backend-logs-and-db
+          name: backend-logs
           path: |
             uvicorn.log
-            backend/data/snapshots.db
 
