@@ -13,13 +13,14 @@
       {
         "symbol": "MOODENG",
         "address": "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
-        "match": ["moodeng", "mdeng", "mood eng", "moodeng hat", "moodengdog"],
+        "match": ["moo","deng"],
         "nameMatchAllowed": true,
         "discovery": {
-          "dexIds": ["raydium", "orca", "pump", "meteora", "lifinity"],
+          "dexIds": ["raydium","orca","pump","meteora","lifinity"],
           "volMinUsd": 5,
           "liqMinUsd": 100,
-          "maxAgeHours": 1440
+          "maxAgeHours": 1440,
+          "requireAllTerms": true
         }
       }
     ]
