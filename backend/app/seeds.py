@@ -1,4 +1,3 @@
-# backend/app/seeds.py
 from __future__ import annotations
 from pathlib import Path
 import json
@@ -7,13 +6,14 @@ from .config import SEED_DIR
 
 def _norm_parent(p: Any) -> Dict[str, Any]:
     if isinstance(p, str):
-        return {"symbol": p, "match": [p.lower()], "block": []}
+        return {"symbol": p.upper(), "match": [p.lower()], "block": [], "nameMatchAllowed": True}
     if isinstance(p, dict):
         sym = (p.get("symbol") or p.get("sym") or p.get("token") or "").upper()
         match = [m.lower() for m in (p.get("match") or ([sym.lower()] if sym else []))]
         block = [b.upper() for b in (p.get("block") or [])]
         addr = p.get("address")
-        return {"symbol": sym, "match": match, "block": block, "address": addr}
+        allow_name = bool(p.get("nameMatchAllowed", True))
+        return {"symbol": sym, "match": match, "block": block, "address": addr, "nameMatchAllowed": allow_name}
     return {}
 
 def _normalize_seed(seed: Dict[str, Any]) -> Dict[str, Any]:
