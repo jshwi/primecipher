@@ -5,16 +5,18 @@
     "parents": [
       {
         "symbol": "WIF",
-        "match": ["wif","dogwifhat","wifhat","dogwif","dog with hat"],
-        "block": ["WITH","SANTA"],
+        "address": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
+        "match": ["wif", "dogwifhat", "wifhat", "dogwif", "dog with hat"],
+        "block": ["WITH", "SANTA"],
         "nameMatchAllowed": false
       },
       {
         "symbol": "MOODENG",
-        "match": ["moodeng","mdeng","mood eng","moodeng hat","moodengdog"],
+        "address": "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
+        "match": ["moodeng", "mdeng", "mood eng", "moodeng hat", "moodengdog"],
         "nameMatchAllowed": true,
         "discovery": {
-          "dexIds": ["raydium","orca","pump","meteora","lifinity"],
+          "dexIds": ["raydium", "orca", "pump", "meteora", "lifinity"],
           "volMinUsd": 5,
           "liqMinUsd": 100,
           "maxAgeHours": 1440
@@ -24,10 +26,10 @@
   },
   {
     "narrative": "ai",
-    "keywords": ["ai","gpt","tao","fet"],
+    "keywords": ["ai", "gpt", "tao", "fet"],
     "parents": [
-      { "symbol": "FET", "match": ["fet","fetch.ai","fetchai"] },
-      { "symbol": "TAO", "match": ["tao","bittensor"] }
+      { "symbol": "FET", "match": ["fet", "fetch.ai", "fetchai"] },
+      { "symbol": "TAO", "match": ["tao", "bittensor"] }
     ]
   }
 ]
