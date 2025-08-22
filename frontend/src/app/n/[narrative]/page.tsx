@@ -2,6 +2,9 @@
 import Link from 'next/link';
 import { fetchJSON } from '@/lib/api';
 import ParentsTable from './_components/ParentsTable';
+import LiveToolbar from '@/app/_components/LiveToolbar';
+
+export const dynamic = 'force-dynamic';
 
 type ParentRow = {
   parent: string;
@@ -21,12 +24,21 @@ type ParentRow = {
   lastUpdated?: string;
 };
 
-export default async function Page({ params }: { params: { narrative: string } }) {
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: { narrative: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
+}) {
   const { narrative } = params;
+  const source = typeof searchParams?.source === 'string' ? (searchParams!.source as string) : '';
+  const isLive = source.toLowerCase() === 'live';
+  const query = `/parents/${narrative}?window=24h${isLive ? '&source=live' : ''}`;
 
   let rows: ParentRow[] = [];
   try {
-    rows = await fetchJSON(`/parents/${narrative}?window=24h`);
+    rows = await fetchJSON(query);
   } catch {
     rows = [];
   }
@@ -37,11 +49,19 @@ export default async function Page({ params }: { params: { narrative: string } }
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
         <h1 style={{ fontSize: 28 }}>Narrative: {narrative}</h1>
         <span style={{ fontSize: 12, opacity: 0.7 }}>Last updated: {last}</span>
-        <span style={{ marginLeft: 'auto', fontSize: 12 }}>
+        <span style={{ marginLeft: 'auto' }}>
+          <LiveToolbar windowParam="24h" />
+        </span>
+        <span style={{ marginLeft: 12, fontSize: 12 }}>
+          <Link href={isLive ? `/n/${narrative}?source=live` : `/n/${narrative}`}>Permalink</Link>
+        </span>
+        <span style={{ marginLeft: 8, fontSize: 12 }}>
           <Link href="/">← Back</Link>
         </span>
       </div>
+
       <ParentsTable rows={rows} />
     </main>
   );
 }
+
