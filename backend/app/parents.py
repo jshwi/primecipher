@@ -4,8 +4,9 @@ from .config import LIQ_SURVIVAL_THRESHOLD_USD
 
 def build_parent_ecosystems(narrative: str, parents: List[dict], adapter) -> List[Dict]:
     rows: List[Dict] = []
-    parent_symbols = [p["symbol"] for p in parents if p.get("symbol")]
-    parent_metrics = adapter.fetch_token_metrics(parent_symbols) if parent_symbols else {}
+
+    # Use the new adapter API (accepts full parent objects incl. address)
+    parent_metrics = adapter.fetch_parent_metrics(parents) if parents else {}
 
     for p in parents:
         symbol = p["symbol"]
@@ -13,12 +14,19 @@ def build_parent_ecosystems(narrative: str, parents: List[dict], adapter) -> Lis
         block = set((p.get("block") or []))
         allow_name = bool(p.get("nameMatchAllowed", True))
 
-        children = adapter.fetch_children_for_parent(symbol, match_terms, allow_name_match=allow_name, limit=100)
+        # children discovery (symbol-first; optional name matches)
+        children = adapter.fetch_children_for_parent(
+            symbol, match_terms, allow_name_match=allow_name, limit=100
+        )
+
+        # apply per-parent blocklist
         children = [c for c in children if (c.get("symbol") or "").upper() not in block]
 
-        survivors = [c for c in children if (c.get('liquidityUsd') or 0) >= LIQ_SURVIVAL_THRESHOLD_USD]
+        # survival & “new” counts
+        survivors = [c for c in children if (c.get("liquidityUsd") or 0) >= LIQ_SURVIVAL_THRESHOLD_USD]
         h24_survival = round(len(survivors) / len(children), 4) if children else 0.0
         new24 = sum(1 for c in children if (c.get("ageHours") is not None and c["ageHours"] <= 24.0))
+
         top = children[0] if children else None
 
         rows.append({
