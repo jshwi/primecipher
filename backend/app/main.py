@@ -9,12 +9,16 @@ from .seeds import load_narrative_seeds
 from .compute import compute_heat
 from .parents import build_parent_ecosystems
 from .adapters.onchain import make_onchain_adapter
+from .debug import router as debug_router
+
 
 DATA = Path(DATA_DIR)
 SEEDS = Path(SEED_DIR)
 DATA.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(title="Narrative Heatmap API", version="0.2.2")
+
+app.include_router(debug_router, prefix="/debug")
 
 def _read_json(path: Path):
     if not path.exists():
