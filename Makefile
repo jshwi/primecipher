@@ -61,3 +61,4 @@ clean:
 	@rm -rf .git/hooks/*
 	@rm -rf .make
 	@rm -rf .venv
+	@rm -rf *.log

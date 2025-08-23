@@ -36,6 +36,31 @@ if [[ -d "backend/.venv" && -f "backend/.venv/bin/activate" ]]; then
   source backend/.venv/bin/activate
 fi
 
+# If API isn't up, start a local uvicorn just for this smoke run
+is_up() { curl -fsS "${API_BASE}/docs" >/dev/null 2>&1; }
+STARTED=0
+PID=""
+if ! is_up; then
+  log "API not reachable, starting local uvicorn at ${API_BASE}"
+  pushd backend >/dev/null
+  export PYTHONPATH=.
+  mkdir -p data
+  : "${DATABASE_URL:=sqlite:///./data/smoke_local.db}"
+  export DATABASE_URL
+  # Use python -m uvicorn to avoid PATH issues; bind to 127.0.0.1:8000
+  python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 > ../uvicorn.smoke.log 2>&1 &
+  PID=$!
+  STARTED=1
+  popd >/dev/null
+  # Wait up to ~10s for readiness
+  for _ in {1..20}; do
+    is_up && break
+    sleep 0.5
+  done
+fi
+# Ensure cleanup on exit if we started the server
+trap '[[ "$STARTED" -eq 1 && -n "$PID" ]] && kill "$PID" >/dev/null 2>&1 || true' EXIT
+
 # Quick probe: API up?
 log "Probing API: ${API_BASE}/docs"
 curl -fsS "${API_BASE}/docs" >/dev/null || fail "API not reachable at ${API_BASE}. Is it running?"
