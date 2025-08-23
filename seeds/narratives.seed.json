@@ -32,6 +32,21 @@
       { "symbol": "FET", "match": ["fet", "fetch.ai", "fetchai"] },
       { "symbol": "TAO", "match": ["tao", "bittensor"] }
     ]
+  },
+  {
+    "narrative": "frogs",
+    "terms": ["pepe","frog","rarepepe"],
+    "parents": [
+      {"symbol": "PEPE", "match": ["pepe","rarepepe"]}
+    ]
+  },
+  {
+    "narrative": "cats",
+    "terms": ["cat","mog","nyan"],
+    "parents": [
+      {"symbol": "MOG", "match": ["mog"]},
+      {"symbol": "NYAN", "match": ["nyan"]}
+    ]
   }
 ]
 
