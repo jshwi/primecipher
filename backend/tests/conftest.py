@@ -1,5 +1,12 @@
 import os, json, tempfile, pytest
 from datetime import datetime, timezone
+import sys
+from pathlib import Path
+
+BACKEND_DIR = Path(__file__).resolve().parents[1]  # .../backend
+p = str(BACKEND_DIR)
+if p not in sys.path:
+    sys.path.insert(0, p)
 
 @pytest.fixture(scope="session")
 def _tmp_dirs():
