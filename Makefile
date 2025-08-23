@@ -11,7 +11,7 @@ $(VENV): backend/requirements.txt
 	@touch $@
 
 .make/hooks: $(VENV)
-	@.venv/bin/pre-commit install \
+	@backend/.venv/bin/pre-commit install \
 		--hook-type pre-commit \
 		--hook-type pre-merge-commit \
 		--hook-type pre-push \
