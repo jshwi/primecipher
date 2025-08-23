@@ -1,0 +1,14 @@
+policies:
+  - type: commit
+    spec:
+      header:
+        length: 72
+        imperative: true
+        case: lower
+        invalidLastCharacters: .
+      dco: true
+      gpg:
+        required: true
+      spellcheck:
+        locale: US
+        descriptionLength: 72
