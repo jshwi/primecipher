@@ -29,7 +29,7 @@ def test_backtest_seed_helpers(monkeypatch):
 
     # _seed_parents returns list of symbols for that narrative
     ps = mod._seed_parents("dogs")
-    assert set(x.upper() for x in ps) == {"WIF", "MOODENG"}
+    assert set(x.upper() for x in ps) == {"WIF"}
 
     # _seed_parent_cfg returns config dict, case-insensitive symbol
     cfg = mod._seed_parent_cfg("dogs", "wif")

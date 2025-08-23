@@ -1,7 +1,7 @@
 [
   {
     "narrative": "dogs",
-    "keywords": ["wif", "dog", "moodeng"],
+    "keywords": ["wif", "dog"],
     "parents": [
       {
         "symbol": "WIF",
@@ -9,19 +9,6 @@
         "match": ["wif", "dogwifhat", "wifhat", "dogwif", "dog with hat"],
         "block": ["WITH", "SANTA"],
         "nameMatchAllowed": false
-      },
-      {
-        "symbol": "MOODENG",
-        "address": "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
-        "match": ["moo","deng"],
-        "nameMatchAllowed": true,
-        "discovery": {
-          "dexIds": ["raydium","orca","pump","meteora","lifinity"],
-          "volMinUsd": 5,
-          "liqMinUsd": 100,
-          "maxAgeHours": 1440,
-          "requireAllTerms": true
-        }
       }
     ]
   },
@@ -46,6 +33,25 @@
     "parents": [
       {"symbol": "MOG", "match": ["mog"]},
       {"symbol": "NYAN", "match": ["nyan"]}
+    ]
+  },
+  {
+    "narrative": "hipo",
+    "terms": ["hipo","moodeng"],
+    "parents": [
+      {
+        "symbol": "MOODENG",
+        "address": "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
+        "match": ["moo","deng"],
+        "nameMatchAllowed": true,
+        "discovery": {
+          "dexIds": ["raydium","orca","pump","meteora","lifinity"],
+          "volMinUsd": 5,
+          "liqMinUsd": 100,
+          "maxAgeHours": 1440,
+          "requireAllTerms": true
+        }
+      }
     ]
   }
 ]
