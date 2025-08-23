@@ -44,7 +44,7 @@ coverage.xml: $(VENV) $(PY_FILES)
 test: coverage.xml
 
 
-.make/smoke: $(VENV)
+.make/smoke: $(VENV) $(PY_FILES)
 	@bash scripts/smoke.sh
 	@mkdir -p $(@D)
 	@touch $@
