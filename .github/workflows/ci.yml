@@ -39,4 +39,7 @@ jobs:
         working-directory: backend
         env:
           PYTHONPATH: .
+          PRIMECIPHER_TEST_MODE: "1"
+          NARRATIVES_SEEDS_FILE: "seeds/narratives.seed.json"
         run: pytest -q
+
