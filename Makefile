@@ -32,15 +32,16 @@ hooks: .make/pre-commit
 #: check coverage
 cov: $(VENV) $(PY_FILES)
 	@PYTHONPATH=backend backend/.venv/bin/pytest backend/tests \
-		--cov=backend/app --cov-report=term-missing
+		--cov=backend/app --cov-report=term-missing \
+		&& backend/.venv/bin/coverage xml
 
-.coverage: $(VENV) $(PY_FILES)
+coverage.xml: $(VENV) $(PY_FILES)
 	@make cov
 	@touch $@
 
 .PHONY: test
 #: run tests
-test: .coverage
+test: coverage.xml
 
 
 .make/smoke: $(VENV)
