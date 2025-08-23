@@ -3,7 +3,7 @@ PY_FILES := $(shell git ls-files "backend/**/*.py")
 VENV := backend/.venv/bin/activate
 
 .PHONY: all
-all: .make/pre-commit
+all: .make/hooks
 
 $(VENV): backend/requirements.txt
 	@python -m venv backend/.venv
@@ -24,9 +24,9 @@ $(VENV): backend/requirements.txt
 	@mkdir -p $(@D)
 	@touch $@
 
-.PHONY: pre-commit
+.PHONY: hooks
 #: install pre-commit hooks
-hooks: .make/pre-commit
+hooks: .make/hooks
 
 .PHONY: cov
 #: check coverage
