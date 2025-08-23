@@ -1,8 +1,55 @@
-.PHONY: test cov
+PY_FILES := $(shell git ls-files "backend/**/*.py")
 
-test:
-	PYTHONPATH=backend pytest -q backend/tests
+VENV := backend/.venv/bin/activate
 
-cov:
-	PYTHONPATH=backend pytest backend/tests \
+.PHONY: all
+all: .make/pre-commit
+
+$(VENV): backend/requirements.txt
+	@python -m venv backend/.venv
+	@backend/.venv/bin/pip install -r backend/requirements.txt
+	@touch $@
+
+.make/hooks: $(VENV)
+	@.venv/bin/pre-commit install \
+		--hook-type pre-commit \
+		--hook-type pre-merge-commit \
+		--hook-type pre-push \
+		--hook-type prepare-commit-msg \
+		--hook-type commit-msg \
+		--hook-type post-commit \
+		--hook-type post-checkout \
+		--hook-type post-merge \
+		--hook-type post-rewrite
+	@mkdir -p $(@D)
+	@touch $@
+
+.PHONY: pre-commit
+#: install pre-commit hooks
+hooks: .make/pre-commit
+
+.coverage: $(VENV) $(PY_FILES)
+	@PYTHONPATH=backend backend/.venv/bin/pytest backend/tests \
 		--cov=backend/app --cov-report=term-missing
+
+.PHONY: test
+#: run tests
+test: .coverage
+
+.make/smoke: $(VENV)
+	@bash scripts/smoke.sh
+	@mkdir -p $(@D)
+	@touch $@
+
+.PHONY: smoke
+#: run smoke test
+smoke: .make/smoke
+
+.PHONY: clean
+#: clean generated files
+clean:
+	@find . -name '__pycache__' -exec rm -rf {} +
+	@rm -rf .coverage
+	@rm -rf .git/hooks/*
+	@rm -rf .make
+	@rm -rf .venv
