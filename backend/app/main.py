@@ -16,8 +16,6 @@ from . import backtest
 from . import backtest_walk
 from . import storage
 from .api.routes import narratives as narratives_routes
-from .api.routes import narratives as narratives_routes
-from .api.routes import parents as parents_routes
 
 
 DATA = Path(DATA_DIR)
@@ -41,9 +39,6 @@ app.include_router(backtest.router)  # mount at /backtest
 app.include_router(backtest_walk.router)
 
 app.include_router(narratives_routes.router)
-
-app.include_router(narratives_routes.router)
-app.include_router(parents_routes.router)
 
 @app.on_event("startup")
 def _ensure_db():

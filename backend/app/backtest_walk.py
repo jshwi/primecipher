@@ -8,80 +8,25 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Query
 
-from .storage import SNAPSHOT_DB_PATH, connect
+from .storage import SNAPSHOT_DB_PATH
 
 router = APIRouter(tags=["backtest"])
 
 
-def _ensure_parent_registry(conn: Optional[sqlite3.Connection] = None) -> sqlite3.Connection:
-    c = conn or connect()
-    cur = c.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS parent_registry (
-          parent TEXT PRIMARY KEY,
-          canonical_narrative TEXT,
-          tags TEXT,
-          first_seen INTEGER,
-          last_seen INTEGER
-        )
-        """
-    )
-    c.commit()
-    return c
-
-
-def _migrate_parents_if_empty(conn: sqlite3.Connection) -> None:
-    cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) AS n FROM parent_registry")
-    if (cur.fetchone()["n"] or 0) > 0:
-        return
-
-    # Seed registry from tracked_pairs (best-effort)
-    cur.execute(
-        """
-        SELECT tp.parent,
-               MAX(tp.last_seen) AS last_seen,
-               MIN(tp.first_seen) AS first_seen
-        FROM tracked_pairs tp
-        GROUP BY tp.parent
-        """
-    )
-    parents = cur.fetchall()
-    for p in parents:
-        parent = p["parent"]
-        cur.execute(
-            """
-            SELECT narrative
-            FROM tracked_pairs
-            WHERE parent = ?
-              AND narrative IS NOT NULL
-              AND narrative <> ''
-            ORDER BY last_seen DESC
-            LIMIT 1
-            """,
-            (parent,),
-        )
-        row = cur.fetchone()
-        canonical = row["narrative"] if row else None
-        cur.execute(
-            """
-            INSERT OR IGNORE INTO parent_registry(parent, canonical_narrative, tags, first_seen, last_seen)
-            VALUES (?, ?, NULL, ?, ?)
-            """,
-            (parent, canonical, p["first_seen"], p["last_seen"]),
-        )
-    conn.commit()
+def _connect() -> sqlite3.Connection:
+    conn = sqlite3.connect(SNAPSHOT_DB_PATH, timeout=30.0, isolation_level=None)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 @router.get("/backtest/walk")
 def backtest_walk(
-    narrative: Optional[str] = Query(None, description="Filter by canonical narrative (from parent_registry)"),
-    parent: Optional[str] = Query(None, description="Filter by parent symbol"),
+    narrative: Optional[str] = Query(None, description="Filter tracked pairs by narrative"),
+    parent: Optional[str] = Query(None, description="Filter tracked pairs by parent symbol"),
     hold: str = Query("h6", description="Hold window: m5|h1|h6|h24"),
     toleranceMin: int = Query(15, ge=1, le=60, description="Time tolerance (minutes) for snapshot alignment"),
     minLiqUsd: float = Query(0.0, ge=0.0, description="Filter by minimum liquidity at exit snapshot"),
-    maxEntryAgeHours: Optional[float] = Query(
+    maxEntryAgeHours: Optional[float] = Query(  # NEW
         None,
         ge=0.0,
         description="Only include trades where (entry time - first_seen) <= this many hours. Omit to disable.",
@@ -91,7 +36,10 @@ def backtest_walk(
     Walk-forward backtest using locally stored snapshots:
       - Entry snapshot near (now - hold), within tolerance.
       - Exit snapshot near now, within tolerance.
-      - Universe is determined by parent_registry.canonical_narrative (late-bound).
+      - Optional 'enter-on-new' via maxEntryAgeHours.
+      - Return = (price_exit / price_entry - 1).
+
+    Adds a helpful `summary.note` when no trades match and `diagnostics` counters.
     """
     hold_map = {"m5": 5 * 60, "h1": 3600, "h6": 6 * 3600, "h24": 24 * 3600}
     hold_s = hold_map.get(hold.lower(), 6 * 3600)
@@ -99,50 +47,21 @@ def backtest_walk(
     now = int(time.time())
     t_entry = now - hold_s
 
-    conn = _ensure_parent_registry()
-    _migrate_parents_if_empty(conn)
+    conn = _connect()
     cur = conn.cursor()
 
-    # Candidate universe:
+    # Choose candidate pairs (include first_seen for entry-age filter)
+    q = "SELECT pair_address, parent, narrative, first_seen FROM tracked_pairs WHERE 1=1"
     args: List[Any] = []
+    if narrative:
+        q += " AND narrative = ?"
+        args.append(narrative)
     if parent:
-        # Narrow to a single parent
-        cur.execute(
-            """
-            SELECT pair_address, parent, narrative, symbol, first_seen, last_seen
-            FROM tracked_pairs
-            WHERE UPPER(parent) = ?
-            ORDER BY last_seen DESC
-            LIMIT 2000
-            """,
-            (parent.upper(),),
-        )
-        pairs = cur.fetchall()
-    elif narrative:
-        # Late-bind via parent_registry.canonical_narrative
-        cur.execute(
-            """
-            SELECT tp.pair_address, tp.parent, tp.narrative, tp.symbol, tp.first_seen, tp.last_seen
-            FROM tracked_pairs tp
-            JOIN parent_registry pr ON pr.parent = tp.parent
-            WHERE pr.canonical_narrative = ?
-            ORDER BY tp.last_seen DESC
-            LIMIT 2000
-            """,
-            (narrative,),
-        )
-        pairs = cur.fetchall()
-    else:
-        # All tracked
-        cur.execute(
-            """
-            SELECT pair_address, parent, narrative, symbol, first_seen, last_seen
-            FROM tracked_pairs
-            ORDER BY last_seen DESC
-            LIMIT 2000
-            """
-        )
-        pairs = cur.fetchall()
+        q += " AND parent = ?"
+        args.append(parent.upper())
+    q += " ORDER BY last_seen DESC LIMIT 2000"
+    cur.execute(q, args)
+    pairs = cur.fetchall()
 
     # Diagnostics
     diag_total_pairs = len(pairs)
@@ -152,13 +71,14 @@ def backtest_walk(
     diag_exit_within_tol = 0
     diag_priced_pairs = 0
     diag_liq_ok = 0
-    diag_entry_age_kept = 0
+    diag_entry_age_kept = 0  # NEW
 
     trades: List[Dict[str, Any]] = []
     returns: List[float] = []
 
     for row in pairs:
         pair = row["pair_address"]
+        first_seen = row["first_seen"]  # epoch seconds
 
         # Entry snapshot (nearest to target entry time)
         cur.execute(
@@ -200,9 +120,8 @@ def backtest_walk(
         else:
             continue
 
-        # Entry-age filter (enter-on-new)
+        # NEW: enter-on-new filter (age at entry)
         entry_age_hours: Optional[float] = None
-        first_seen = row["first_seen"]
         if isinstance(first_seen, int):
             entry_age_hours = max(0.0, (t_entry - first_seen) / 3600.0)
             if maxEntryAgeHours is not None and entry_age_hours > maxEntryAgeHours:
@@ -223,13 +142,13 @@ def backtest_walk(
         t = {
             "pairAddress": pair,
             "parent": row["parent"],
-            "narrative": narrative,  # late-bound filter value (may be None)
+            "narrative": row["narrative"],
             "entryTs": entry["ts"],
             "exitTs": exit_["ts"],
             "entryPrice": p0,
             "exitPrice": p1,
             "exitLiq": exit_["liquidity_usd"],
-            "entryAgeHours": entry_age_hours,
+            "entryAgeHours": entry_age_hours,  # NEW
             "return": ret,
         }
         trades.append(t)
@@ -265,7 +184,7 @@ def backtest_walk(
         "exit_within_tolerance": diag_exit_within_tol,
         "priced_pairs": diag_priced_pairs,
         "liq_ok_pairs": diag_liq_ok,
-        "entry_age_kept": diag_entry_age_kept,
+        "entry_age_kept": diag_entry_age_kept,  # NEW
     }
 
     return {"summary": summary, "diagnostics": diagnostics, "trades": trades}
