@@ -28,13 +28,20 @@ $(VENV): backend/requirements.txt
 #: install pre-commit hooks
 hooks: .make/pre-commit
 
-.coverage: $(VENV) $(PY_FILES)
+.PHONY: cov
+#: check coverage
+cov: $(VENV) $(PY_FILES)
 	@PYTHONPATH=backend backend/.venv/bin/pytest backend/tests \
 		--cov=backend/app --cov-report=term-missing
+
+.coverage: $(VENV) $(PY_FILES)
+	@make cov
+	@touch $@
 
 .PHONY: test
 #: run tests
 test: .coverage
+
 
 .make/smoke: $(VENV)
 	@bash scripts/smoke.sh
