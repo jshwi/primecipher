@@ -1,0 +1,22 @@
+# .pre-commit-config.yaml
+# Runs backend pytest the same way your CI does, plus a smoke.sh script.
+# Relies on your current shell/environment (no deps auto-installed).
+
+repos:
+  - repo: local
+    hooks:
+      - id: backend-pytest
+        name: backend pytest (CI-like)
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit, push]
+        entry: bash -lc 'cd backend && PYTHONPATH=. pytest -q'
+
+      - id: smoke-sh
+        name: smoke.sh
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [commit, push]
+        entry: bash scripts/smoke.sh
