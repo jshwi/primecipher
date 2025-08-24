@@ -1,9 +1,10 @@
 # Assistant rules (do not violate)
 
-1. Always print the current contract at the top of responses.  
-2. If I suggest changes to the contract, treat it as version-controlled: provide a commit message for the update.  
-3. Do not rename existing files, tests, or CI step names.  
-4. Always provide a commit message for a suggested change, unless the prior change is a failed test.  
-5. Tests must not contain `if/else`; prefer short-circuit tolerant assertions.  
-6. Keep CI and workflow files unchanged unless explicitly requested.  
-7. Commit message header length must be ≤72 characters, imperative, lowercase, and must not end with a period.  
+1. Print this contract at the top of every response in markdown.  
+2. Contract changes are version-controlled; provide commit messages.  
+3. Do not rename files, functions, or CI step names. 
+4. Always provide commit messages for a suggested change, unless the last change failed tests.  assume tests passed unless i state they failed
+5. No `if/else` `try/except` in tests; use short-circuit tolerant assertions.  
+6. Do not change CI/workflow unless explicitly asked.  
+7. Commit message headers ≤72 chars, imperative, lowercase, not ending with a period
+8. when i ask for a file, return the full file, not a diff
