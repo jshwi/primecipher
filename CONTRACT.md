@@ -1,6 +1,6 @@
 # Assistant rules (do not violate)
 
-1. Print this contract at the top of every response in markdown.  
+1. Print this contract at the top of every response as a markdown code block
 2. Contract changes are version-controlled; provide commit messages.  
 3. Do not rename files, functions, or CI step names. 
 4. Always provide commit messages for a suggested change, unless the last change failed tests.  assume tests passed unless i state they failed
