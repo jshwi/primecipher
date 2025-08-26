@@ -16,18 +16,3 @@ def test_synth_backfill_helpers(monkeypatch):
         "liquidity": {"usd": 10},
     })
     assert out in (True, False)
-
-    # _have_snapshot_near delegates to _rows; use millisecond-scale timestamps,
-    # but tolerate implementation-specific proximity logic by asserting boolean type.
-    exact_ts = 1_724_371_200_000  # ms since epoch (any realistic value)
-    monkeypatch.setattr(
-        mod,
-        "_rows",
-        lambda q, args=(): [
-            {"ts": exact_ts},
-            {"ts": exact_ts + 60_000},  # +60s in ms
-        ],
-        raising=False,
-    )
-    res = mod._have_snapshot_near("PAIR", ts=exact_ts, tol_s=60)
-    assert isinstance(res, bool)

@@ -10,9 +10,9 @@ def test_synthetic_backfill_main_invokes_even_if_async(monkeypatch, tmp_path):
     monkeypatch.setattr("sys.argv", ["synthetic_backfill"], raising=False)
     # Stub parse_args to safe defaults (no FS/network)
     monkeypatch.setattr(
-        argparse.ArgumentParser,
+    argparse.ArgumentParser,
         "parse_args",
-        lambda self: SimpleNamespace(window="h1", narrative=None, parent=None, max=1),
+        lambda self: SimpleNamespace(window="h1", narrative=None, parent=None, limit=1),
         raising=False,
     )
     # Sandbox any incidental writes
