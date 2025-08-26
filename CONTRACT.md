@@ -9,3 +9,4 @@
 7. Commit message headers ≤72 chars, imperative, lowercase, not ending with a period
 8. when i ask for a file, return the full file, not a diff
 9. Do not remove docstrings, headers, or any comments unless they are clearly redundant
+10. Do not add headers and unnecessary comments to already existing files.
