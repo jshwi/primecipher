@@ -1,3 +1,4 @@
+FILES := $(shell git ls-files)
 PY_FILES := $(shell git ls-files "backend/**/*.py")
 
 VENV := backend/.venv/bin/activate
@@ -52,6 +53,9 @@ test: coverage.xml
 .PHONY: smoke
 #: run smoke test
 smoke: .make/smoke
+
+archive.zip: $(FILES)
+	@git archive --format=zip --output $@ HEAD
 
 .PHONY: clean
 #: clean generated files
