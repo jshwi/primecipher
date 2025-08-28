@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Query
 from typing import Any, Dict
 from ...seeds import list_narrative_names

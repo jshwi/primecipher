@@ -1,4 +1,3 @@
-
 const base = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
 export async function getNarratives(windowParam?: string) {
   const u = new URL(base + '/narratives')

@@ -1,4 +1,3 @@
-
 import Link from 'next/link'
 import { getNarratives, doRefresh } from '@/lib/api'
 

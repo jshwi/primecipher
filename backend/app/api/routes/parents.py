@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, Path, Query, HTTPException
 from typing import Any, Dict
 from ...seeds import list_narrative_names

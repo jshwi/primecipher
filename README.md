@@ -1,4 +1,3 @@
-
 # PrimeCipher (Fresh MVP)
 
 Minimal, clean skeleton that does **one thing**: list narratives and show their parents.
