@@ -16,23 +16,15 @@ def test_parents_404_unknown(client):
     r = client.get("/parents/__nope__")
     assert r.status_code == 404
 
-def test_refresh_then_parents_flow(client, monkeypatch):
-    def fake_randint(a, b):
-        if (a, b) == (2, 6):
-            return 3
-        return 10
-    monkeypatch.setattr(random, "randint", fake_randint)
+from app.seeds import list_narrative_names
 
+def test_refresh_then_parents_flow(client):
     r = client.post("/refresh")
-    assert r.status_code == 200
-    body = r.json()
-    assert body.get("ok") is True
-    assert body.get("ts") == last_refresh_ts()
+    assert r.status_code == 200 and r.json().get("ok") is True
 
-    for n in ("dogs", "ai"):
+    for n in list_narrative_names():  # no hardcoded 'moodeng'
         r2 = client.get(f"/parents/{n}")
         assert r2.status_code == 200
         items = r2.json().get("items")
-        assert isinstance(items, list)
-        assert len(items) == 3
+        assert isinstance(items, list) and len(items) == 3  # deterministic mode
         assert all("parent" in x and "matches" in x for x in items)

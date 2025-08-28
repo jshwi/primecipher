@@ -16,11 +16,12 @@ def test_synthesize_parents_deterministic(monkeypatch):
     assert all("parent" in x and "matches" in x for x in dogs)
     assert dogs == sorted(dogs, key=lambda x: -x["matches"])
 
-def test_refresh_all_writes_storage(monkeypatch):
-    def fake_randint(a, b):
-        if (a, b) == (2, 6):
-            return 2
-        return 5
-    monkeypatch.setattr(random, "randint", fake_randint)
+from app.parents import refresh_all
+from app.storage import get_parents
+
+def test_refresh_all_writes_storage():
     refresh_all()
-    assert len(get_parents("ai")) == 2
+    names = list_narrative_names()
+    assert names, "no narratives defined in seeds"
+    v = get_parents(names[0])
+    assert isinstance(v, list) and len(v) == 3
