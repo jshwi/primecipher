@@ -4,6 +4,7 @@ from .seeds import load_seeds
 from .storage import set_parents
 from time import time
 from .repo import replace_parents
+from .adapters.source import Source
 
 def synthesize_parents() -> Dict[str, List[dict]]:
     out: Dict[str, List[dict]] = {}
@@ -19,8 +20,13 @@ def synthesize_parents() -> Dict[str, List[dict]]:
     return out
 
 def refresh_all() -> None:
-    # In a real app, query on-chain or APIs here.
-    generated = synthesize_parents()
+    src = Source()
+    generated: Dict[str, List[dict]] = {}
+    for n in load_seeds()["narratives"]:
+        name = n["name"]
+        terms = n["terms"]
+        v = src.parents_for(name, terms)
+        generated[name] = sorted(v, key=lambda x: -int(x["matches"]))
     ts = time()
     for k, v in generated.items():
         set_parents(k, v)
