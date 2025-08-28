@@ -23,8 +23,8 @@ CHILD_MAX_AGE_HOURS = float(os.getenv("CHILD_MAX_AGE_HOURS", "720"))  # 30d wind
 DEX_IDS = {d.strip().lower() for d in os.getenv("DEX_IDS", "raydium,orca,pump").split(",") if d.strip()}
 
 # Directories
-DATA_DIR = os.getenv("DATA_DIR", str((Path(__file__).resolve().parents[2] / "data")))
-SEED_DIR = os.getenv("SEED_DIR", str((Path(__file__).resolve().parents[2] / "seeds")))
+DATA_DIR = os.getenv("DATA_DIR", str((Path(__file__).resolve().parents[1] / "data")))
+SEED_DIR = os.getenv("SEED_DIR", str((Path(__file__).resolve().parents[1] / "seeds")))
 
 CORS_ALLOW_ORIGINS = os.getenv(
     "CORS_ALLOW_ORIGINS",
