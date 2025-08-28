@@ -29,7 +29,7 @@ def test_refresh_then_parents_flow(client, monkeypatch):
     assert body.get("ok") is True
     assert body.get("ts") == last_refresh_ts()
 
-    for n in ("dogs", "ai"):
+    for n in ("dogs", "moodeng"):
         r2 = client.get(f"/parents/{n}")
         assert r2.status_code == 200
         items = r2.json().get("items")

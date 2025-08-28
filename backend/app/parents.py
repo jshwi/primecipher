@@ -2,6 +2,8 @@ import random
 from typing import List, Dict
 from .seeds import load_seeds
 from .storage import set_parents
+from time import time
+from .repo import replace_parents
 
 def synthesize_parents() -> Dict[str, List[dict]]:
     out: Dict[str, List[dict]] = {}
@@ -19,5 +21,7 @@ def synthesize_parents() -> Dict[str, List[dict]]:
 def refresh_all() -> None:
     # In a real app, query on-chain or APIs here.
     generated = synthesize_parents()
+    ts = time()
     for k, v in generated.items():
         set_parents(k, v)
+        replace_parents(k, v, ts)

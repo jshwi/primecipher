@@ -1,10 +1,20 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
+
 from .api.routes import narratives as r_narratives
 from .api.routes import parents as r_parents
 from .api.routes import refresh as r_refresh
+from .repo import init_db
 
-app = FastAPI(title="PrimeCipher API (MVP)")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()           # was in on_event("startup")
+    yield               # place teardown logic after yield if needed
+
+
+app = FastAPI(title="PrimeCipher API (MVP)", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
