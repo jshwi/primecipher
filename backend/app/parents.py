@@ -25,15 +25,26 @@ def synthesize_parents() -> Dict[str, List[dict]]:
         out[name] = sorted(parents, key=lambda x: -x["matches"])
     return out
 
-def refresh_all() -> None:
+from typing import List, Dict
+from time import time
+from .seeds import load_seeds
+from .storage import set_parents
+from .repo import replace_parents
+from .adapters.source import Source
+
+def compute_all() -> Dict[str, List[dict]]:
     src = Source()
-    generated: Dict[str, List[dict]] = {}
+    out: Dict[str, List[dict]] = {}
     for n in load_seeds()["narratives"]:
         name = n["name"]
         terms = n["terms"]
         v = src.parents_for(name, terms)
         v = sorted(v, key=lambda x: -int(x["matches"]))
-        generated[name] = v
+        out[name] = v
+    return out
+
+def refresh_all() -> None:
+    generated = compute_all()
     ts = time()
     for k, v in generated.items():
         set_parents(k, v)
