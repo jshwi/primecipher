@@ -1,71 +1,23 @@
-# Narrative Heatmap × Parent Ecosystems (Stub MVP)
 
-This bundle includes:
-- Backend API (FastAPI) with live DexScreener adapter + heat scoring
-- Frontend UI (Next.js) reading JSON snapshots
-- Seeds (tiny, assumed subsets) separate from generated data
+# PrimeCipher (Fresh MVP)
 
----
+Minimal, clean skeleton that does **one thing**: list narratives and show their parents.
 
-## Requirements
-
-### System
-- Python 3.10+
-- Node.js 18+ (with npm)
-- jq (optional, for smoke script)
-
-### Python deps
-See `backend/requirements.txt`:
-```
-fastapi==0.115.0
-uvicorn[standard]==0.30.6
-httpx==0.27.2
-```
-
-### Node deps
-See `frontend/package.json` (Next.js 15, React 18).
-
----
-
-## Quickstart
-
-### 1) Backend setup
+## Run (Docker)
 ```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+docker compose build --no-cache
+docker compose up
+# FE: http://localhost:3000
+# API: http://localhost:8000
 ```
 
-### 2) Create stub snapshots (from seeds)
-```bash
-python scripts/generate_stub_data.py
-# writes data/narratives-24h.json and data/parents-<narrative>-24h.json
-```
+## API
+- `GET /narratives` – list from seeds
+- `GET /parents/{narrative}` – parents for narrative (in-memory store)
+- `POST /refresh` – synthesize parents and mark last refresh
 
-### 3) Run API
-```bash
-uvicorn app.main:app --reload --port 8000
-```
+## Seeds
+Edit `backend/seeds/narratives.seed.json` (hot-mounted read-only).
 
-### 4) Frontend setup
-```bash
-cd ../frontend
-npm install
-npm run dev
-# open http://localhost:3000
-```
-
-### 5) (Optional) Live refresh from DexScreener
-In another terminal (API running):
-```bash
-curl "http://localhost:8000/refresh?window=24h"
-# or fetch live without writing snapshots:
-curl "http://localhost:8000/narratives?window=24h&source=live" | jq .
-curl "http://localhost:8000/parents/dogs?window=24h&source=live" | jq .
-```
-
-### Seeds vs Data
-- `/seeds/` — small, assumed subsets (committed inputs)
-- `/data/` — generated snapshots (ignored by git in your repo)
-
+## Notes
+- No DB. No billing. No workers. Clean growth path from here only if the core is useful.

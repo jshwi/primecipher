@@ -13,14 +13,6 @@ repos:
         stages: [pre-commit, pre-push]
         entry: make test
 
-      - id: smoke-sh
-        name: smoke.sh
-        language: system
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit, pre-push]
-        entry: make smoke
-
   - repo: https://github.com/siderolabs/conform
     rev: "v0.1.0-alpha.30"
     hooks:

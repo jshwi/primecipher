@@ -1,28 +1,21 @@
 services:
-  api:
-    build:
-      context: ./backend
+  backend:
+    build: ./backend
     environment:
-      PYTHONUNBUFFERED: "1"
-      # Use the default in-app seeds unless you override via env
-      # NARRATIVES_SEEDS_FILE: /app/app/narratives.seeds.json
-    volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+      SEEDS_FILE: /app/seeds/narratives.seed.json
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend/seeds:/app/seeds:ro
 
   frontend:
     build:
       context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE: http://backend:8000
     environment:
-      # Critical: frontend will call the API at the service name inside the Compose network
-      NEXT_PUBLIC_API_BASE: "http://api:8000"
-    depends_on:
-      - api
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command: npm run dev
+      NEXT_PUBLIC_API_BASE: http://backend:8000
     ports:
       - "3000:3000"
+    depends_on:
+      - backend

@@ -1,58 +1,23 @@
-[
-  {
-    "narrative": "dogs",
-    "keywords": ["wif", "dog"],
-    "parents": [
-      {
-        "symbol": "WIF",
-        "address": "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm",
-        "match": ["wif", "dogwifhat", "wifhat", "dogwif", "dog with hat"],
-        "block": ["WITH", "SANTA"],
-        "nameMatchAllowed": false
-      }
-    ]
-  },
-  {
-    "narrative": "ai",
-    "keywords": ["ai", "gpt", "tao", "fet"],
-    "parents": [
-      { "symbol": "FET", "match": ["fet", "fetch.ai", "fetchai"] },
-      { "symbol": "TAO", "match": ["tao", "bittensor"] }
-    ]
-  },
-  {
-    "narrative": "frogs",
-    "terms": ["pepe","frog","rarepepe"],
-    "parents": [
-      {"symbol": "PEPE", "match": ["pepe","rarepepe"]}
-    ]
-  },
-  {
-    "narrative": "cats",
-    "terms": ["cat","mog","nyan"],
-    "parents": [
-      {"symbol": "MOG", "match": ["mog"]},
-      {"symbol": "NYAN", "match": ["nyan"]}
-    ]
-  },
-  {
-    "narrative": "hipo",
-    "terms": ["hipo","moodeng"],
-    "parents": [
-      {
-        "symbol": "MOODENG",
-        "address": "ED5nyyWEzpPPiWimP8vYm7sD7TD3LAt3Q3gRTWHzPJBY",
-        "match": ["moo","deng"],
-        "nameMatchAllowed": true,
-        "discovery": {
-          "dexIds": ["raydium","orca","pump","meteora","lifinity"],
-          "volMinUsd": 5,
-          "liqMinUsd": 100,
-          "maxAgeHours": 1440,
-          "requireAllTerms": true
-        }
-      }
-    ]
-  }
-]
-
+{
+  "narratives": [
+    {
+      "name": "dogs",
+      "terms": [
+        "dog",
+        "shib",
+        "wif"
+      ],
+      "allowNameMatch": true,
+      "block": []
+    },
+    {
+      "name": "moodeng",
+      "terms": [
+        "moo",
+        "deng"
+      ],
+      "allowNameMatch": true,
+      "block": []
+    }
+  ]
+}

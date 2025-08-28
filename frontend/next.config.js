@@ -1,10 +1,4 @@
+
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  output: 'standalone',
-  experimental: { appDir: true },
-  reactStrictMode: true,
-  typescript: {
-    ignoreBuildErrors: true,
-  },
-};
+const nextConfig = { reactStrictMode: true, experimental: { serverActions: { bodySizeLimit: '2mb' } } };
 module.exports = nextConfig;

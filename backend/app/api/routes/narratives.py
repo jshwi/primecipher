@@ -1,38 +1,12 @@
-# backend/app/api/routes/narratives.py
-from __future__ import annotations
 
-from typing import Any, Dict, List
+from fastapi import APIRouter, Query
+from typing import Any, Dict
+from ...seeds import list_narrative_names
+from ...storage import last_refresh_ts
 
-from fastapi import APIRouter
-
-# Use relative import so this works regardless of PYTHONPATH/CWD
-from ...seeds import load_narrative_seeds
-
-router = APIRouter(prefix="", tags=["narratives"])
-
+router = APIRouter()
 
 @router.get("/narratives")
-def list_narratives() -> Dict[str, Any]:
-    """
-    Returns available narratives from seeds, with parent symbols.
-    Example:
-    {
-      "narratives": [
-        {"key": "dogs", "parents": ["WIF","MOODENG"], "num_parents": 2},
-        {"key": "ai",   "parents": ["..."],           "num_parents": 1}
-      ]
-    }
-    """
-    seeds = load_narrative_seeds()
-    out: List[Dict[str, Any]] = []
-    for s in seeds:
-        key = s.get("narrative")
-        parents: List[str] = []
-        for p in (s.get("parents") or []):
-            sym = (p.get("symbol") or "").upper()
-            if sym:
-                parents.append(sym)
-        out.append({"key": key, "parents": parents, "num_parents": len(parents)})
-    out.sort(key=lambda x: (x["key"] or ""))
-    return {"narratives": out}
-
+def list_narratives(window: str = Query(default="24h")) -> Dict[str, Any]:
+    items = [{"narrative": n, "count": None} for n in list_narrative_names()]
+    return {"window": window, "lastRefreshTs": last_refresh_ts(), "items": items}

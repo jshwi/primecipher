@@ -1,32 +1,26 @@
-from backend.app.parents import build_parent_ecosystems
+import random
+from app.parents import synthesize_parents, refresh_all
+from app.seeds import list_narrative_names
+from app.storage import get_parents
 
-class FakeAdapter:
-    def fetch_parent_metrics(self, parents):
-        # return stable parent liq to avoid None issues
-        return {p["symbol"]: {"liquidityUsd": 10000, "volume24hUsd": 5000} for p in parents}
+def test_synthesize_parents_deterministic(monkeypatch):
+    def fake_randint(a, b):
+        if (a, b) == (2, 6):
+            return 3
+        return 11
+    monkeypatch.setattr(random, "randint", fake_randint)
+    out = synthesize_parents()
+    assert set(out.keys()) >= set(list_narrative_names())
+    dogs = out.get("dogs", [])
+    assert len(dogs) == 3
+    assert all("parent" in x and "matches" in x for x in dogs)
+    assert dogs == sorted(dogs, key=lambda x: -x["matches"])
 
-    def fetch_children_for_parent(self, parent_symbol, match_terms, allow_name_match=True, limit=100, discovery=None):
-        # Return one blocked and one allowed child
-        return [
-            {"symbol": "WITH", "liquidityUsd": 3000, "volume24hUsd": 1000, "ageHours": 10},
-            {"symbol": "DOGWIF", "liquidityUsd": 4000, "volume24hUsd": 1200, "ageHours": 12},
-        ]
-
-def test_blocklist_filters_children_in_parents():
-    adapter = FakeAdapter()
-    p = {
-        "symbol": "WIF",
-        "match": ["wif"],
-        "block": ["WITH"],              # block this child
-        "nameMatchAllowed": False,
-        "discovery": {},                # no overrides
-    }
-    rows = build_parent_ecosystems("dogs", [p], adapter)
-    assert len(rows) == 1
-    row = rows[0]
-    assert row["parent"] == "WIF"
-    assert row["childrenCount"] == 1, "blocked child should be removed"
-    assert row["topChild"]["symbol"] == "DOGWIF"
-    # survival rate computed over remaining children
-    assert 0.0 <= row["survivalRates"]["h24"] <= 1.0
-
+def test_refresh_all_writes_storage(monkeypatch):
+    def fake_randint(a, b):
+        if (a, b) == (2, 6):
+            return 2
+        return 5
+    monkeypatch.setattr(random, "randint", fake_randint)
+    refresh_all()
+    assert len(get_parents("moodeng")) == 2

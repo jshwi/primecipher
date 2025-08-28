@@ -44,16 +44,6 @@ coverage.xml: $(VENV) $(PY_FILES)
 #: run tests
 test: coverage.xml
 
-
-.make/smoke: $(VENV) $(PY_FILES)
-	@bash scripts/smoke.sh
-	@mkdir -p $(@D)
-	@touch $@
-
-.PHONY: smoke
-#: run smoke test
-smoke: .make/smoke
-
 archive.zip: $(FILES)
 	@git archive --format=zip --output $@ HEAD
 
