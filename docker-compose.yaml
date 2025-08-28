@@ -3,6 +3,9 @@ services:
     build: ./backend
     environment:
       SEEDS_FILE: /app/seeds/narratives.seed.json
+      FRONTEND_ORIGINS: http://localhost:3000
+      GIT_SHA: "local"
+      BUILT_AT: "local"
     ports:
       - "8000:8000"
     volumes:
