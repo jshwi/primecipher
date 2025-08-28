@@ -6,6 +6,8 @@ services:
       FRONTEND_ORIGINS: http://localhost:3000
       GIT_SHA: "local"
       BUILT_AT: "local"
+      SOURCE_MODE: coingecko   # uncomment to try real data
+      SOURCE_TTL: "60"         # memoize responses for 60s
     ports:
       - "8000:8000"
     volumes:
