@@ -41,7 +41,7 @@ def test_refresh_then_parents_flow(monkeypatch):
     assert r.json().get("ok") is True
     assert last_refresh_ts() > 0
 
-    for n in ("dogs", "moodeng"):
+    for n in ("dogs", "ai"):
         r2 = c.get(f"/parents/{n}")
         assert r2.status_code == 200
         items = r2.json().get("items")

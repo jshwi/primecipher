@@ -23,4 +23,4 @@ def test_refresh_all_writes_storage(monkeypatch):
         return 5
     monkeypatch.setattr(random, "randint", fake_randint)
     refresh_all()
-    assert len(get_parents("moodeng")) == 2
+    assert len(get_parents("ai")) == 2
