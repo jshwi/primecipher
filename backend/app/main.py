@@ -51,6 +51,17 @@ async def http_exc_handler(_: Request, exc: HTTPException):
 async def unhandled_exc_handler(_: Request, exc: Exception):
     return JSONResponse(status_code=500, content={"ok": False, "error": "internal_error"})
 
+@app.middleware("http")
+async def add_request_logging(request: Request, call_next):
+    rid = str(uuid.uuid4())[:8]
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        dur = (time.perf_counter() - start) * 1000
+        logging.info(f"{rid} {request.method} {request.url.path} -> {response.status_code} {dur:.1f}ms")
+
 # Routes
 app.include_router(r_narratives.router)
 app.include_router(r_parents.router)
