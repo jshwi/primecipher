@@ -1,5 +1,6 @@
 import os, sys, pytest
 from pathlib import Path
+import pytest
 
 # Set env BEFORE importing app modules
 here = Path(__file__).parent
@@ -21,3 +22,7 @@ def client():
     from fastapi.testclient import TestClient
     with TestClient(app, raise_server_exceptions=False) as c:
         yield c
+
+@pytest.fixture(autouse=True)
+def _clear_refresh_token_env(monkeypatch):
+    monkeypatch.delenv("REFRESH_TOKEN", raising=False)
