@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, conint, constr
 class Parent(BaseModel):
     parent: constr(min_length=1)
     matches: conint(ge=0)
+    score: Optional[float] = None
 
 class NarrativesResp(BaseModel):
     items: List[constr(min_length=1)]

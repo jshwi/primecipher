@@ -4,6 +4,7 @@ from ...seeds import list_narrative_names
 from ...storage import get_parents
 from ...repo import list_parents as list_parents_db
 from ...schemas import ParentsResp
+from ...parents import _with_scores, TOP_N  # NEW
 
 router = APIRouter()
 
@@ -15,4 +16,5 @@ def get_parents_for_narrative(
     if narrative not in set(list_narrative_names()):
         raise HTTPException(status_code=404, detail="unknown narrative")
     items = list_parents_db(narrative) or get_parents(narrative)
+    items = _with_scores(items)[:TOP_N]  # NEW: score + cap on read, too
     return {"narrative": narrative, "window": window, "items": items}
