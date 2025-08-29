@@ -1,5 +1,10 @@
+SHELL := /bin/bash
+
+.ONESHELL:
+
 FILES := $(shell git ls-files)
 PY_FILES := $(shell git ls-files "backend/**/*.py")
+NODE_MODULES := frontend/node_modules/.package-lock.json
 
 VENV := backend/.venv/bin/activate
 
@@ -10,6 +15,11 @@ $(VENV): backend/requirements.txt
 	@python -m venv backend/.venv
 	@backend/.venv/bin/pip install -r backend/requirements.txt
 	@touch $@
+
+$(NODE_MODULES): frontend/package-lock.json
+	@pushd frontend >/dev/null 2>&1
+	@npm install
+	@popd >/dev/null 2>&1
 
 .make/hooks: $(VENV)
 	@backend/.venv/bin/pre-commit install \
@@ -28,6 +38,10 @@ $(VENV): backend/requirements.txt
 .PHONY: venv
 #: create virtual environment and install dependencies
 venv: $(VENV)
+
+.PHONY: node
+#: install node modules
+node: $(NODE_MODULES)
 
 .PHONY: hooks
 #: install pre-commit hooks
@@ -59,6 +73,13 @@ archive: archive.zip
 #: start api server
 api: $(VENV)
 	@backend/.venv/bin/uvicorn backend.app.main:app --reload --port 8000
+
+.PHONY: start
+#: start dev server
+start: $(NODE_MODULES)
+	@pushd frontend >/dev/null 2>&1
+	@npm run dev
+	@popd >/dev/null 2>&1
 
 .PHONY: clean
 #: clean generated files
