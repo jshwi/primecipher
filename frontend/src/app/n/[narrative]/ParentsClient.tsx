@@ -33,21 +33,47 @@ export default function ParentsClient({ initial }: { initial: ParentsResp }) {
       </div>
 
       {err && (
-        <div style={{ background: "#fee", color: "#900", padding: "6px 8px", borderRadius: 6, marginBottom: 8 }}>
+        <div
+          role="alert"
+          style={{
+            background: "var(--error-bg)",
+            color: "var(--error-fg)",
+            padding: 8,
+            borderRadius: 6,
+            marginBottom: 8,
+            border: "1px solid var(--border)",
+          }}
+        >
           {err}
         </div>
       )}
 
       {rows.length === 0 ? (
-        <div style={{ padding: 12, border: "1px dashed #444", borderRadius: 8, color: "#888" }}>
+        <div
+          style={{
+            padding: 12,
+            border: "1px dashed var(--border)",
+            borderRadius: 8,
+            color: "var(--fg-muted)",
+            background: "transparent",
+          }}
+        >
           No parents yet. Try Refresh on the homepage.
         </div>
       ) : (
         <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
           {rows.map((it, i) => (
-            <div key={`${it.parent}-${i}`} style={{ border: "1px solid #222", borderRadius: 8, padding: 12 }}>
-              <div style={{ fontWeight: 600 }}>{it.parent}</div>
-              <div style={{ fontSize: 13, color: "#888" }}>
+            <div
+              key={`${it.parent}-${i}`}
+              style={{
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: 12,
+                background: "rgba(255,255,255,0.02)",
+              }}
+            >
+              <div style={{ fontWeight: 600, color: "var(--fg)" }}>{it.parent}</div>
+              <div style={{ fontSize: 13, color: "var(--fg-muted)" }}>
                 matches: {it.matches}
                 {typeof it.score === "number" ? <span> • score: {it.score}</span> : null}
               </div>
@@ -60,12 +86,19 @@ export default function ParentsClient({ initial }: { initial: ParentsResp }) {
         <button
           onClick={loadMore}
           disabled={busy}
-          style={{ padding: "8px 12px", border: "1px solid #222", borderRadius: 6, opacity: busy ? 0.7 : 1 }}
+          style={{
+            padding: "8px 12px",
+            border: "1px solid var(--border)",
+            borderRadius: 6,
+            background: "transparent",
+            color: "var(--fg)",
+            opacity: busy ? 0.7 : 1,
+          }}
         >
           {busy ? "Loading…" : "Load more"}
         </button>
       ) : (
-        <div style={{ color: "#888", fontSize: 13 }}>End of list</div>
+        <div style={{ color: "var(--fg-muted)", fontSize: 13 }}>End of list</div>
       )}
     </main>
   )

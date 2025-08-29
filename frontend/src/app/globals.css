@@ -1,0 +1,18 @@
+:root {
+  /* dark theme palette */
+  --bg: #0d0d0d;
+  --fg: #f2f2f2;
+  --fg-muted: #aaa;
+  --border: #333;
+  --accent: #1e90ff;
+  --error-bg: #2a0000;
+  --error-fg: #ff6666;
+}
+
+html, body {
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+}
