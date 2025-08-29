@@ -1,4 +1,5 @@
 const base = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000'
+const devRefreshToken = process.env.NEXT_PUBLIC_REFRESH_TOKEN
 
 export type NarrativesResp = { items: string[]; lastRefresh?: number }
 export async function getNarratives(windowParam?: string): Promise<NarrativesResp> {
@@ -20,7 +21,10 @@ export async function getParents(narrative: string, windowParam?: string) {
 export async function doRefresh(windowParam?: string) {
   const u = new URL(base + '/refresh')
   if (windowParam) u.searchParams.set('window', windowParam)
-  const r = await fetch(u.toString(), { method: 'POST' })
+  const r = await fetch(u.toString(), {
+    method: 'POST',
+    headers: devRefreshToken ? { Authorization: `Bearer ${devRefreshToken}` } : undefined,
+  })
   if (!r.ok) throw new Error('failed')
   return r.json()
 }
