@@ -25,6 +25,10 @@ $(VENV): backend/requirements.txt
 	@mkdir -p $(@D)
 	@touch $@
 
+.PHONY: venv
+#: create virtual environment and install dependencies
+venv: $(VENV)
+
 .PHONY: hooks
 #: install pre-commit hooks
 hooks: .make/hooks
@@ -46,6 +50,10 @@ test: coverage.xml
 
 archive.zip: $(FILES)
 	@git archive --format=zip --output $@ HEAD
+
+.PHONY: archive
+#: zip repo into an archive
+archive: archive.zip
 
 .PHONY: clean
 #: clean generated files
