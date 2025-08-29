@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, conint, constr
 class Parent(BaseModel):
     parent: constr(min_length=1)
     matches: conint(ge=0)
-    score: Optional[float] = None
+    score: Optional[float] = None  # present after scoring
 
 class NarrativesResp(BaseModel):
     items: List[constr(min_length=1)]
@@ -14,6 +14,8 @@ class ParentsResp(BaseModel):
     narrative: constr(min_length=1)
     window: constr(min_length=1)
     items: List[Parent]
+    # IMPORTANT: make sure the field exists in the schema so FastAPI won't drop it
+    nextCursor: Optional[str] = Field(default=None)
 
 class RefreshResp(BaseModel):
     ok: Literal[True]
