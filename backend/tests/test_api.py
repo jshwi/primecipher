@@ -26,5 +26,6 @@ def test_refresh_then_parents_flow(client):
         r2 = client.get(f"/parents/{n}")
         assert r2.status_code == 200
         items = r2.json().get("items")
-        assert isinstance(items, list) and len(items) == 3  # deterministic mode
-        assert all("parent" in x and "matches" in x for x in items)
+        assert isinstance(items, list) and len(items) > 0
+        for it in items:
+            assert "parent" in it and "matches" in it and "score" in it

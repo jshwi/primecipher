@@ -5,22 +5,50 @@ import random
 
 from .registry import register_adapter, make_adapter, get_adapter_names
 
-# TTL cache used by providers that need it (e.g., coingecko)
+# Global TTL for raw provider results (seconds)
 TTL_SEC = int(os.getenv("SOURCE_TTL", "60"))
-_cache: dict[Tuple[str, Tuple[str, ...]], Tuple[float, List[Dict]]] = {}
 
-def _get_cached(key: Tuple[str, Tuple[str, ...]]) -> t.Optional[List[Dict]]:
-    now = time.time()
-    hit = _cache.get(key)
+# Shared raw cache across providers: (provider, normalized_terms) -> (ts, items)
+_raw_cache: dict[Tuple[str, Tuple[str, ...]], Tuple[float, List[Dict]]] = {}
+# Back-compat alias for older tests/helpers that expect `_cache`
+_cache = _raw_cache
+
+def _now() -> float:
+    return time.time()
+
+def _normalize_terms(terms: List[str]) -> Tuple[str, ...]:
+    """Lowercase, strip, drop empties, unique, and sort for a stable cache key."""
+    norm = {t.strip().lower() for t in (terms or []) if t and t.strip()}
+    return tuple(sorted(norm))
+
+def _get_raw_cached(key: Tuple[str, Tuple[str, ...]]) -> t.Optional[List[Dict]]:
+    hit = _raw_cache.get(key)
     if not hit:
         return None
     ts, val = hit
-    if now - ts > TTL_SEC:
+    if _now() - ts > TTL_SEC:
         return None
     return val
 
-def _set_cached(key: Tuple[str, Tuple[str, ...]], val: List[Dict]) -> None:
-    _cache[key] = (time.time(), val)
+def _set_raw_cached(key: Tuple[str, Tuple[str, ...]], val: List[Dict]) -> None:
+    _raw_cache[key] = (_now(), val)
+
+def _memo_raw(provider: str, terms: List[str], producer: t.Callable[[], List[Dict]]) -> List[Dict]:
+    """
+    Cache raw provider results per (provider, normalized terms).
+    Narrative-dependent filtering must be applied *after* this memoization.
+    """
+    key = (provider, _normalize_terms(terms))
+    cached = _get_raw_cached(key)
+    if cached is not None:
+        return cached
+    val = producer() or []
+    _set_raw_cached(key, val)
+    return val
+
+# --------------------------
+# Local item producers (raw)
+# --------------------------
 
 def _deterministic_items(narrative: str, terms: List[str]) -> List[Dict]:
     base = terms or [narrative, "parent", "seed"]
@@ -39,6 +67,10 @@ def _random_items(terms: List[str]) -> List[Dict]:
     out.sort(key=lambda x: -x["matches"])
     return out
 
+# ---------------
+# Seed semantics
+# ---------------
+
 def _apply_seed_semantics(
     narrative: str,
     terms: List[str],
@@ -47,7 +79,7 @@ def _apply_seed_semantics(
     items: List[Dict],
     require_all_terms: bool = False,
 ) -> List[Dict]:
-    nl = narrative.lower()
+    nl = (narrative or "").lower()
     term_list = [t.lower() for t in (terms or []) if t]
     block_list = [b.lower() for b in (block or []) if b]
 
@@ -65,7 +97,7 @@ def _apply_seed_semantics(
         filtered.append(it)
 
     filtered.sort(key=lambda x: -int(x.get("matches", 0)))
-    return filtered[:3]  # keep UI stable for small lists
+    return filtered[:3]  # small, stable lists for UI
 
 # -------------------------
 # Providers (registered)
@@ -75,7 +107,7 @@ def _apply_seed_semantics(
 def _make_test():
     class _TestAdapter:
         def parents_for(self, narrative, terms, allow_name_match=True, block=None, require_all_terms=False):
-            raw = _deterministic_items(narrative, terms)
+            raw = _memo_raw("test", terms, lambda: _deterministic_items(narrative, terms))
             return _apply_seed_semantics(narrative, terms, allow_name_match, block or [], raw, require_all_terms)
     return _TestAdapter()
 
@@ -83,7 +115,7 @@ def _make_test():
 def _make_dev():
     class _DevAdapter:
         def parents_for(self, narrative, terms, allow_name_match=True, block=None, require_all_terms=False):
-            raw = _random_items(terms)
+            raw = _memo_raw("dev", terms, lambda: _random_items(terms))
             return _apply_seed_semantics(narrative, terms, allow_name_match, block or [], raw, require_all_terms)
     return _DevAdapter()
 
@@ -92,32 +124,33 @@ def _make_cg():
     import httpx
     class _CGAdapter:
         def parents_for(self, narrative, terms, allow_name_match=True, block=None, require_all_terms=False):
-            q = " ".join(sorted(set([t for t in terms if t.strip()]))) or "sol"
-            key = ("coingecko", tuple(sorted(set(terms))))
-            cached = _get_cached(key)
-            if cached is not None:
-                return _apply_seed_semantics(narrative, terms, allow_name_match, block or [], cached, require_all_terms)
-            url = "https://api.coingecko.com/api/v3/search"
-            try:
-                with httpx.Client(timeout=6.0) as cl:
-                    r = cl.get(url, params={"query": q})
-                    r.raise_for_status()
-                    js = r.json() or {}
-                coins = js.get("coins") or []
-                out: List[Dict] = []
-                for i, c in enumerate(coins[:8]):
-                    name = c.get("name") or c.get("id") or f"cg-{i}"
-                    rank = c.get("market_cap_rank") or 1000
-                    score = max(3, 100 - int(rank))
-                    out.append({"parent": name, "matches": score})
-                if not out:
-                    out = _deterministic_items(q, terms)
-            except Exception:
-                out = _deterministic_items(q, terms)
-            out.sort(key=lambda x: -x["matches"])
-            out = out[:3]
-            _set_cached(key, out)
-            return _apply_seed_semantics(narrative, terms, allow_name_match, block or [], out, require_all_terms)
+            def _fetch():
+                try:
+                    q = " ".join(sorted(set([t for t in terms if t.strip()]))) or "sol"
+                    url = "https://api.coingecko.com/api/v3/search"
+                    with httpx.Client(timeout=6.0) as cl:
+                        r = cl.get(url, params={"query": q})
+                        r.raise_for_status()
+                        js = r.json() or {}
+
+                    coins = js.get("coins") or []
+                    out: List[Dict] = []
+                    for i, c in enumerate(coins[:8]):
+                        name = c.get("name") or c.get("id") or f"cg-{i}"
+                        rank = c.get("market_cap_rank") or 1000
+                        score = max(3, 100 - int(rank))
+                        out.append({"parent": name, "matches": score})
+                    if not out:
+                        out = _deterministic_items(q, terms)
+                    out.sort(key=lambda x: -x["matches"])
+                    return out[:3]
+                except Exception:
+                    # Any network/JSON/HTTP error → deterministic fallback
+                    q = " ".join(sorted(set([t for t in terms if t.strip()]))) or "sol"
+                    return _deterministic_items(q, terms)
+
+            raw = _memo_raw("coingecko", terms, _fetch)
+            return _apply_seed_semantics(narrative, terms, allow_name_match, block or [], raw, require_all_terms)
     return _CGAdapter()
 
 # ---------------------------------

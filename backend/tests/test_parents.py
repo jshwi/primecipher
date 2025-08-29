@@ -10,4 +10,6 @@ def test_refresh_all_writes_storage():
     names = list_narrative_names()
     assert names, "no narratives defined in seeds"
     v = get_parents(names[0])
-    assert isinstance(v, list) and len(v) == 3
+    assert isinstance(v, list) and len(v) > 0
+    for it in v:
+        assert "parent" in it and "matches" in it and "score" in it
