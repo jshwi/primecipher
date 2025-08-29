@@ -11,6 +11,7 @@ from .version import version_payload
 import logging, time, uuid
 from fastapi import Request
 from prometheus_fastapi_instrumentator import Instrumentator
+from .api.routes import refresh_jobs as r_refresh_jobs
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -54,6 +55,7 @@ async def unhandled_exc_handler(_: Request, exc: Exception):
 app.include_router(r_narratives.router)
 app.include_router(r_parents.router)
 app.include_router(r_refresh.router)
+app.include_router(r_refresh_jobs.router)
 
 @app.get("/healthz")
 def health() -> dict:
