@@ -1,16 +1,19 @@
 {
+  "version": 2,
   "narratives": [
     {
       "name": "dogs",
-      "terms": ["dog", "shib", "wif"],
-      "allowNameMatch": true,
-      "block": []
+      "terms": { "include": ["dog", "wif"], "require_all": false, "synonyms": {} },
+      "block": [],
+      "weight": 1.0,
+      "branches": []
     },
     {
       "name": "ai",
-      "terms": ["ai", "gpt", "openai", "agent"],
-      "allowNameMatch": true,
-      "block": []
+      "terms": { "include": ["ai", "model", "inference"], "require_all": false, "synonyms": {} },
+      "block": [],
+      "weight": 1.0,
+      "branches": []
     }
   ]
 }

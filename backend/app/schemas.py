@@ -23,3 +23,29 @@ class RefreshResp(BaseModel):
     ts: Optional[float] = None
     dryRun: Optional[bool] = None
     items: Optional[Dict[str, List[Parent]]] = None
+
+from pydantic import BaseModel, Field
+from typing import List, Dict
+
+class SeedTerms(BaseModel):
+    include: List[str] = Field(default_factory=list)
+    require_all: bool = False
+    synonyms: Dict[str, List[str]] = Field(default_factory=dict)
+
+class SeedBranch(BaseModel):
+    key: str
+    include: List[str] = Field(default_factory=list)
+    block: List[str] = Field(default_factory=list)
+    weight: float = 1.0
+    require_all: bool = False
+
+class SeedNarrative(BaseModel):
+    name: str
+    terms: SeedTerms
+    block: List[str] = Field(default_factory=list)
+    weight: float = 1.0
+    branches: List[SeedBranch] = Field(default_factory=list)
+
+class SeedsV2(BaseModel):
+    version: int = 2
+    narratives: List[SeedNarrative]

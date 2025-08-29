@@ -23,13 +23,7 @@ def _dec_cursor(cursor: str) -> int:
     except Exception:
         raise HTTPException(status_code=400, detail="invalid cursor")
 
-@router.get(
-    "/parents/{narrative}",
-    response_model=ParentsResp,
-    # ensure FastAPI doesn't drop None fields like nextCursor at end of list
-    response_model_exclude_none=False,
-    response_model_exclude_unset=False,
-)
+@router.get("/parents/{narrative}", response_model=ParentsResp)
 def get_parents_for_narrative(
     narrative: str = Path(..., min_length=1),
     window: str = Query(default="24h"),
@@ -39,15 +33,13 @@ def get_parents_for_narrative(
     if narrative not in set(list_narrative_names()):
         raise HTTPException(status_code=404, detail="unknown narrative")
 
-    # Load & score
+    # Load & score (keep consistent with compute_all cap)
     items = list_parents_db(narrative) or get_parents(narrative)
-    items = _with_scores(items)[:TOP_N]  # keep consistent with compute_all cap
+    items = _with_scores(items)[:TOP_N]
 
-    # Decode cursor -> start offset
     start = _dec_cursor(cursor) if cursor else 0
     end = min(start + limit, len(items))
     page = items[start:end]
-
     next_cursor = _enc_cursor(end) if end < len(items) else None
 
     return {
