@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { getNarratives, doRefresh } from '@/lib/api'
+import RefreshButton from '@/components/RefreshButton'
+import { getNarratives } from '@/lib/api'
 
 function fmt(ts?: number) {
   if (!ts) return null
@@ -9,20 +10,17 @@ function fmt(ts?: number) {
 
 export default async function Page() {
   const data = await getNarratives('24h')
-  const rows: string[] = data?.items || []
 
-  async function refreshAction() {
-    'use server'
-    await doRefresh('24h')
-  }
+  // Defensive: handle either ['dogs','ai'] or [{narrative:'dogs',count:2}, ...]
+  const rows = Array.isArray(data?.items)
+    ? data.items.map((x: any) => typeof x === 'string' ? x : x?.narrative).filter(Boolean)
+    : []
 
   return (
     <main>
       <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
         <h1 style={{fontSize:24,margin:'8px 0 16px'}}>Narratives (24h)</h1>
-        <form action={refreshAction}>
-          <button style={{padding:'8px 12px',border:'1px solid #222',borderRadius:6}}>Refresh</button>
-        </form>
+        <RefreshButton />
       </div>
 
       {fmt(data?.lastRefresh)}
@@ -33,7 +31,7 @@ export default async function Page() {
         </div>
       ) : (
         <div style={{display:'grid',gap:8}}>
-          {rows.map((n) => (
+          {rows.map((n: string) => (
             <Link key={n} href={`/n/${encodeURIComponent(n)}`}
               style={{padding:12,border:'1px solid #222',borderRadius:8,textDecoration:'none'}}>
               {n}
