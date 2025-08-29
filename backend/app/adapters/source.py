@@ -50,7 +50,8 @@ def _memo_raw(provider: str, terms: List[str], producer: t.Callable[[], List[Dic
 # Local item producers (raw)
 # --------------------------
 
-def _deterministic_items(narrative: str, terms: List[str]) -> List[Dict]:
+def _deterministic_items(narrative: str, terms: List[Dict]) -> List[Dict]:
+    # RESTORE: only 3 deterministic rows with matches 11,10,9 (tests expect this)
     base = terms or [narrative, "parent", "seed"]
     return [
         {"parent": f"{base[0]}-source-1", "matches": 11},
@@ -59,6 +60,8 @@ def _deterministic_items(narrative: str, terms: List[str]) -> List[Dict]:
     ]
 
 def _random_items(terms: List[str]) -> List[Dict]:
+    # RESTORE: small dev list (tests expect 2..6 items)
+    import random
     n = random.randint(2, 6)
     out: List[Dict] = []
     for i in range(n):
@@ -78,6 +81,7 @@ def _apply_seed_semantics(
     block: List[str] | None,
     items: List[Dict],
     require_all_terms: bool = False,
+    cap: int | None = 3,           # NEW: optional cap (default 3 for test/dev)
 ) -> List[Dict]:
     nl = (narrative or "").lower()
     term_list = [t.lower() for t in (terms or []) if t]
@@ -97,7 +101,7 @@ def _apply_seed_semantics(
         filtered.append(it)
 
     filtered.sort(key=lambda x: -int(x.get("matches", 0)))
-    return filtered[:3]  # small, stable lists for UI
+    return filtered if cap is None else filtered[:cap]   # NEW: conditional trim
 
 # -------------------------
 # Providers (registered)
@@ -108,7 +112,9 @@ def _make_test():
     class _TestAdapter:
         def parents_for(self, narrative, terms, allow_name_match=True, block=None, require_all_terms=False):
             raw = _memo_raw("test", terms, lambda: _deterministic_items(narrative, terms))
-            return _apply_seed_semantics(narrative, terms, allow_name_match, block or [], raw, require_all_terms)
+            return _apply_seed_semantics(
+                narrative, terms, allow_name_match, block or [], raw, require_all_terms, cap=3
+            )
     return _TestAdapter()
 
 @register_adapter("dev")
@@ -116,7 +122,9 @@ def _make_dev():
     class _DevAdapter:
         def parents_for(self, narrative, terms, allow_name_match=True, block=None, require_all_terms=False):
             raw = _memo_raw("dev", terms, lambda: _random_items(terms))
-            return _apply_seed_semantics(narrative, terms, allow_name_match, block or [], raw, require_all_terms)
+            return _apply_seed_semantics(
+                narrative, terms, allow_name_match, block or [], raw, require_all_terms, cap=3
+            )
     return _DevAdapter()
 
 @register_adapter("coingecko")
@@ -132,10 +140,9 @@ def _make_cg():
                         r = cl.get(url, params={"query": q})
                         r.raise_for_status()
                         js = r.json() or {}
-
                     coins = js.get("coins") or []
                     out: List[Dict] = []
-                    for i, c in enumerate(coins[:8]):
+                    for i, c in enumerate(coins[:50]):      # keep many for pagination
                         name = c.get("name") or c.get("id") or f"cg-{i}"
                         rank = c.get("market_cap_rank") or 1000
                         score = max(3, 100 - int(rank))
@@ -143,14 +150,15 @@ def _make_cg():
                     if not out:
                         out = _deterministic_items(q, terms)
                     out.sort(key=lambda x: -x["matches"])
-                    return out[:3]
+                    return out                                  # no local trim
                 except Exception:
-                    # Any network/JSON/HTTP error → deterministic fallback
                     q = " ".join(sorted(set([t for t in terms if t.strip()]))) or "sol"
                     return _deterministic_items(q, terms)
 
             raw = _memo_raw("coingecko", terms, _fetch)
-            return _apply_seed_semantics(narrative, terms, allow_name_match, block or [], raw, require_all_terms)
+            return _apply_seed_semantics(
+                narrative, terms, allow_name_match, block or [], raw, require_all_terms, cap=None  # NO cap for cg
+            )
     return _CGAdapter()
 
 # ---------------------------------
