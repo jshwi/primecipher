@@ -55,6 +55,11 @@ archive.zip: $(FILES)
 #: zip repo into an archive
 archive: archive.zip
 
+.PHONY: api
+#: start api server
+api: $(VENV)
+	@backend/.venv/bin/uvicorn backend.app.main:app --reload --port 8000
+
 .PHONY: clean
 #: clean generated files
 clean:
