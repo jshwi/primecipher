@@ -8,7 +8,9 @@ from .api.routes import parents as r_parents
 from .api.routes import refresh as r_refresh
 from .repo import init_db
 from .version import version_payload
-
+import logging, time, uuid
+from fastapi import Request
+from prometheus_fastapi_instrumentator import Instrumentator
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,6 +34,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Prometheus metrics at /metrics (exclude noise)
+Instrumentator(
+    should_group_status_codes=False,
+    excluded_handlers=["/metrics", "/healthz", "/readyz"]
+).instrument(app).expose(app, include_in_schema=False)
 
 # Standardized error envelope
 @app.exception_handler(HTTPException)

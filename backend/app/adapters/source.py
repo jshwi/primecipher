@@ -1,19 +1,32 @@
 import os, time
 from typing import List, Dict, Tuple
 import typing as t
+from prometheus_client import Counter, CollectorRegistry
 
 MODE = (os.getenv("SOURCE_MODE") or "dev").lower()
 TTL_SEC = int(os.getenv("SOURCE_TTL", "60"))
 _cache: dict[Tuple[str, Tuple[str, ...]], Tuple[float, List[Dict]]] = {}
 
+REGISTRY = CollectorRegistry(auto_describe=True)
+
+CACHE_HIT = Counter(
+    "primecipher_cache_hits", "Cache hits", ["provider"], registry=REGISTRY
+)
+CACHE_MISS = Counter(
+    "primecipher_cache_misses", "Cache misses", ["provider"], registry=REGISTRY
+)
+
 def _get_cached(key: Tuple[str, Tuple[str, ...]]) -> t.Optional[List[Dict]]:
     now = time.time()
     hit = _cache.get(key)
     if not hit:
+        CACHE_MISS.labels(key[0]).inc()
         return None
     ts, val = hit
     if now - ts > TTL_SEC:
+        CACHE_MISS.labels(key[0]).inc()
         return None
+    CACHE_HIT.labels(key[0]).inc()
     return val
 
 def _set_cached(key: Tuple[str, Tuple[str, ...]], val: List[Dict]) -> None:
