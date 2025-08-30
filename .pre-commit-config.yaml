@@ -1,19 +1,191 @@
-# .pre-commit-config.yaml
-# Runs backend pytest the same way your CI does, plus a smoke.sh script.
-# Relies on your current shell/environment (no deps auto-installed).
-
+ci:
+  skip:
+    - lint
+    - deptry
+    - vulture
+    - copyright-year
+    - make-docs
+    - update-readme
+    - update-docs
+    - update-whitelist
+    - coverage
+    - check-unstaged-news
+    - check-news
+    - test-check-news
+    - commit-fix
+default_language_version:
+  python: "3.12"
+default_stages:
+  - pre-commit
+exclude: |
+  (?x)^(
+    | backend\/poetry\.lock
+    | backend\/whitelist\.py
+    | \.idea\/.*
+    | frontend\/package-lock\.json
+  )$
 repos:
   - repo: local
     hooks:
-      - id: backend-pytest
-        name: backend pytest (CI-like)
+      # local so package can be imported to lint
+      - id: lint
+        name: lint
+        entry: make -C backend/ .make/lint
         language: system
         pass_filenames: false
-        always_run: true
-        stages: [pre-commit, pre-push]
-        entry: make test
-
+      # analyze all files for reliable result
+      - id: vulture
+        name: check for unused code
+        language: system
+        entry: make -C backend/ .make/unused
+        pass_filenames: false
+      # script also handles coverage
+      - id: coverage
+        name: test source code coverage
+        language: system
+        entry: make cov
+        pass_filenames: false
+      - id: update-whitelist
+        name: update whitelist
+        language: system
+        entry: make -C backend/ whitelist.py
+        pass_filenames: false
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: "v5.0.0"
+    hooks:
+      - id: check-added-large-files
+      - id: check-ast
+      - id: check-builtin-literals
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: check-executables-have-shebangs
+      - id: check-merge-conflict
+        exclude: ^(.*\.rst)$
+      - id: check-symlinks
+      - id: check-toml
+      - id: check-vcs-permalinks
+      - id: check-xml
+      - id: debug-statements
+      - id: destroyed-symlinks
+      - id: detect-private-key
+        exclude: ^(.*test\.key)$
+      - id: forbid-submodules
+      - id: end-of-file-fixer
+      - id: fix-byte-order-marker
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+      - id: requirements-txt-fixer
+      - id: pretty-format-json
+        args:
+          - "--autofix"
+      - id: fix-encoding-pragma
+        args:
+          - "--remove"
+  - repo: https://github.com/ikamensh/flynt
+    rev: "1.0.1"
+    hooks:
+      - id: flynt
+        args:
+          - "--line-length=79"
+          - "--transform-concats"
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: "v4.0.0-alpha.8"
+    hooks:
+      - id: prettier
+        args:
+          - "--write"
+        exclude: |
+          (?x)^(
+            | CHANGELOG\.md
+            | .*\.json
+            | SECURITY\.md
+            | docs\/deprecated\/messages\.md
+          )$
+  - repo: https://github.com/pappasam/toml-sort
+    rev: "v0.24.2"
+    hooks:
+      - id: toml-sort
+        args:
+          - "--in-place"
+          - "--all"
+  - repo: https://github.com/pre-commit/pygrep-hooks
+    rev: "v1.10.0"
+    hooks:
+      - id: rst-directive-colons
+      - id: rst-inline-touching-normal
+  - repo: https://github.com/pre-commit/pre-commit
+    rev: "v4.2.0"
+    hooks:
+      - id: validate_manifest
   - repo: https://github.com/siderolabs/conform
     rev: "v0.1.0-alpha.30"
     hooks:
       - id: conform
+  - repo: https://github.com/PyCQA/bandit
+    rev: "1.8.5"
+    hooks:
+      - id: bandit
+        args:
+          - "--recursive"
+          - "-lll"
+  - repo: https://github.com/asottile/pyupgrade
+    rev: "v3.20.0"
+    hooks:
+      - id: pyupgrade
+        args:
+          - "--py312-plus"
+  - repo: https://github.com/PyCQA/flake8
+    rev: "7.3.0"
+    hooks:
+      - id: flake8
+        exclude: ^(.*\/)?(_?templates\.py|exclude_test\.py)
+        additional_dependencies:
+          - flake8-bugbear==22.12.6
+          - flake8-simplify==0.21.0
+  - repo: https://github.com/adrienverge/yamllint.git
+    rev: "v1.37.1"
+    hooks:
+      - id: yamllint
+        args:
+          - "--config-data={rules: {line-length: {max: 79}}}"
+  - repo: https://github.com/asottile/add-trailing-comma
+    rev: v3.2.0
+    hooks:
+      - id: add-trailing-comma
+  - repo: https://github.com/psf/black
+    rev: "25.1.0"
+    hooks:
+      - id: black
+        additional_dependencies:
+          - tomli==2.0.1
+  - repo: https://github.com/pycqa/isort
+    rev: "6.0.1"
+    hooks:
+      - id: isort
+  - repo: https://github.com/codespell-project/codespell
+    rev: "v2.4.1"
+    hooks:
+      - id: codespell
+        additional_dependencies:
+          - tomli
+  - repo: https://github.com/tox-dev/tox-ini-fmt
+    rev: "1.5.0"
+    hooks:
+      - id: tox-ini-fmt
+  - repo: https://github.com/dannysepler/rm_unneeded_f_str
+    rev: "v0.2.0"
+    hooks:
+      - id: rm-unneeded-f-str
+  - repo: https://github.com/rhysd/actionlint
+    rev: "v1.7.7"
+    hooks:
+      - id: actionlint
+  - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
+    rev: "3.2.1"
+    hooks:
+      - id: editorconfig-checker
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: "v1.16.1"
+    hooks:
+      - id: mypy
+        additional_dependencies: [types-pyyaml==6.0.12]

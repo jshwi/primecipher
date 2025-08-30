@@ -1,6 +1,13 @@
+"""Tests for refresh dry run functionality."""
+
 from app.storage import last_refresh_ts
 
-def test_refresh_dry_run_does_not_persist(client):
+
+def test_refresh_dry_run_does_not_persist(client) -> None:
+    """Test that dry run refresh does not persist changes.
+
+    :param client: Pytest fixture for test client.
+    """
     before = last_refresh_ts()
     r = client.post("/refresh?dryRun=1")
     assert r.status_code == 200

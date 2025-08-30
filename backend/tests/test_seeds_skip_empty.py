@@ -1,8 +1,17 @@
-import json, importlib, os
-from app import seeds as seeds_mod
-from app.seeds import load_seeds
+"""Tests for seeds skipping empty functionality."""
 
-def test_seeds_skip_empty_name(tmp_path, monkeypatch):
+import importlib
+import json
+
+from app import seeds as seeds_mod
+
+
+def test_seeds_skip_empty_name(tmp_path, monkeypatch) -> None:
+    """Test that seeds with empty names are skipped.
+
+    :param tmp_path: Pytest fixture for temporary directory.
+    :param monkeypatch: Pytest fixture for patching.
+    """
     bad = {"narratives": [{"name": ""}, {"name": "ai", "terms": []}]}
     p = tmp_path / "narratives.seed.json"
     p.write_text(json.dumps(bad))

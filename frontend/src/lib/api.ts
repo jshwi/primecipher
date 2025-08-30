@@ -1,9 +1,11 @@
 // frontend/src/lib/api.ts
 
-const isServer = typeof window === 'undefined';
+const isServer = typeof window === "undefined";
 const BASE = isServer
-  ? (process.env.API_BASE?.trim() || process.env.NEXT_PUBLIC_API_BASE?.trim() || "http://backend:8000")
-  : (process.env.NEXT_PUBLIC_API_BASE?.trim() || "http://localhost:8000");
+  ? process.env.API_BASE?.trim() ||
+    process.env.NEXT_PUBLIC_API_BASE?.trim() ||
+    "http://backend:8000"
+  : process.env.NEXT_PUBLIC_API_BASE?.trim() || "http://localhost:8000";
 
 export type ParentItem = {
   parent: string;
@@ -33,7 +35,7 @@ export async function getNarratives(): Promise<NarrativesResp> {
 /** GET /parents/:narrative?limit&cursor */
 export async function getParents(
   narrative: string,
-  opts?: { limit?: number; cursor?: string | null }
+  opts?: { limit?: number; cursor?: string | null },
 ): Promise<ParentsResp> {
   const u = new URL(`${BASE}/parents/${encodeURIComponent(narrative)}`);
   u.searchParams.set("limit", String(opts?.limit ?? 25));

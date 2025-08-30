@@ -1,16 +1,25 @@
 {
   "narratives": [
     {
-      "name": "dogs",
-      "terms": ["dog", "shib", "wif"],
       "allowNameMatch": true,
-      "block": []
+      "block": [],
+      "name": "dogs",
+      "terms": [
+        "dog",
+        "shib",
+        "wif"
+      ]
     },
     {
-      "name": "ai",
-      "terms": ["ai", "gpt", "openai", "agent"],
       "allowNameMatch": true,
-      "block": []
+      "block": [],
+      "name": "ai",
+      "terms": [
+        "ai",
+        "gpt",
+        "openai",
+        "agent"
+      ]
     }
   ]
 }

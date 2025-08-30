@@ -1,11 +1,12 @@
-import random
+"""Tests for parents functionality."""
+
 from app.parents import refresh_all
 from app.seeds import list_narrative_names
 from app.storage import get_parents
-from app.parents import refresh_all
-from app.storage import get_parents
 
-def test_refresh_all_writes_storage():
+
+def test_refresh_all_writes_storage() -> None:
+    """Test that refresh_all writes to storage and returns valid data."""
     refresh_all()
     names = list_narrative_names()
     assert names, "no narratives defined in seeds"

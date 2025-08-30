@@ -1,16 +1,3 @@
-*.pyc
-.next
-.venv
-data
-node_modules
-.env*
-!.env.example
-.coverage
-.make
-coverage.xml
-*.log
-primecipher.db
-archive.zip
 *build/
 *coverage*
 *venv
