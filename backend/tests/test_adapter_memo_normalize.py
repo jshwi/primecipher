@@ -5,7 +5,7 @@ def test_memo_normalizes_terms(monkeypatch):
 
     def spy_det(_, terms):
         # record normalized terms used by memo (via returning distinct
-    # parents)
+        # parents)
         return [
             {
                 "parent": "|".join(sorted({t.lower() for t in terms})),

@@ -28,6 +28,7 @@ def test_refresh_then_parents_flow(client):
     assert r.status_code == 200 and r.json().get("ok") is True
 
     from app.seeds import list_narrative_names
+
     for n in list_narrative_names():  # no hardcoded 'moodeng'
         r2 = client.get(f"/parents/{n}")
         assert r2.status_code == 200

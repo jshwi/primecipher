@@ -3,6 +3,7 @@
 
 def test_scores_present_and_sorted(client, monkeypatch):
     """Test that scores are present and sorted correctly."""
+
     # force a known set: different matches to see ordering by score
     def deterministic(_self, _: str, __: list[str], **_kw):
         return [
@@ -35,6 +36,7 @@ def test_scores_present_and_sorted(client, monkeypatch):
 
 def test_scores_zero_when_all_equal(client, monkeypatch):
     """Test that scores are zero when all matches are equal."""
+
     def same(_self, _: str, __: list[str], **_kw):
         return [{"parent": f"p{i}", "matches": 10} for i in range(5)]
 

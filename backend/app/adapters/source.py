@@ -67,7 +67,7 @@ def _memo_raw(
 
 def _deterministic_items(narrative: str, terms: list[dict]) -> list[dict]:
     # restore: only 3 deterministic rows with matches 11,10,9 (tests expect
-# this)
+    # this)
     base = terms or [narrative, "parent", "seed"]
     return [
         {"parent": f"{base[0]}-source-1", "matches": 11},
@@ -103,7 +103,7 @@ def _apply_seed_semantics(
     block: list[str] | None,
     items: list[dict],
     require_all_terms: bool = False,
-            cap: int | None = 3,  # new: optional cap (default 3 for test/dev)
+    cap: int | None = 3,  # new: optional cap (default 3 for test/dev)
 ) -> list[dict]:
     nl = (narrative or "").lower()
     term_list = [t.lower() for t in (terms or []) if t]

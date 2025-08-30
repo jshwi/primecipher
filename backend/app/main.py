@@ -24,6 +24,7 @@ def _parse_origins() -> list[str]:
     raw = (os.getenv("FRONTEND_ORIGINS") or "http://localhost:3000").strip()
     return [o.strip() for o in raw.split(",") if o.strip()]
 
+
 app = FastAPI(title="PrimeCipher API (MVP)", lifespan=lifespan)
 
 # cors (tightened; see commit 2 for details)
