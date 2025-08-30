@@ -45,7 +45,7 @@ def test_refresh_async_and_status_done(client, monkeypatch):
     async def _noop():
         await asyncio.sleep(0)
 
-    monkeypatch.setattr(jobs, "_run_refresh", lambda fn: _noop())
+    monkeypatch.setattr(jobs, "_run_refresh", lambda _: _noop())
 
     # Act: start job
     resp = client.post("/refresh/async", headers=_auth_headers())
@@ -74,7 +74,7 @@ def test_refresh_async_error_and_status(client, monkeypatch):
     async def _boom():
         raise RuntimeError("kaboom")
 
-    monkeypatch.setattr(jobs, "_run_refresh", lambda fn: _boom())
+    monkeypatch.setattr(jobs, "_run_refresh", lambda _: _boom())
 
     # Act: start job
     resp = client.post("/refresh/async", headers=_auth_headers())

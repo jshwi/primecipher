@@ -51,7 +51,7 @@ def make_resp(js):
 
 def test_cg_happy_path(monkeypatch):
     # normal case: coins returned
-    def fake_get(url, params):
+    def fake_get(_, __):
         return make_resp(
             {"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]},
         )
@@ -70,7 +70,7 @@ def test_cg_happy_path(monkeypatch):
 
 def test_cg_empty_results(monkeypatch):
     # api returns no coins -> fallback to deterministic
-    def fake_get(url, params):
+    def fake_get(_, __):
         return make_resp({"coins": []})
 
     src = reload_src(
@@ -87,7 +87,7 @@ def test_cg_empty_results(monkeypatch):
 
 def test_cg_network_error_fallback(monkeypatch):
     # simulate network failure by raising inside get()
-    def fake_get(url, params):
+    def fake_get(_, __):
         raise httpx.RequestError("boom", request=None)
 
     src = reload_src(
