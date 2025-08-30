@@ -22,12 +22,15 @@ def test_allow_name_match_false_keeps_when_other_terms_present():
         items=items,
         require_all_terms=False,  # not enforcing all-terms here
     )
-    # kept row should be the "dogs wif" one, sorted/sliced to top 3 (only 1 remains)
+    # kept row should be the "dogs wif" one, sorted/sliced to top 3
+    # (only 1 remains)
     assert out == [{"parent": "dogs wif", "matches": 60}]
 
 
 def test_require_all_terms_positive_branch_keeps_item_with_all_terms():
-    # Only the third item has ALL terms → ensures the 'all(...)' keep branch is covered
+    # only the third item has all terms → ensures the 'all(...)' keep
+    # branch
+    # is covered
     items = [
         {"parent": "dogs", "matches": 10},  # missing "wif"
         {"parent": "wif shib", "matches": 20},  # missing "dogs"

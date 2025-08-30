@@ -44,13 +44,13 @@ async def start_refresh_job(refresh_fn) -> str:
         try:
             await _run_refresh(refresh_fn)
             job.state = "done"
-        except Exception as e:  # noqa: BLE001 (we want to trap anything)
+        except Exception as e:  # noqa: ble001 (we want to trap anything)
             job.state = "error"
             job.error = str(e)
         finally:
             job.ts = time.time()
 
-    # fire-and-forget (keep reference so it isn't GC'd)
+    # fire-and-forget (keep reference so it isn't gc'd)
     asyncio.create_task(_runner())
     return jid
 
@@ -63,7 +63,7 @@ def get_job(jid: str) -> dict | None:
 
 
 def gc_jobs(max_age_sec: int = 3600) -> None:
-    """Drop completed/error jobs older than max_age_sec."""
+    """drop completed/error jobs older than max_age_sec."""
     now = time.time()
     to_drop = [
         k

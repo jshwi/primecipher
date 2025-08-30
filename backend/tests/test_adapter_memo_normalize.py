@@ -6,7 +6,8 @@ def test_memo_normalizes_terms(monkeypatch):
     seen_keys = []
 
     def spy_det(narrative, terms):
-        # record normalized terms used by memo (via returning distinct parents)
+        # record normalized terms used by memo (via returning distinct
+    # parents)
         return [
             {
                 "parent": "|".join(sorted({t.lower() for t in terms})),
@@ -22,5 +23,5 @@ def test_memo_normalizes_terms(monkeypatch):
     s = src.Source()
     a = s.parents_for("dogs", ["Dog", "wif"])
     b = s.parents_for("puppies", ["wif", "dog"])
-    # Both should be identical due to normalization & memo
+    # both should be identical due to normalization & memo
     assert a[0]["parent"] == b[0]["parent"]

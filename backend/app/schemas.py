@@ -18,7 +18,8 @@ class ParentsResp(BaseModel):
     narrative: constr(min_length=1)
     window: constr(min_length=1)
     items: list[Parent]
-    # IMPORTANT: make sure the field exists in the schema so FastAPI won't drop it
+    # important: make sure the field exists in the schema so fastapi won't
+    # drop it
     nextCursor: str | None = Field(default=None)
 
 

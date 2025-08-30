@@ -22,6 +22,6 @@ def test_get_adapter_names_includes_builtins():
     from app.adapters import registry
 
     names = registry.get_adapter_names()
-    # Ensure core modes are present and list is sorted
+    # ensure core modes are present and list is sorted
     assert {"test", "dev", "coingecko"}.issubset(set(names))
     assert names == sorted(names)

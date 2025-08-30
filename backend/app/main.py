@@ -26,7 +26,7 @@ def _parse_origins() -> list[str]:
 
 app = FastAPI(title="PrimeCipher API (MVP)", lifespan=lifespan)
 
-# CORS (tightened; see commit 2 for details)
+# cors (tightened; see commit 2 for details)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_parse_origins(),
@@ -35,14 +35,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Prometheus metrics at /metrics (exclude noise)
+# prometheus metrics at /metrics (exclude noise)
 Instrumentator(
     should_group_status_codes=False,
     excluded_handlers=["/metrics", "/healthz", "/readyz"],
 ).instrument(app).expose(app, include_in_schema=False)
 
 
-# Standardized error envelope
+# standardized error envelope
 @app.exception_handler(HTTPException)
 async def http_exc_handler(_: Request, exc: HTTPException):
     return JSONResponse(
@@ -59,7 +59,7 @@ async def unhandled_exc_handler(_: Request, exc: Exception):
     )
 
 
-# Routes
+# routes
 app.include_router(r_narratives.router)
 app.include_router(r_parents.router)
 app.include_router(r_refresh.router)

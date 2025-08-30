@@ -1,5 +1,5 @@
 def test_source_available_and_override_env(monkeypatch):
-    # Force env to a different mode and ensure explicit provider wins
+    # force env to a different mode and ensure explicit provider wins
     import importlib
 
     monkeypatch.setenv("SOURCE_MODE", "dev")

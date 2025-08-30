@@ -7,14 +7,14 @@ from .schemas import Parent
 from .seeds import load_seeds
 from .storage import set_parents
 
-TOP_N = 100  # NEW
+TOP_N = 100  # new
 
 
 def _validate_items(items: list[dict]) -> list[dict]:
     return [Parent(**it).model_dump() for it in items]
 
 
-# NEW: z-score per narrative, clamped to [-3, 3]
+# new: z-score per narrative, clamped to [-3, 3]
 def _with_scores(items: list[dict]) -> list[dict]:
     if not items:
         return items
@@ -61,7 +61,7 @@ def compute_all() -> dict[str, list[dict]]:
             require_all_terms=require_all,
         )
         val = _validate_items(raw)
-        val = _with_scores(val)[:TOP_N]  # NEW: add scores + cap
+        val = _with_scores(val)[:TOP_N]  # new: add scores + cap
         out[name] = val
     return out
 

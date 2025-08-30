@@ -21,14 +21,16 @@ def test_parents_response_shape(client):
 
 
 def test_refresh_validation_rejects_bad_items(monkeypatch, client):
-    # Monkeypatch Source to emit invalid rows → should 500 via global handler
+    # monkeypatch source to emit invalid rows → should 500 via global
+    # handler
     import app.adapters.source as src
 
     def bad(_self, _: str, __: list[str], **_kw):
         return [{"parent": "", "matches": -1}, {"parent": 123, "matches": "x"}]
 
     monkeypatch.setattr(src.Source, "parents_for", bad, raising=True)
-    # Reload parents module to ensure validation is used (not strictly necessary)
+    # reload parents module to ensure validation is used (not strictly
+    # necessary)
     import app.parents as parents_mod
 
     importlib.reload(parents_mod)

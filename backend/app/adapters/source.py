@@ -6,12 +6,13 @@ import typing as t
 
 from .registry import get_adapter_names, make_adapter, register_adapter
 
-# Global TTL for raw provider results (seconds)
+# global ttl for raw provider results (seconds)
 TTL_SEC = int(os.getenv("SOURCE_TTL", "60"))
 
-# Shared raw cache across providers: (provider, normalized_terms) -> (ts, items)
+# shared raw cache across providers: (provider, normalized_terms) -> (ts,
+# items)
 _raw_cache: dict[tuple[str, tuple[str, ...]], tuple[float, list[dict]]] = {}
-# Back-compat alias for older tests/helpers that expect `_cache`
+# back-compat alias for older tests/helpers that expect `_cache`
 _cache = _raw_cache
 
 
@@ -60,12 +61,13 @@ def _memo_raw(
 
 
 # --------------------------
-# Local item producers (raw)
+# local item producers (raw)
 # --------------------------
 
 
 def _deterministic_items(narrative: str, terms: list[dict]) -> list[dict]:
-    # RESTORE: only 3 deterministic rows with matches 11,10,9 (tests expect this)
+    # restore: only 3 deterministic rows with matches 11,10,9 (tests expect
+# this)
     base = terms or [narrative, "parent", "seed"]
     return [
         {"parent": f"{base[0]}-source-1", "matches": 11},
@@ -75,7 +77,7 @@ def _deterministic_items(narrative: str, terms: list[dict]) -> list[dict]:
 
 
 def _random_items(terms: list[str]) -> list[dict]:
-    # RESTORE: small dev list (tests expect 2..6 items)
+    # restore: small dev list (tests expect 2..6 items)
     import random
 
     n = random.randint(2, 6)
@@ -90,7 +92,7 @@ def _random_items(terms: list[str]) -> list[dict]:
 
 
 # ---------------
-# Seed semantics
+# seed semantics
 # ---------------
 
 
@@ -101,7 +103,7 @@ def _apply_seed_semantics(
     block: list[str] | None,
     items: list[dict],
     require_all_terms: bool = False,
-    cap: int | None = 3,  # NEW: optional cap (default 3 for test/dev)
+            cap: int | None = 3,  # new: optional cap (default 3 for test/dev)
 ) -> list[dict]:
     nl = (narrative or "").lower()
     term_list = [t.lower() for t in (terms or []) if t]
@@ -121,11 +123,11 @@ def _apply_seed_semantics(
         filtered.append(it)
 
     filtered.sort(key=lambda x: -int(x.get("matches", 0)))
-    return filtered if cap is None else filtered[:cap]  # NEW: conditional trim
+    return filtered if cap is None else filtered[:cap]  # new: conditional trim
 
 
 # -------------------------
-# Providers (registered)
+# providers (registered)
 # -------------------------
 
 
@@ -235,14 +237,14 @@ def _make_cg():
                 block or [],
                 raw,
                 require_all_terms,
-                cap=None,  # NO cap for cg
+                cap=None,  # no cap for cg
             )
 
     return _CGAdapter()
 
 
 # ---------------------------------
-# Public façade (kept for callers)
+# public façade (kept for callers)
 # ---------------------------------
 
 MODE = (os.getenv("SOURCE_MODE") or "dev").lower()

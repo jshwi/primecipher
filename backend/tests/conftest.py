@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-# Set env BEFORE importing app modules
+# set env before importing app modules
 here = Path(__file__).parent
 repo_root = (here / "..").resolve()
 os.environ.setdefault(
@@ -16,7 +16,7 @@ os.environ.setdefault(
     "test",
 )  # deterministic adapter mode for tests
 
-# Now import app after env is set
+# now import app after env is set
 sys.path.insert(
     0,
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..")),

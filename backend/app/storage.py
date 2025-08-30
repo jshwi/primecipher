@@ -1,6 +1,6 @@
 from time import time
 
-# Simulated store refreshed by /refresh (no DB — MVP)
+# simulated store refreshed by /refresh (no db — mvp)
 _parents: dict[str, list[dict]] = {}
 _last_refresh_ts: float = 0.0
 

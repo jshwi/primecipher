@@ -39,6 +39,7 @@ def test_blocklist_and_allow_name_match(tmp_path, client):
     items = r.json()["items"]["dogs"]
     # ensure nothing containing 'shib' is present
     assert all("shib" not in i["parent"].lower() for i in items)
-    # allowNameMatch=False: items that only match 'dogs' name (if any) are excluded;
-    # deterministic adapter uses terms, so we still have up to 3 items left
+    # allownamematch=false: items that only match 'dogs' name (if any) are
+    # excluded; deterministic adapter uses terms, so we still have up to 3
+    # items left
     assert 0 <= len(items) <= 3

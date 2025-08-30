@@ -12,7 +12,7 @@ def reload_src(monkeypatch, ttl="60", mode="test", client_factory=None):
     importlib.reload(src)
     src._raw_cache.clear()
 
-    # If a fake client factory is passed, patch httpx.Client
+    # if a fake client factory is passed, patch httpx.client
     if client_factory:
         monkeypatch.setattr(httpx, "Client", client_factory)
 
@@ -70,7 +70,7 @@ def test_cg_happy_path(monkeypatch):
 
 
 def test_cg_empty_results(monkeypatch):
-    # API returns no coins -> fallback to deterministic
+    # api returns no coins -> fallback to deterministic
     def fake_get(url, params):
         return make_resp({"coins": []})
 
@@ -87,7 +87,7 @@ def test_cg_empty_results(monkeypatch):
 
 
 def test_cg_network_error_fallback(monkeypatch):
-    # Simulate network failure by raising inside get()
+    # simulate network failure by raising inside get()
     def fake_get(url, params):
         raise httpx.RequestError("boom", request=None)
 
@@ -99,6 +99,6 @@ def test_cg_network_error_fallback(monkeypatch):
     )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
-    # Should not raise; should fallback to deterministic
+    # should not raise; should fallback to deterministic
     assert isinstance(out, list)
     assert len(out) > 0

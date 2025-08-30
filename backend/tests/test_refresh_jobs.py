@@ -40,7 +40,8 @@ def test_refresh_async_and_status_done(client, monkeypatch):
     rj, jobs = _reload_with_token(monkeypatch)
 
     # Make the background job fast & deterministic
-    # Patch the _run_refresh to tick the state machine without doing any real work.
+    # Patch the _run_refresh to tick the state machine without doing any
+    # real work
     async def _noop():
         await asyncio.sleep(0)
 
@@ -131,7 +132,8 @@ def test_jobs_gc_removes_old_done(monkeypatch):
 def test_refresh_async_executes_do_calls(monkeypatch, client):
     import importlib
 
-    # Make auth pass and reload the route module so we can patch its locals
+    # make auth pass and reload the route module so we can patch its
+    # locals
     monkeypatch.setenv("REFRESH_TOKEN", "testtoken")
     import app.api.routes.refresh_jobs as rj
 
