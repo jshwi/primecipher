@@ -5,7 +5,7 @@ def test_memo_normalizes_terms(monkeypatch):
 
     seen_keys = []
 
-    def spy_det(narrative, terms):
+    def spy_det(_, terms):
         # record normalized terms used by memo (via returning distinct
     # parents)
         return [

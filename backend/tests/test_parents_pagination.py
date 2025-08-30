@@ -6,7 +6,7 @@ def _enc_cursor(n: int) -> str:
     return base64.urlsafe_b64encode(json.dumps({"o": n}).encode()).decode()
 
 
-def _fake_many(_self, narrative: str, terms: list[str], **_kw):
+def _fake_many(_self, _: str, __: list[str], **_kw):
     # 150 ascending matches; route will cap to TOP_N=100
     return [{"parent": f"p{i:03d}", "matches": i} for i in range(150)]
 

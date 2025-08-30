@@ -5,7 +5,7 @@ def test_memo_ttl_expiry(monkeypatch):
 
     calls = {"n": 0}
 
-    def fake_det(narrative, terms):
+    def fake_det(_, __):
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]
 

@@ -1,6 +1,6 @@
 def test_scores_present_and_sorted(client, monkeypatch):
-    # Force a known set: different matches to see ordering by score
-    def deterministic(_self, narrative: str, terms: list[str], **_kw):
+    # force a known set: different matches to see ordering by score
+    def deterministic(_self, _: str, __: list[str], **_kw):
         return [
             {"parent": "a", "matches": 10},
             {"parent": "b", "matches": 20},
@@ -8,7 +8,7 @@ def test_scores_present_and_sorted(client, monkeypatch):
             {"parent": "d", "matches": 40},
         ]
 
-    # Patch the Source that compute_all() actually uses
+    # patch the source that compute_all() actually uses
     import app.parents as parents_mod
 
     monkeypatch.setattr(
@@ -30,7 +30,7 @@ def test_scores_present_and_sorted(client, monkeypatch):
 
 
 def test_scores_zero_when_all_equal(client, monkeypatch):
-    def same(_self, narrative: str, terms: list[str], **_kw):
+    def same(_self, _: str, __: list[str], **_kw):
         return [{"parent": f"p{i}", "matches": 10} for i in range(5)]
 
     import app.parents as parents_mod
@@ -42,5 +42,5 @@ def test_scores_zero_when_all_equal(client, monkeypatch):
     data = r.json()
     n = list(data["items"].keys())[0]
     items = data["items"][n]
-    # All should have z=0 (within tolerance)
+    # all should have z=0 (within tolerance)
     assert all(abs(x.get("score", 0.0)) < 1e-9 for x in items)

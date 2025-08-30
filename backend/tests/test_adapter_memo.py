@@ -16,7 +16,7 @@ def test_memo_reuses_results(monkeypatch):
 
     calls = {"n": 0}
 
-    def fake_det(narr, terms):
+    def fake_det(_, __):
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]
 
@@ -34,7 +34,7 @@ def test_memo_ttl_expired(monkeypatch):
 
     calls = {"n": 0}
 
-    def fake_det(narr, terms):
+    def fake_det(_, __):
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]
 

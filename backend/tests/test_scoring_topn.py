@@ -1,5 +1,5 @@
 def test_topn_cap_100(client, monkeypatch):
-    def many(_self, narrative: str, terms: list[str], **_kw):
+    def many(_self, _: str, __: list[str], **_kw):
         # 150 items with increasing matches
         return [{"parent": f"p{i:03d}", "matches": i} for i in range(150)]
 

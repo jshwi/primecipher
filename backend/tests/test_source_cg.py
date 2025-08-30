@@ -39,7 +39,7 @@ class FakeClient:
     def __enter__(self):
         return self
 
-    def __exit__(self, *a):
+    def __exit__(self, *_):
         return False
 
     def get(self, url, params=None):
@@ -61,7 +61,7 @@ def test_cg_happy_path(monkeypatch):
         monkeypatch,
         ttl="120",
         mode="coingecko",
-        client_factory=lambda *a, **kw: FakeClient(fake_get),
+        client_factory=lambda *_, **__: FakeClient(fake_get),
     )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
@@ -78,7 +78,7 @@ def test_cg_empty_results(monkeypatch):
         monkeypatch,
         ttl="120",
         mode="coingecko",
-        client_factory=lambda *a, **kw: FakeClient(fake_get),
+        client_factory=lambda *_, **__: FakeClient(fake_get),
     )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
@@ -95,7 +95,7 @@ def test_cg_network_error_fallback(monkeypatch):
         monkeypatch,
         ttl="120",
         mode="coingecko",
-        client_factory=lambda *a, **kw: FakeClient(fake_get),
+        client_factory=lambda *_, **__: FakeClient(fake_get),
     )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
