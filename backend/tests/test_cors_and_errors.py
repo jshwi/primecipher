@@ -1,6 +1,5 @@
-from fastapi import APIRouter
-
 from app.main import _parse_origins, app  # internal helper is importable
+from fastapi import APIRouter
 
 
 def test_cors_parse_multiple_env(monkeypatch):
