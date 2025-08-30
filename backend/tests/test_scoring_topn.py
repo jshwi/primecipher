@@ -1,6 +1,3 @@
-from typing import List
-
-
 def test_topn_cap_100(client, monkeypatch):
     def many(_self, narrative: str, terms: list[str], **_kw):
         # 150 items with increasing matches

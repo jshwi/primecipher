@@ -1,5 +1,3 @@
-import random
-
 from app.parents import refresh_all
 from app.seeds import list_narrative_names
 from app.storage import get_parents

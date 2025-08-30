@@ -1,5 +1,3 @@
-from typing import Dict, List
-
 from sqlalchemy import delete, select
 
 from .db import Base, SessionLocal, engine

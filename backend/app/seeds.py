@@ -1,7 +1,7 @@
 import json
 import os
 from functools import lru_cache
-from typing import Any, Dict, List
+from typing import Any
 
 DEFAULT_SEEDS_PATH = "/app/seeds/narratives.seed.json"
 

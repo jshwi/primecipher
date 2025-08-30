@@ -1,5 +1,3 @@
-import random
-
 from app.storage import last_refresh_ts
 
 

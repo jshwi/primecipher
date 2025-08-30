@@ -1,6 +1,3 @@
-from typing import List
-
-
 def test_scores_present_and_sorted(client, monkeypatch):
     # Force a known set: different matches to see ordering by score
     def deterministic(_self, narrative: str, terms: list[str], **_kw):

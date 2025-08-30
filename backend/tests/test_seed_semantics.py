@@ -1,6 +1,5 @@
 import importlib
 import json
-from pathlib import Path
 
 from app import seeds as seeds_mod
 

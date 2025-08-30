@@ -1,6 +1,6 @@
 import base64
 import json
-from typing import Any, Dict
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Path, Query
 

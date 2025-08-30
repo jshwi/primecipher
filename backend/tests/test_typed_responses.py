@@ -1,5 +1,4 @@
 import importlib
-from typing import List
 
 
 def test_parents_response_shape(client):

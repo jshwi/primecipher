@@ -1,6 +1,5 @@
 from math import sqrt
 from time import time
-from typing import Dict, List
 
 from .adapters.source import Source
 from .repo import replace_parents

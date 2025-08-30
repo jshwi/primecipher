@@ -1,7 +1,7 @@
 import asyncio
 import time
 import uuid
-from typing import Dict, Literal, Optional
+from typing import Literal, Optional
 
 State = Literal["queued", "running", "done", "error"]
 

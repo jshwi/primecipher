@@ -1,6 +1,5 @@
 import importlib
 import json
-import os
 
 from app import seeds as seeds_mod
 from app.seeds import load_seeds

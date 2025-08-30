@@ -1,6 +1,5 @@
 import base64
 import json
-from typing import List
 
 
 def _enc_cursor(n: int) -> str:

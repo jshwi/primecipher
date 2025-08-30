@@ -1,6 +1,5 @@
 # backend/tests/test_source_modes.py
 import importlib
-import os
 
 import app.adapters.source as src
 
