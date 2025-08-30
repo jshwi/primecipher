@@ -1,5 +1,6 @@
 from app.storage import last_refresh_ts
 
+
 def test_refresh_dry_run_does_not_persist(client):
     before = last_refresh_ts()
     r = client.post("/refresh?dryRun=1")

@@ -1,4 +1,5 @@
 import importlib
+
 import httpx
 import pytest
 
@@ -7,6 +8,7 @@ def reload_src(monkeypatch, ttl="60", mode="test", client_factory=None):
     monkeypatch.setenv("SOURCE_TTL", ttl)
     monkeypatch.setenv("SOURCE_MODE", mode)
     import app.adapters.source as src
+
     importlib.reload(src)
     src._raw_cache.clear()
 
@@ -30,6 +32,7 @@ class FakeResponse:
 
 class FakeClient:
     """Context manager wrapper for a fake get() function."""
+
     def __init__(self, get_func):
         self._get = get_func
 
@@ -50,11 +53,16 @@ def make_resp(js):
 def test_cg_happy_path(monkeypatch):
     # normal case: coins returned
     def fake_get(url, params):
-        return make_resp({"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]})
+        return make_resp(
+            {"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]}
+        )
 
-    src = reload_src(monkeypatch, ttl="120",
-                     mode="coingecko",
-                     client_factory=lambda *a, **kw: FakeClient(fake_get))
+    src = reload_src(
+        monkeypatch,
+        ttl="120",
+        mode="coingecko",
+        client_factory=lambda *a, **kw: FakeClient(fake_get),
+    )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
     assert isinstance(out, list)
@@ -66,9 +74,12 @@ def test_cg_empty_results(monkeypatch):
     def fake_get(url, params):
         return make_resp({"coins": []})
 
-    src = reload_src(monkeypatch, ttl="120",
-                     mode="coingecko",
-                     client_factory=lambda *a, **kw: FakeClient(fake_get))
+    src = reload_src(
+        monkeypatch,
+        ttl="120",
+        mode="coingecko",
+        client_factory=lambda *a, **kw: FakeClient(fake_get),
+    )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
     assert isinstance(out, list)
@@ -80,9 +91,12 @@ def test_cg_network_error_fallback(monkeypatch):
     def fake_get(url, params):
         raise httpx.RequestError("boom", request=None)
 
-    src = reload_src(monkeypatch, ttl="120",
-                     mode="coingecko",
-                     client_factory=lambda *a, **kw: FakeClient(fake_get))
+    src = reload_src(
+        monkeypatch,
+        ttl="120",
+        mode="coingecko",
+        client_factory=lambda *a, **kw: FakeClient(fake_get),
+    )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
     # Should not raise; should fallback to deterministic

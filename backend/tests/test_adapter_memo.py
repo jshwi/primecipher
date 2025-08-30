@@ -1,17 +1,21 @@
 import importlib
 
+
 def _fresh_src(monkeypatch, ttl="60", mode="test"):
     monkeypatch.setenv("SOURCE_TTL", ttl)
     monkeypatch.setenv("SOURCE_MODE", mode)
     import app.adapters.source as src
+
     importlib.reload(src)
     src._raw_cache.clear()
     return src
+
 
 def test_memo_reuses_results(monkeypatch):
     src = _fresh_src(monkeypatch, ttl="60", mode="test")
 
     calls = {"n": 0}
+
     def fake_det(narr, terms):
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]
@@ -24,10 +28,12 @@ def test_memo_reuses_results(monkeypatch):
 
     assert calls["n"] == 1  # second call hit memo
 
+
 def test_memo_ttl_expired(monkeypatch):
     src = _fresh_src(monkeypatch, ttl="10", mode="test")
 
     calls = {"n": 0}
+
     def fake_det(narr, terms):
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]
@@ -39,10 +45,11 @@ def test_memo_ttl_expired(monkeypatch):
     monkeypatch.setattr(src, "_now", lambda: now["t"], raising=True)
 
     s = src.Source()
-    s.parents_for("dogs", ["dog"])   # caches at t=1000
-    now["t"] = 1011.0                # advance beyond TTL=10
+    s.parents_for("dogs", ["dog"])  # caches at t=1000
+    now["t"] = 1011.0  # advance beyond TTL=10
     s.parents_for("puppies", ["dog"])
     assert calls["n"] == 2  # cache miss due to expiry
+
 
 def test_normalize_terms_equivalence(monkeypatch):
     src = _fresh_src(monkeypatch)

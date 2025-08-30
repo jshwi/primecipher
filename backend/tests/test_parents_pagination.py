@@ -1,17 +1,24 @@
+import base64
+import json
 from typing import List
-import base64, json
+
 
 def _enc_cursor(n: int) -> str:
     return base64.urlsafe_b64encode(json.dumps({"o": n}).encode()).decode()
 
-def _fake_many(_self, narrative: str, terms: List[str], **_kw):
+
+def _fake_many(_self, narrative: str, terms: list[str], **_kw):
     # 150 ascending matches; route will cap to TOP_N=100
     return [{"parent": f"p{i:03d}", "matches": i} for i in range(150)]
+
 
 def test_parents_pagination_two_pages(client, monkeypatch):
     # Patch Source actually used by compute_all()
     import app.parents as parents_mod
-    monkeypatch.setattr(parents_mod.Source, "parents_for", _fake_many, raising=True)
+
+    monkeypatch.setattr(
+        parents_mod.Source, "parents_for", _fake_many, raising=True
+    )
 
     # Persist data (not dryRun) so route reads DB path too
     r = client.post("/refresh")
@@ -35,9 +42,13 @@ def test_parents_pagination_two_pages(client, monkeypatch):
     second_ids = {x["parent"] for x in b2["items"]}
     assert first_ids.isdisjoint(second_ids)
 
+
 def test_parents_pagination_end_of_list(client, monkeypatch):
     import app.parents as parents_mod
-    monkeypatch.setattr(parents_mod.Source, "parents_for", _fake_many, raising=True)
+
+    monkeypatch.setattr(
+        parents_mod.Source, "parents_for", _fake_many, raising=True
+    )
     client.post("/refresh")
 
     # Jump close to end (100 capped items total)
@@ -48,6 +59,7 @@ def test_parents_pagination_end_of_list(client, monkeypatch):
     # Only 10 remain (items 90..99)
     assert len(b["items"]) == 10
     assert b["nextCursor"] is None
+
 
 def test_parents_invalid_cursor_400(client):
     r = client.get("/parents/dogs?cursor=not-base64")

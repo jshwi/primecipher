@@ -1,6 +1,10 @@
-import json, importlib, os
+import importlib
+import json
+import os
+
 from app import seeds as seeds_mod
 from app.seeds import load_seeds
+
 
 def test_seeds_skip_empty_name(tmp_path, monkeypatch):
     bad = {"narratives": [{"name": ""}, {"name": "ai", "terms": []}]}

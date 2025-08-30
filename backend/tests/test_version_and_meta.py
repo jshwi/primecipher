@@ -1,4 +1,7 @@
-import importlib, app.version
+import importlib
+
+import app.version
+
 
 def test_version_env_override(monkeypatch, client):
     monkeypatch.setenv("GIT_SHA", "abc123")

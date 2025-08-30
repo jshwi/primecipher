@@ -12,6 +12,7 @@ def test_memo_across_narratives_same_terms(monkeypatch):
     monkeypatch.setenv("SOURCE_MODE", "test")
     # ensure fresh module constants
     import importlib
+
     importlib.reload(src)
     monkeypatch.setattr(src, "_deterministic_items", fake_det, raising=True)
 

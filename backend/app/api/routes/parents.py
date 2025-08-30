@@ -1,17 +1,23 @@
-from fastapi import APIRouter, Path, Query, HTTPException
+import base64
+import json
 from typing import Any, Dict
-import base64, json
 
-from ...seeds import list_narrative_names
-from ...storage import get_parents
+from fastapi import APIRouter, HTTPException, Path, Query
+
+from ...parents import TOP_N, _with_scores
 from ...repo import list_parents as list_parents_db
 from ...schemas import ParentsResp
-from ...parents import _with_scores, TOP_N
+from ...seeds import list_narrative_names
+from ...storage import get_parents
 
 router = APIRouter()
 
+
 def _enc_cursor(offset: int) -> str:
-    return base64.urlsafe_b64encode(json.dumps({"o": offset}).encode()).decode()
+    return base64.urlsafe_b64encode(
+        json.dumps({"o": offset}).encode()
+    ).decode()
+
 
 def _dec_cursor(cursor: str) -> int:
     try:
@@ -22,6 +28,7 @@ def _dec_cursor(cursor: str) -> int:
         return off
     except Exception:
         raise HTTPException(status_code=400, detail="invalid cursor")
+
 
 @router.get(
     "/parents/{narrative}",
@@ -35,7 +42,7 @@ def get_parents_for_narrative(
     window: str = Query(default="24h"),
     limit: int = Query(default=25, ge=1, le=100),
     cursor: str | None = Query(default=None),
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if narrative not in set(list_narrative_names()):
         raise HTTPException(status_code=404, detail="unknown narrative")
 

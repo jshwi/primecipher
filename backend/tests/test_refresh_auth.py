@@ -5,6 +5,7 @@ def test_refresh_auth_optional(client, monkeypatch):
     assert r.status_code == 200
     assert r.json().get("ok") is True
 
+
 def test_refresh_auth_required(client, monkeypatch):
     monkeypatch.setenv("REFRESH_TOKEN", "s3cr3t")
     # Missing header -> 401

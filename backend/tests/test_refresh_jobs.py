@@ -1,7 +1,7 @@
-import importlib
-import time
 import asyncio
+import importlib
 import os
+import time
 
 import pytest
 
@@ -15,10 +15,13 @@ def _reload_with_token(monkeypatch, token="testtoken"):
     monkeypatch.setenv("REFRESH_TOKEN", token)
     # Reload modules that read env at import time
     import app.deps.auth as auth
+
     importlib.reload(auth)
     import app.api.routes.refresh_jobs as rj
+
     importlib.reload(rj)
     import app.jobs as jobs
+
     importlib.reload(jobs)
     return rj, jobs
 
@@ -57,7 +60,9 @@ def test_refresh_async_and_status_done(client, monkeypatch):
         # state should progress through queued|running to done quickly
         return state == "done"
 
-    assert _spin_until(_is_done, timeout=1.0), "job did not reach 'done' state in time"
+    assert _spin_until(
+        _is_done, timeout=1.0
+    ), "job did not reach 'done' state in time"
 
 
 def test_refresh_async_error_and_status(client, monkeypatch):
@@ -82,7 +87,9 @@ def test_refresh_async_error_and_status(client, monkeypatch):
         js = s.json()
         return js["state"] == "error" and ("kaboom" in (js.get("error") or ""))
 
-    assert _spin_until(_is_error, timeout=1.0), "job did not reach 'error' state in time"
+    assert _spin_until(
+        _is_error, timeout=1.0
+    ), "job did not reach 'error' state in time"
 
     # Unknown job id → 404
     s404 = client.get("/refresh/status/doesnotexist", headers=_auth_headers())
@@ -92,6 +99,7 @@ def test_refresh_async_error_and_status(client, monkeypatch):
 def test_jobs_gc_removes_old_done(monkeypatch):
     # Work directly with the jobs module to hit GC branches
     import app.jobs as jobs
+
     importlib.reload(jobs)
 
     # Create a job and mark it as done immediately by running a no-op
@@ -115,7 +123,9 @@ def test_jobs_gc_removes_old_done(monkeypatch):
     # It should be gone
     assert jobs.get_job(jid) is None
 
+
 # append to backend/tests/test_refresh_jobs.py
+
 
 def test_refresh_async_executes_do_calls(monkeypatch, client):
     import importlib
@@ -123,6 +133,7 @@ def test_refresh_async_executes_do_calls(monkeypatch, client):
     # Make auth pass and reload the route module so we can patch its locals
     monkeypatch.setenv("REFRESH_TOKEN", "testtoken")
     import app.api.routes.refresh_jobs as rj
+
     importlib.reload(rj)
 
     # Count calls to the inner functions invoked by _do()
@@ -136,18 +147,26 @@ def test_refresh_async_executes_do_calls(monkeypatch, client):
 
     # Patch the functions that _do() calls (lines 16–17)
     monkeypatch.setattr(rj, "refresh_all", fake_refresh_all, raising=True)
-    monkeypatch.setattr(rj, "mark_refreshed", fake_mark_refreshed, raising=True)
+    monkeypatch.setattr(
+        rj, "mark_refreshed", fake_mark_refreshed, raising=True
+    )
 
     # Kick off the async job (do NOT patch jobs._run_refresh here)
-    resp = client.post("/refresh/async", headers={"Authorization": "Bearer testtoken"})
+    resp = client.post(
+        "/refresh/async", headers={"Authorization": "Bearer testtoken"}
+    )
     assert resp.status_code == 200
     jid = resp.json()["jobId"]
 
     # Poll until it’s done
     import time
+
     deadline = time.time() + 1.0
     while time.time() < deadline:
-        s = client.get(f"/refresh/status/{jid}", headers={"Authorization": "Bearer testtoken"})
+        s = client.get(
+            f"/refresh/status/{jid}",
+            headers={"Authorization": "Bearer testtoken"},
+        )
         assert s.status_code == 200
         if s.json()["state"] == "done":
             break

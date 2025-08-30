@@ -1,6 +1,7 @@
 import importlib
 from typing import List
 
+
 def test_parents_response_shape(client):
     # happy path: types line up with schema
     r = client.post("/refresh?dryRun=1")
@@ -13,16 +14,24 @@ def test_parents_response_shape(client):
     assert isinstance(js["narrative"], str)
     assert isinstance(js["window"], str)
     assert isinstance(js["items"], list)
-    assert js["items"] and isinstance(js["items"][0]["parent"], str) and isinstance(js["items"][0]["matches"], int)
+    assert (
+        js["items"]
+        and isinstance(js["items"][0]["parent"], str)
+        and isinstance(js["items"][0]["matches"], int)
+    )
+
 
 def test_refresh_validation_rejects_bad_items(monkeypatch, client):
     # Monkeypatch Source to emit invalid rows → should 500 via global handler
     import app.adapters.source as src
-    def bad(_self, narrative: str, terms: List[str], **_kw):
+
+    def bad(_self, narrative: str, terms: list[str], **_kw):
         return [{"parent": "", "matches": -1}, {"parent": 123, "matches": "x"}]
+
     monkeypatch.setattr(src.Source, "parents_for", bad, raising=True)
     # Reload parents module to ensure validation is used (not strictly necessary)
     import app.parents as parents_mod
+
     importlib.reload(parents_mod)
     r = client.post("/refresh?dryRun=1")
     assert r.status_code == 500

@@ -1,8 +1,10 @@
 def test_memo_ttl_expiry(monkeypatch):
     import importlib
+
     import app.adapters.source as src
 
     calls = {"n": 0}
+
     def fake_det(narrative, terms):
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]

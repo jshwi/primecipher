@@ -1,6 +1,9 @@
 # backend/tests/test_source_modes.py
-import importlib, os
+import importlib
+import os
+
 import app.adapters.source as src
+
 
 def test_source_test_mode(monkeypatch):
     monkeypatch.setenv("SOURCE_MODE", "test")
@@ -8,6 +11,7 @@ def test_source_test_mode(monkeypatch):
     s = src.Source()
     out = s.parents_for("dogs", ["dog", "wif", "shib"])
     assert [x["matches"] for x in out] == [11, 10, 9]
+
 
 def test_source_dev_mode_shape(monkeypatch):
     monkeypatch.setenv("SOURCE_MODE", "dev")

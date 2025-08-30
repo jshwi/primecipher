@@ -1,6 +1,8 @@
 from time import time
-from app.repo import replace_parents, list_parents
+
+from app.repo import list_parents, replace_parents
 from app.seeds import list_narrative_names
+
 
 def test_replace_and_list_parents_roundtrip():
     narrative = list_narrative_names()[0]  # e.g. 'dogs'
@@ -10,6 +12,7 @@ def test_replace_and_list_parents_roundtrip():
 
     rows = list_parents(narrative)
     assert rows == sorted(items, key=lambda x: -x["matches"])
+
 
 def test_replace_parents_overwrites_previous():
     narrative = list_narrative_names()[0]

@@ -1,12 +1,14 @@
 from __future__ import annotations
-from typing import List, Dict, Protocol
+
+from typing import Dict, List, Protocol
+
 
 class Adapter(Protocol):
     def parents_for(
         self,
         narrative: str,
-        terms: List[str],
+        terms: list[str],
         allow_name_match: bool = True,
-        block: List[str] | None = None,
+        block: list[str] | None = None,
         require_all_terms: bool = False,
-    ) -> List[Dict]: ...
+    ) -> list[dict]: ...

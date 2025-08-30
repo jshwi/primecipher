@@ -1,10 +1,13 @@
 import random
+
 from app.storage import last_refresh_ts
+
 
 def test_healthz(client):
     r = client.get("/healthz")
     assert r.status_code == 200
     assert r.json().get("ready") is True
+
 
 def test_narratives_list(client):
     r = client.get("/narratives")
@@ -12,11 +15,14 @@ def test_narratives_list(client):
     js = r.json()
     assert "items" in js and isinstance(js["items"], list)
 
+
 def test_parents_404_unknown(client):
     r = client.get("/parents/__nope__")
     assert r.status_code == 404
 
+
 from app.seeds import list_narrative_names
+
 
 def test_refresh_then_parents_flow(client):
     r = client.post("/refresh")
