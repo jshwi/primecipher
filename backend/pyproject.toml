@@ -88,7 +88,8 @@ min-similarity-lines = 9
 
 [tool.pylint."tests/*"]
 disable = [
-  "import-outside-toplevel"
+  "import-outside-toplevel",
+  "protected-access"
 ]
 
 [tool.pytest.ini_options]
