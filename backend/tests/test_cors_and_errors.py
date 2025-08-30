@@ -1,4 +1,4 @@
-from app.main import _parse_origins, app  # internal helper is importable
+from app.main import _parse_origins  # internal helper is importable
 
 
 def test_cors_parse_multiple_env(monkeypatch):

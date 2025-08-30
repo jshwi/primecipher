@@ -2,8 +2,6 @@ import asyncio
 import importlib
 import time
 
-import pytest
-
 
 def _auth_headers(token: str = "testtoken") -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
@@ -13,13 +11,13 @@ def _reload_with_token(monkeypatch, token="testtoken"):
     # Ensure the auth layer expects our token
     monkeypatch.setenv("REFRESH_TOKEN", token)
     # Reload modules that read env at import time
-    import app.deps.auth as auth
+    from app.deps import auth
 
     importlib.reload(auth)
     import app.api.routes.refresh_jobs as rj
 
     importlib.reload(rj)
-    import app.jobs as jobs
+    from app import jobs
 
     importlib.reload(jobs)
     return rj, jobs
@@ -37,7 +35,7 @@ def _spin_until(cond, timeout=1.0, step=0.01):
 
 def test_refresh_async_and_status_done(client, monkeypatch):
     # Arrange
-    rj, jobs = _reload_with_token(monkeypatch)
+    jobs = _reload_with_token(monkeypatch)[1]
 
     # Make the background job fast & deterministic
     # Patch the _run_refresh to tick the state machine without doing any
@@ -68,7 +66,7 @@ def test_refresh_async_and_status_done(client, monkeypatch):
 
 def test_refresh_async_error_and_status(client, monkeypatch):
     # Arrange
-    rj, jobs = _reload_with_token(monkeypatch)
+    jobs = _reload_with_token(monkeypatch)[1]
 
     # Force background job to raise
     async def _boom():
@@ -98,9 +96,9 @@ def test_refresh_async_error_and_status(client, monkeypatch):
     assert s404.status_code == 404
 
 
-def test_jobs_gc_removes_old_done(monkeypatch):
+def test_jobs_gc_removes_old_done():
     # Work directly with the jobs module to hit GC branches
-    import app.jobs as jobs
+    from app import jobs
 
     importlib.reload(jobs)
 
@@ -130,8 +128,6 @@ def test_jobs_gc_removes_old_done(monkeypatch):
 
 
 def test_refresh_async_executes_do_calls(monkeypatch, client):
-    import importlib
-
     # make auth pass and reload the route module so we can patch its
     # locals
     monkeypatch.setenv("REFRESH_TOKEN", "testtoken")
@@ -164,9 +160,6 @@ def test_refresh_async_executes_do_calls(monkeypatch, client):
     )
     assert resp.status_code == 200
     jid = resp.json()["jobId"]
-
-    # Poll until it’s done
-    import time
 
     deadline = time.time() + 1.0
     while time.time() < deadline:

@@ -33,7 +33,7 @@ def test_source_provider_override(monkeypatch):
     assert len(out) == 3  # from deterministic
 
 
-def test_unknown_provider_raises(monkeypatch):
+def test_unknown_provider_raises():
     import app.adapters.source as src
 
     with pytest.raises(KeyError):

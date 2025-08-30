@@ -1,6 +1,3 @@
-from app.storage import last_refresh_ts
-
-
 def test_healthz(client):
     r = client.get("/healthz")
     assert r.status_code == 200

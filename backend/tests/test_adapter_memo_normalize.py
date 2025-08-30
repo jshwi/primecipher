@@ -3,8 +3,6 @@ def test_memo_normalizes_terms(monkeypatch):
 
     import app.adapters.source as src
 
-    seen_keys = []
-
     def spy_det(_, terms):
         # record normalized terms used by memo (via returning distinct
     # parents)
