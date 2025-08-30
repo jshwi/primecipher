@@ -86,6 +86,11 @@ ignore-patterns = [
 ]
 min-similarity-lines = 9
 
+[tool.pylint."tests/*"]
+disable = [
+  "import-outside-toplevel"
+]
+
 [tool.pytest.ini_options]
 addopts = [
   "--color=yes",

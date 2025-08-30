@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
@@ -22,9 +23,6 @@ async def lifespan(app: FastAPI):
 def _parse_origins() -> list[str]:
     raw = (os.getenv("FRONTEND_ORIGINS") or "http://localhost:3000").strip()
     return [o.strip() for o in raw.split(",") if o.strip()]
-
-
-import os
 
 app = FastAPI(title="PrimeCipher API (MVP)", lifespan=lifespan)
 

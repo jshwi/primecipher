@@ -24,7 +24,7 @@ def test_refresh_validation_rejects_bad_items(monkeypatch, client):
     # Monkeypatch Source to emit invalid rows → should 500 via global handler
     import app.adapters.source as src
 
-    def bad(_self, narrative: str, terms: list[str], **_kw):
+    def bad(_self, _: str, __: list[str], **_kw):
         return [{"parent": "", "matches": -1}, {"parent": 123, "matches": "x"}]
 
     monkeypatch.setattr(src.Source, "parents_for", bad, raising=True)
