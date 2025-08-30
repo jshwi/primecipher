@@ -52,6 +52,7 @@ hooks: .make/hooks
 cov: $(VENV) $(PY_FILES)
 	@PYTHONPATH=backend backend/.venv/bin/pytest backend/tests \
 		--cov=backend/app --cov-report=term-missing \
+		--cov-fail-under 100 \
 		&& backend/.venv/bin/coverage xml
 
 coverage.xml: $(VENV) $(PY_FILES)
