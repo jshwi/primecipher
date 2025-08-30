@@ -11,4 +11,25 @@ policies:
         required: true
       spellcheck:
         locale: US
+      conventional:
+        types:
+          - add
+          - build
+          - bump
+          - change
+          - chore
+          - ci
+          - deprecate
+          - doc
+          - fix
+          - hack
+          - refactor
+          - security
+          - style
+          - test
+          - remove
+          - wip
+        scopes:
+          - deps
+          - deps-dev
         descriptionLength: 72

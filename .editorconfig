@@ -1,0 +1,29 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_size = 2
+indent_style = space
+insert_final_newline = true
+tab_width = 4
+trim_trailing_whitespace = true
+
+[*.py]
+max_line_length = 79
+indent_size = 4
+
+[Makefile]
+max_line_length = 88
+indent_style = tab
+
+[tests/*.py]
+max_line_length = unset
+indent_size = unset
+
+[{scripts,docs/extensions}/*.py]
+max_line_length = unset
+indent_size = unset
+
+[{.pylintrc,*.rst}]
+indent_size = unset
