@@ -1,17 +1,22 @@
+"""Tests for parents pagination functionality."""
+
 import base64
 import json
 
 
 def _enc_cursor(n: int) -> str:
+    """Encode cursor with offset n."""
     return base64.urlsafe_b64encode(json.dumps({"o": n}).encode()).decode()
 
 
 def _fake_many(_self, _: str, __: list[str], **_kw):
+    """Fake source that returns 150 ascending matches."""
     # 150 ascending matches; route will cap to TOP_N=100
     return [{"parent": f"p{i:03d}", "matches": i} for i in range(150)]
 
 
 def test_parents_pagination_two_pages(client, monkeypatch):
+    """Test pagination across two pages."""
     # patch source actually used by compute_all()
     import app.parents as parents_mod
 
@@ -46,6 +51,7 @@ def test_parents_pagination_two_pages(client, monkeypatch):
 
 
 def test_parents_pagination_end_of_list(client, monkeypatch):
+    """Test pagination at end of list."""
     import app.parents as parents_mod
 
     monkeypatch.setattr(
@@ -67,6 +73,7 @@ def test_parents_pagination_end_of_list(client, monkeypatch):
 
 
 def test_parents_invalid_cursor_400(client):
+    """Test that invalid cursor returns 400 error."""
     r = client.get("/parents/dogs?cursor=not-base64")
     assert r.status_code == 400
     body = r.json()

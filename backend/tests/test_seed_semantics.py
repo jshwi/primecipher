@@ -1,3 +1,5 @@
+"""Tests for seed semantics functionality."""
+
 import importlib
 import json
 
@@ -5,12 +7,14 @@ from app import seeds as seeds_mod
 
 
 def write_seeds(tmp_path, data):
+    """Write seed data to temporary file."""
     p = tmp_path / "narratives.seed.json"
     p.write_text(json.dumps(data))
     return p
 
 
 def reload_seeds_with(path):
+    """Reload seeds module with new file path."""
     import os
 
     os.environ["SEEDS_FILE"] = str(path)
@@ -19,6 +23,7 @@ def reload_seeds_with(path):
 
 
 def test_blocklist_and_allow_name_match(tmp_path, client):
+    """Test blocklist and allowNameMatch functionality."""
     # narrative 'dogs'; terms include 'dog'; block 'shib'
     data = {
         "narratives": [

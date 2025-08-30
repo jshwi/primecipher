@@ -1,4 +1,8 @@
+"""Tests for source registry integration."""
+
+
 def test_source_available_and_override_env(monkeypatch):
+    """Test that source registry works and explicit provider overrides env."""
     # force env to a different mode and ensure explicit provider wins
     import importlib
 

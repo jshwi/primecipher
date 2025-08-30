@@ -1,9 +1,12 @@
+"""Tests for CoinGecko source functionality."""
+
 import importlib
 
 import httpx
 
 
 def reload_src(monkeypatch, ttl="60", mode="test", client_factory=None):
+    """Reload source module with new configuration."""
     monkeypatch.setenv("SOURCE_TTL", ttl)
     monkeypatch.setenv("SOURCE_MODE", mode)
     import app.adapters.source as src
@@ -19,13 +22,16 @@ def reload_src(monkeypatch, ttl="60", mode="test", client_factory=None):
 
 
 class FakeResponse:
+    """Fake HTTP response for testing."""
     def __init__(self, js):
         self._js = js
 
     def raise_for_status(self):
+        """Simulate successful status."""
         return True
 
     def json(self):
+        """Return JSON data."""
         return self._js
 
 
@@ -46,10 +52,12 @@ class FakeClient:
 
 
 def make_resp(js):
+    """Create a fake response with given JSON data."""
     return FakeResponse(js)
 
 
 def test_cg_happy_path(monkeypatch):
+    """Test CoinGecko happy path with normal response."""
     # normal case: coins returned
     def fake_get(_, __):
         return make_resp(
@@ -69,6 +77,7 @@ def test_cg_happy_path(monkeypatch):
 
 
 def test_cg_empty_results(monkeypatch):
+    """Test CoinGecko fallback to deterministic when no results."""
     # api returns no coins -> fallback to deterministic
     def fake_get(_, __):
         return make_resp({"coins": []})
@@ -86,6 +95,7 @@ def test_cg_empty_results(monkeypatch):
 
 
 def test_cg_network_error_fallback(monkeypatch):
+    """Test CoinGecko fallback to deterministic on network error."""
     # simulate network failure by raising inside get()
     def fake_get(_, __):
         raise httpx.RequestError("boom", request=None)

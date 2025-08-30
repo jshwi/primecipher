@@ -1,7 +1,10 @@
+"""Tests for typed responses validation."""
+
 import importlib
 
 
 def test_parents_response_shape(client):
+    """Test that parents response has correct shape and types."""
     # happy path: types line up with schema
     r = client.post("/refresh?dryRun=1")
     assert r.status_code == 200 and r.json()["ok"] is True
@@ -21,6 +24,7 @@ def test_parents_response_shape(client):
 
 
 def test_refresh_validation_rejects_bad_items(monkeypatch, client):
+    """Test that refresh validation rejects invalid data."""
     # monkeypatch source to emit invalid rows → should 500 via global
     # handler
     import app.adapters.source as src

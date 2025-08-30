@@ -1,4 +1,8 @@
+"""Tests for refresh authentication."""
+
+
 def test_refresh_auth_optional(client, monkeypatch):
+    """Test that refresh is open when no token is configured."""
     # no token configured => refresh is open
     monkeypatch.delenv("REFRESH_TOKEN", raising=False)
     r = client.post("/refresh?dryRun=1")
@@ -7,6 +11,7 @@ def test_refresh_auth_optional(client, monkeypatch):
 
 
 def test_refresh_auth_required(client, monkeypatch):
+    """Test that refresh requires authentication when token is configured."""
     monkeypatch.setenv("REFRESH_TOKEN", "s3cr3t")
     # missing header -> 401
     r = client.post("/refresh")

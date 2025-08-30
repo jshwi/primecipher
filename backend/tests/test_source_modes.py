@@ -1,3 +1,5 @@
+"""Tests for source modes functionality."""
+
 # backend/tests/test_source_modes.py
 import importlib
 
@@ -5,6 +7,7 @@ import app.adapters.source as src
 
 
 def test_source_test_mode(monkeypatch):
+    """Test source test mode returns deterministic results."""
     monkeypatch.setenv("SOURCE_MODE", "test")
     importlib.reload(src)
     s = src.Source()
@@ -13,6 +16,7 @@ def test_source_test_mode(monkeypatch):
 
 
 def test_source_dev_mode_shape(monkeypatch):
+    """Test source dev mode returns valid data structure."""
     monkeypatch.setenv("SOURCE_MODE", "dev")
     importlib.reload(src)
     s = src.Source()

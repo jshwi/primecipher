@@ -1,7 +1,10 @@
+"""Tests for applying seed semantics."""
+
 from app.adapters.source import _apply_seed_semantics
 
 
 def test_allow_name_match_false_keeps_when_other_terms_present():
+    """Test that allowNameMatch=False keeps items with other terms present."""
     # name "dogs" is present, but so is another term → should be KEPT
     items = [
         {"parent": "dogs", "matches": 50},  # should be dropped (name-only)
@@ -28,6 +31,7 @@ def test_allow_name_match_false_keeps_when_other_terms_present():
 
 
 def test_require_all_terms_positive_branch_keeps_item_with_all_terms():
+    """Test that requireAllTerms=True keeps only items with all terms."""
     # only the third item has all terms → ensures the 'all(...)' keep
     # branch
     # is covered

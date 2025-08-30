@@ -1,13 +1,17 @@
+"""Tests for refresh jobs functionality."""
+
 import asyncio
 import importlib
 import time
 
 
 def _auth_headers(token: str = "testtoken") -> dict[str, str]:
+    """Return authorization headers with token."""
     return {"Authorization": f"Bearer {token}"}
 
 
 def _reload_with_token(monkeypatch, token="testtoken"):
+    """Reload modules with new token configuration."""
     # Ensure the auth layer expects our token
     monkeypatch.setenv("REFRESH_TOKEN", token)
     # Reload modules that read env at import time
@@ -34,6 +38,7 @@ def _spin_until(cond, timeout=1.0, step=0.01):
 
 
 def test_refresh_async_and_status_done(client, monkeypatch):
+    """Test async refresh job completes successfully."""
     # Arrange
     jobs = _reload_with_token(monkeypatch)[1]
 
@@ -65,6 +70,7 @@ def test_refresh_async_and_status_done(client, monkeypatch):
 
 
 def test_refresh_async_error_and_status(client, monkeypatch):
+    """Test async refresh job handles errors properly."""
     # Arrange
     jobs = _reload_with_token(monkeypatch)[1]
 
@@ -97,6 +103,7 @@ def test_refresh_async_error_and_status(client, monkeypatch):
 
 
 def test_jobs_gc_removes_old_done():
+    """Test that garbage collection removes old completed jobs."""
     # Work directly with the jobs module to hit GC branches
     from app import jobs
 
@@ -128,6 +135,7 @@ def test_jobs_gc_removes_old_done():
 
 
 def test_refresh_async_executes_do_calls(monkeypatch, client):
+    """Test that async refresh executes the required function calls."""
     # make auth pass and reload the route module so we can patch its
     # locals
     monkeypatch.setenv("REFRESH_TOKEN", "testtoken")

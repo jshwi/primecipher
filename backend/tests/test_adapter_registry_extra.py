@@ -1,7 +1,10 @@
+"""Tests for adapter registry extra functionality."""
+
 import pytest
 
 
 def test_register_empty_name_raises():
+    """Test that registering an adapter with empty name raises ValueError."""
     from app.adapters import registry
 
     with pytest.raises(ValueError):
@@ -12,6 +15,7 @@ def test_register_empty_name_raises():
 
 
 def test_make_adapter_unknown_raises():
+    """Test that making an unknown adapter raises KeyError."""
     from app.adapters import registry
 
     with pytest.raises(KeyError):
@@ -19,6 +23,7 @@ def test_make_adapter_unknown_raises():
 
 
 def test_get_adapter_names_includes_builtins():
+    """Test that adapter names include builtins and are sorted."""
     from app.adapters import registry
 
     names = registry.get_adapter_names()
