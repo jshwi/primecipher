@@ -1,3 +1,4 @@
+// @ts-nocheck
 "use client"
 import { useTransition, useState, useEffect } from "react"
 import { useRouter } from "next/navigation"

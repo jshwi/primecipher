@@ -1,7 +1,9 @@
 // frontend/src/lib/api.ts
 
-const BASE =
-  process.env.NEXT_PUBLIC_API_BASE?.trim() || "http://127.0.0.1:8000";
+const isServer = typeof window === 'undefined';
+const BASE = isServer
+  ? (process.env.API_BASE?.trim() || process.env.NEXT_PUBLIC_API_BASE?.trim() || "http://backend:8000")
+  : (process.env.NEXT_PUBLIC_API_BASE?.trim() || "http://localhost:8000");
 
 export type ParentItem = {
   parent: string;
