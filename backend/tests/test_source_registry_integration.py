@@ -7,10 +7,10 @@ def test_source_available_and_override_env(monkeypatch):
 
     importlib.reload(src)
 
-    # Available modes includes the ones we registered
+    # available modes includes the ones we registered
     assert {"test", "dev", "coingecko"}.issubset(set(src.Source.available()))
 
-    # Explicit provider overrides env
+    # explicit provider overrides env
     s = src.Source(provider="test")
     out = s.parents_for("dogs", ["dog"])
     assert (
