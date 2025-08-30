@@ -1,7 +1,6 @@
 import importlib
 
 import httpx
-import pytest
 
 
 def reload_src(monkeypatch, ttl="60", mode="test", client_factory=None):
