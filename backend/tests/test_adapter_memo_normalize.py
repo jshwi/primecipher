@@ -11,7 +11,7 @@ def test_memo_normalizes_terms(monkeypatch):
             {
                 "parent": "|".join(sorted({t.lower() for t in terms})),
                 "matches": 10,
-            }
+            },
         ]
 
     monkeypatch.setenv("SOURCE_MODE", "test")

@@ -56,7 +56,8 @@ async def http_exc_handler(_: Request, exc: HTTPException):
 @app.exception_handler(Exception)
 async def unhandled_exc_handler(_: Request, exc: Exception):
     return JSONResponse(
-        status_code=500, content={"ok": False, "error": "internal_error"}
+        status_code=500,
+        content={"ok": False, "error": "internal_error"},
     )
 
 

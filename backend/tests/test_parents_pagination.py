@@ -16,7 +16,10 @@ def test_parents_pagination_two_pages(client, monkeypatch):
     import app.parents as parents_mod
 
     monkeypatch.setattr(
-        parents_mod.Source, "parents_for", _fake_many, raising=True
+        parents_mod.Source,
+        "parents_for",
+        _fake_many,
+        raising=True,
     )
 
     # Persist data (not dryRun) so route reads DB path too
@@ -46,7 +49,10 @@ def test_parents_pagination_end_of_list(client, monkeypatch):
     import app.parents as parents_mod
 
     monkeypatch.setattr(
-        parents_mod.Source, "parents_for", _fake_many, raising=True
+        parents_mod.Source,
+        "parents_for",
+        _fake_many,
+        raising=True,
     )
     client.post("/refresh")
 

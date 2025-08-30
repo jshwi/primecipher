@@ -12,7 +12,10 @@ def test_scores_present_and_sorted(client, monkeypatch):
     import app.parents as parents_mod
 
     monkeypatch.setattr(
-        parents_mod.Source, "parents_for", deterministic, raising=True
+        parents_mod.Source,
+        "parents_for",
+        deterministic,
+        raising=True,
     )
 
     r = client.post("/refresh?dryRun=1")

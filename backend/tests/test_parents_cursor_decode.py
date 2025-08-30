@@ -2,8 +2,9 @@ import base64
 import json
 
 import pytest
-from app.api.routes.parents import _dec_cursor
 from fastapi import HTTPException
+
+from app.api.routes.parents import _dec_cursor
 
 
 def test_dec_cursor_invalid_base64_raises():

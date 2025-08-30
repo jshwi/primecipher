@@ -18,7 +18,7 @@ def replace_parents(narrative: str, items: list[dict], ts: float) -> None:
                     parent=it["parent"],
                     matches=int(it["matches"]),
                     ts=ts,
-                )
+                ),
             )
         s.commit()
 
@@ -29,7 +29,7 @@ def list_parents(narrative: str) -> list[dict]:
             s.execute(
                 select(ParentHit)
                 .where(ParentHit.narrative == narrative)
-                .order_by(ParentHit.matches.desc())
+                .order_by(ParentHit.matches.desc()),
             )
             .scalars()
             .all()

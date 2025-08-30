@@ -29,11 +29,13 @@ async def refresh_async(
 
 @router.get("/refresh/status/{jobId}")
 def refresh_status(
-    jobId: str, _auth=Depends(require_refresh_token)
+    jobId: str,
+    _auth=Depends(require_refresh_token),
 ) -> dict[str, Any]:
     j = get_job(jobId)
     if not j:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="unknown job"
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="unknown job",
         )
     return j

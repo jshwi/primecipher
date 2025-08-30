@@ -54,7 +54,7 @@ def test_cg_happy_path(monkeypatch):
     # normal case: coins returned
     def fake_get(url, params):
         return make_resp(
-            {"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]}
+            {"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]},
         )
 
     src = reload_src(

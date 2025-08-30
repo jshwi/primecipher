@@ -60,7 +60,8 @@ def test_refresh_async_and_status_done(client, monkeypatch):
         return state == "done"
 
     assert _spin_until(
-        _is_done, timeout=1.0
+        _is_done,
+        timeout=1.0,
     ), "job did not reach 'done' state in time"
 
 
@@ -87,7 +88,8 @@ def test_refresh_async_error_and_status(client, monkeypatch):
         return js["state"] == "error" and ("kaboom" in (js.get("error") or ""))
 
     assert _spin_until(
-        _is_error, timeout=1.0
+        _is_error,
+        timeout=1.0,
     ), "job did not reach 'error' state in time"
 
     # Unknown job id → 404
@@ -147,12 +149,16 @@ def test_refresh_async_executes_do_calls(monkeypatch, client):
     # Patch the functions that _do() calls (lines 16–17)
     monkeypatch.setattr(rj, "refresh_all", fake_refresh_all, raising=True)
     monkeypatch.setattr(
-        rj, "mark_refreshed", fake_mark_refreshed, raising=True
+        rj,
+        "mark_refreshed",
+        fake_mark_refreshed,
+        raising=True,
     )
 
     # Kick off the async job (do NOT patch jobs._run_refresh here)
     resp = client.post(
-        "/refresh/async", headers={"Authorization": "Bearer testtoken"}
+        "/refresh/async",
+        headers={"Authorization": "Bearer testtoken"},
     )
     assert resp.status_code == 200
     jid = resp.json()["jobId"]

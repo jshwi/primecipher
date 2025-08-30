@@ -42,7 +42,9 @@ def _set_raw_cached(key: tuple[str, tuple[str, ...]], val: list[dict]) -> None:
 
 
 def _memo_raw(
-    provider: str, terms: list[str], producer: t.Callable[[], list[dict]]
+    provider: str,
+    terms: list[str],
+    producer: t.Callable[[], list[dict]],
 ) -> list[dict]:
     """
     Cache raw provider results per (provider, normalized terms).
@@ -81,7 +83,7 @@ def _random_items(terms: list[str]) -> list[dict]:
     for i in range(n):
         t0 = terms[i % len(terms)] if terms else f"parent{i}"
         out.append(
-            {"parent": f"{t0}-source-{i+1}", "matches": random.randint(3, 42)}
+            {"parent": f"{t0}-source-{i+1}", "matches": random.randint(3, 42)},
         )
     out.sort(key=lambda x: -x["matches"])
     return out
@@ -139,7 +141,9 @@ def _make_test():
             require_all_terms=False,
         ):
             raw = _memo_raw(
-                "test", terms, lambda: _deterministic_items(narrative, terms)
+                "test",
+                terms,
+                lambda: _deterministic_items(narrative, terms),
             )
             return _apply_seed_semantics(
                 narrative,
@@ -206,7 +210,7 @@ def _make_cg():
                     coins = js.get("coins") or []
                     out: list[dict] = []
                     for i, c in enumerate(
-                        coins[:50]
+                        coins[:50],
                     ):  # keep many for pagination
                         name = c.get("name") or c.get("id") or f"cg-{i}"
                         rank = c.get("market_cap_rank") or 1000

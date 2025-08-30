@@ -15,7 +15,7 @@ router = APIRouter()
 
 def _enc_cursor(offset: int) -> str:
     return base64.urlsafe_b64encode(
-        json.dumps({"o": offset}).encode()
+        json.dumps({"o": offset}).encode(),
     ).decode()
 
 

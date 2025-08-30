@@ -39,7 +39,7 @@ def _with_scores(items: list[dict]) -> list[dict]:
             -float(r.get("score") or 0.0),
             -int(r["matches"]),
             str(r["parent"]).lower(),
-        )
+        ),
     )
     return out
 

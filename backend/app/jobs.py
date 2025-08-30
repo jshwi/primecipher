@@ -13,7 +13,7 @@ class _Job:
         self.id = jid
         self.state: State = "queued"
         self.ts: float = time.time()
-        self.error: Optional[str] = None
+        self.error: str | None = None
 
 
 JOBS: dict[str, _Job] = {}
@@ -55,7 +55,7 @@ async def start_refresh_job(refresh_fn) -> str:
     return jid
 
 
-def get_job(jid: str) -> Optional[dict]:
+def get_job(jid: str) -> dict | None:
     job = JOBS.get(jid)
     if not job:
         return None

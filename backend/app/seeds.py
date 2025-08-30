@@ -23,7 +23,7 @@ def load_seeds() -> dict[str, Any]:
                 "terms": list(n.get("terms", [])),
                 "allowNameMatch": bool(n.get("allowNameMatch", True)),
                 "block": list(n.get("block", [])),
-            }
+            },
         )
     return {"narratives": items}
 

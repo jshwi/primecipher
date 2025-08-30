@@ -10,10 +10,12 @@ def require_refresh_token(request: Request):
     auth = request.headers.get("authorization") or ""
     if not auth.lower().startswith("bearer "):
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="missing bearer"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="missing bearer",
         )
     token = auth.split(" ", 1)[1].strip()
     if token != expected:
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid token"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="invalid token",
         )
