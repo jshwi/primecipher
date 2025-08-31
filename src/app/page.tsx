@@ -1,4 +1,3 @@
-// @ts-nocheck
 import Link from "next/link";
 import RefreshButton from "@/components/RefreshButton";
 import { getNarratives } from "@/lib/api";
@@ -17,7 +16,9 @@ export default async function Page() {
   // Defensive: handle either ['dogs','ai'] or [{narrative:'dogs',count:2}, ...]
   const rows = Array.isArray(data?.items)
     ? data.items
-        .map((x: any) => (typeof x === "string" ? x : x?.narrative))
+        .map((x: string | { narrative: string; count?: number }) =>
+          typeof x === "string" ? x : x?.narrative,
+        )
         .filter(Boolean)
     : [];
 

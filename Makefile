@@ -6,16 +6,22 @@ PYTHON_FILES := $(shell git ls-files "*.py" ':!:whitelist.py')
 PYTHON_PACKAGE_FILES := $(shell git ls-files "backend/*.py")
 PYTHON_TEST_FILES := $(shell git ls-files "tests/*.py")
 DOCS_FILES := $(shell git ls-files "docs/*.rst" "docs/*.md")
+JS_FILES := $(shell git ls-files | grep -E '\.js$$|\.jsx$$|\.ts$$|\.tsx$$')
+JS_PACKAGE_FILES := $(shell echo $(FILES) | grep -E 'src')
+TEST_JS_FILES := $(shell echo $(FILES) | grep -E '__tests__')
+TEST_CONFIG := $(shell echo $(JS_FILES) | grep -E 'jest')
+
 
 ifeq ($(OS),Windows_NT)
 	VENV := .venv/Scripts/activate
 else
 	VENV := .venv/bin/activate
 endif
+NODE_MODULES := node_modules/.package-lock.json
 
 .PHONY: all
 #: install development environment
-all: .make/pre-commit
+all: .make/pre-commit $(NODE_MODULES)
 
 #: build and check integrity of distribution
 .PHONY: build
@@ -29,7 +35,7 @@ build: .make/format \
 
 .PHONY: test
 #: test source
-test: coverage.xml
+test: coverage.xml coverage/lcov.info
 
 .PHONY: clean
 #: clean compiled files
@@ -51,6 +57,10 @@ $(VENV): $(POETRY) poetry.lock
 		|| exit 0
 	@POETRY_VIRTUALENVS_IN_PROJECT=1 $< install
 	@touch $@
+
+#: install node modules
+$(NODE_MODULES): package-lock.json
+	@npm install
 
 #: install pre-commit hooks
 .make/pre-commit: $(VENV)
@@ -74,7 +84,7 @@ $(POETRY):
 	@touch $@
 
 #: run checks that format code
-.make/format: $(VENV) $(PYTHON_FILES)
+.make/format: $(VENV) $(PYTHON_FILES) $(NODE_MODULES) $(JS_FILES)
 	@$(POETRY) run black $(PYTHON_FILES)
 	@$(POETRY) run flynt $(PYTHON_FILES)
 	@$(POETRY) run isort $(PYTHON_FILES)
@@ -82,9 +92,10 @@ $(POETRY):
 	@touch $@
 
 #: lint code
-.make/lint: $(VENV) $(PYTHON_FILES)
+.make/lint: $(VENV) $(PYTHON_FILES) $(NODE_MODULES) $(JS_FILES)
 	@$(POETRY) run pylint --output-format=colorized $(PYTHON_FILES)
 	@$(POETRY) run docsig $(PYTHON_FILES)
+	@npx next lint
 	@mkdir -p $(@D)
 	@touch $@
 
@@ -94,8 +105,9 @@ $(POETRY):
 	@touch $@
 
 #: check for unused code
-.make/unused: whitelist.py
+.make/unused: whitelist.py $(NODE_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES)
 	@$(POETRY) run vulture whitelist.py backend tests
+	@npm run unused
 	@mkdir -p $(@D)
 	@touch $@
 
@@ -107,6 +119,14 @@ whitelist.py: $(VENV) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
 coverage.xml: $(VENV) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
 	@$(POETRY) run pytest tests --cov=backend \
 		&& $(POETRY) run coverage xml
+
+coverage/lcov.info: $(NODE_MODULES) \
+	$(JS_PACKAGE_FILES) \
+	$(JS_TEST_FILES) \
+	$(TEST_CONFIG)
+	@npx jest
+	@mkdir -p $(@D)
+	@touch $@
 
 #: poetry lock
 poetry.lock: pyproject.toml

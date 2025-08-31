@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 import { useTransition, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -29,8 +28,11 @@ export default function RefreshButton() {
         } else {
           setTimeout(poll, 1000);
         }
-      } catch (e: any) {
-        if (!stop) setErr(e?.message || "Refresh status failed");
+      } catch (e: unknown) {
+        if (!stop) {
+          const error = e instanceof Error ? e : new Error(String(e));
+          setErr(error.message || "Refresh status failed");
+        }
       }
     }
     poll();

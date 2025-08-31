@@ -21,8 +21,9 @@ export default function ParentsClient({ initial }: { initial: ParentsResp }) {
       const next = await getParents(narrative, { limit: 25, cursor });
       setRows((r) => [...r, ...next.items]);
       setCursor(next.nextCursor ?? null);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to load more");
+    } catch (e: unknown) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      setErr(error.message || "Failed to load more");
     } finally {
       setBusy(false);
     }
