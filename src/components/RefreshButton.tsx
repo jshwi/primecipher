@@ -18,7 +18,7 @@ export default function RefreshButton() {
     let stop = false;
     async function poll() {
       try {
-        const s = await getRefreshStatus(jobId);
+        const s = await getRefreshStatus(jobId!);
         if (stop) return;
         setState(s.state);
         if (s.state === "done") {

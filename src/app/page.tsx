@@ -35,7 +35,7 @@ export default async function Page() {
         <RefreshButton />
       </div>
 
-      {fmt(data?.lastRefresh)}
+      {fmt(data?.lastRefresh ?? undefined)}
 
       {rows.length === 0 ? (
         <div
