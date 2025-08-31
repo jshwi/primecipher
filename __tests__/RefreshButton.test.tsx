@@ -1,6 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import RefreshButton from "../src/components/RefreshButton";
-import { startRefreshJob } from "../src/lib/api";
+import { startRefreshJob, getRefreshStatus } from "../src/lib/api";
 
 // Mock the API functions
 jest.mock("../src/lib/api", () => ({
@@ -11,6 +11,18 @@ jest.mock("../src/lib/api", () => ({
 const mockStartRefreshJob = startRefreshJob as jest.MockedFunction<
   typeof startRefreshJob
 >;
+const mockGetRefreshStatus = getRefreshStatus as jest.MockedFunction<
+  typeof getRefreshStatus
+>;
+
+// Mock Next.js router
+const mockRouter = {
+  refresh: jest.fn(),
+};
+
+jest.mock("next/navigation", () => ({
+  useRouter: () => mockRouter,
+}));
 
 describe("RefreshButton", () => {
   beforeEach(() => {
@@ -90,5 +102,128 @@ describe("RefreshButton", () => {
     fireEvent.click(button);
 
     expect(mockStartRefreshJob).toHaveBeenCalledTimes(3);
+  });
+
+  it("shows running state when job is running", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "running",
+      ts: Date.now(),
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the job to start and status to be checked
+    await waitFor(() => {
+      expect(mockGetRefreshStatus).toHaveBeenCalledWith("test-job-123");
+    });
+
+    // The button should show running state (which is "Refreshing…" in the component)
+    expect(button).toHaveTextContent("Refreshing…");
+  });
+
+  it("does not start polling when jobId is null", () => {
+    render(<RefreshButton />);
+
+    // Should not call getRefreshStatus when jobId is null
+    expect(mockGetRefreshStatus).not.toHaveBeenCalled();
+  });
+
+  it("handles component unmount during polling", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "queued",
+      ts: Date.now(),
+    });
+
+    const { unmount } = render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Unmount immediately to test cleanup
+    unmount();
+
+    // Should not cause errors after unmount
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
+
+  it("calls router.refresh when job completes successfully", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "done",
+      ts: Date.now(),
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the job to complete and router.refresh to be called
+    await waitFor(
+      () => {
+        expect(mockRouter.refresh).toHaveBeenCalled();
+      },
+      { timeout: 200 },
+    );
+  });
+
+  it("calls router.refresh after timeout delay when job completes", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "done",
+      ts: Date.now(),
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the job to complete
+    await waitFor(() => {
+      expect(mockGetRefreshStatus).toHaveBeenCalledWith("test-job-123");
+    });
+
+    // Wait for the timeout to complete and router.refresh to be called
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(mockRouter.refresh).toHaveBeenCalled();
+  });
+
+  it("calls router.refresh with fake timers when job completes", async () => {
+    jest.useFakeTimers();
+
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "done",
+      ts: Date.now(),
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the job to complete
+    await waitFor(() => {
+      expect(mockGetRefreshStatus).toHaveBeenCalledWith("test-job-123");
+    });
+
+    // Fast-forward timers to trigger the setTimeout
+    jest.advanceTimersByTime(150);
+
+    expect(mockRouter.refresh).toHaveBeenCalled();
+
+    jest.useRealTimers();
   });
 });

@@ -186,4 +186,39 @@ describe("Main Page", () => {
     expect(dogsLink).toHaveAttribute("href", "/n/dogs");
     expect(aiLink).toHaveAttribute("href", "/n/ai");
   });
+
+  it("handles non-array items data gracefully", async () => {
+    mockGetNarratives.mockResolvedValue({
+      items: "not an array",
+      lastRefresh: 1704067200,
+    });
+
+    render(await Page());
+
+    // Should show empty state when items is not an array
+    expect(screen.getByText(/No narratives yet/)).toBeInTheDocument();
+  });
+
+  it("handles undefined items data gracefully", async () => {
+    mockGetNarratives.mockResolvedValue({
+      lastRefresh: 1704067200,
+    });
+
+    render(await Page());
+
+    // Should show empty state when items is undefined
+    expect(screen.getByText(/No narratives yet/)).toBeInTheDocument();
+  });
+
+  it("handles null items data gracefully", async () => {
+    mockGetNarratives.mockResolvedValue({
+      items: null,
+      lastRefresh: 1704067200,
+    });
+
+    render(await Page());
+
+    // Should show empty state when items is null
+    expect(screen.getByText(/No narratives yet/)).toBeInTheDocument();
+  });
 });

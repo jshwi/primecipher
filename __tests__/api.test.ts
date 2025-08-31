@@ -292,4 +292,128 @@ describe("API Functions", () => {
       );
     });
   });
+
+  describe("auth headers", () => {
+    const originalEnv = process.env;
+
+    beforeEach(() => {
+      jest.resetModules();
+      process.env = { ...originalEnv };
+    });
+
+    afterEach(() => {
+      process.env = originalEnv;
+    });
+
+    it("includes auth headers when NEXT_PUBLIC_REFRESH_TOKEN is set", async () => {
+      process.env.NEXT_PUBLIC_REFRESH_TOKEN = "test-token";
+
+      // Re-import to get fresh environment values
+      const { doRefresh } = await import("../src/lib/api");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      } as Response);
+
+      await doRefresh();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/refresh"),
+        {
+          method: "POST",
+          headers: { Authorization: "Bearer test-token" },
+        },
+      );
+    });
+
+    it("does not include auth headers when NEXT_PUBLIC_REFRESH_TOKEN is not set", async () => {
+      delete process.env.NEXT_PUBLIC_REFRESH_TOKEN;
+
+      // Re-import to get fresh environment values
+      const { doRefresh } = await import("../src/lib/api");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      } as Response);
+
+      await doRefresh();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/refresh"),
+        {
+          method: "POST",
+          headers: undefined,
+        },
+      );
+    });
+
+    it("handles empty refresh token gracefully", async () => {
+      process.env.NEXT_PUBLIC_REFRESH_TOKEN = "";
+
+      // Re-import to get fresh environment values
+      const { doRefresh } = await import("../src/lib/api");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      } as Response);
+
+      await doRefresh();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/refresh"),
+        {
+          method: "POST",
+          headers: undefined,
+        },
+      );
+    });
+
+    it("includes auth headers in startRefreshJob when token is set", async () => {
+      process.env.NEXT_PUBLIC_REFRESH_TOKEN = "test-token";
+
+      // Re-import to get fresh environment values
+      const { startRefreshJob } = await import("../src/lib/api");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ jobId: "test-job" }),
+      } as Response);
+
+      await startRefreshJob();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/refresh/async"),
+        {
+          method: "POST",
+          headers: { Authorization: "Bearer test-token" },
+        },
+      );
+    });
+
+    it("includes auth headers in getRefreshStatus when token is set", async () => {
+      process.env.NEXT_PUBLIC_REFRESH_TOKEN = "test-token";
+
+      // Re-import to get fresh environment values
+      const { getRefreshStatus } = await import("../src/lib/api");
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ id: "test-job", state: "done", ts: Date.now() }),
+      } as Response);
+
+      await getRefreshStatus("test-job");
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/refresh/status/test-job"),
+        {
+          headers: { Authorization: "Bearer test-token" },
+          cache: "no-store",
+        },
+      );
+    });
+  });
 });

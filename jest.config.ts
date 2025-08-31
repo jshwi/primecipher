@@ -12,10 +12,10 @@ const config: Config = {
   coveragePathIgnorePatterns: ["/node_modules/", "/src/generated/"],
   coverageThreshold: {
     global: {
-      branches: 73.5,
-      functions: 86.59,
+      branches: 80,
+      functions: 95,
       lines: 95,
-      statements: 94,
+      statements: 95,
     },
   },
 };
