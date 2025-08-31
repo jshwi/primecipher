@@ -226,4 +226,328 @@ describe("RefreshButton", () => {
 
     jest.useRealTimers();
   });
+
+  it("handles button opacity changes based on state", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    // Initial state - full opacity
+    expect(button).toHaveStyle({ opacity: 1 });
+
+    // Start a job to change state
+    fireEvent.click(button);
+
+    // Wait for the state to change to queued
+    await waitFor(() => {
+      expect(button).toHaveTextContent("Queued…");
+    });
+
+    // Button should have reduced opacity when not idle
+    expect(button).toHaveStyle({ opacity: 0.7 });
+  });
+
+  it("shows error state when job fails", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "error",
+      ts: Date.now(),
+      error: "Job failed",
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Job failed")).toBeInTheDocument();
+    });
+  });
+
+  it("shows default error message when job fails without error details", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "error",
+      ts: Date.now(),
+      error: null,
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the default error message
+    await waitFor(() => {
+      expect(screen.getByText("Refresh failed")).toBeInTheDocument();
+    });
+  });
+
+  it("continues polling when job is queued", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus
+      .mockResolvedValueOnce({
+        id: "test-job-123",
+        state: "queued",
+        ts: Date.now(),
+      })
+      .mockResolvedValueOnce({
+        id: "test-job-123",
+        state: "done",
+        ts: Date.now(),
+      });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Should call getRefreshStatus multiple times for polling
+    await waitFor(
+      () => {
+        expect(mockGetRefreshStatus).toHaveBeenCalledTimes(2);
+      },
+      { timeout: 1200 },
+    );
+  });
+
+  it("handles API errors during status polling", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockRejectedValue(new Error("Network error"));
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Network error")).toBeInTheDocument();
+    });
+  });
+
+  it("handles non-Error objects during status polling", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockRejectedValue("String error");
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("String error")).toBeInTheDocument();
+    });
+  });
+
+  it("handles stop flag during polling", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "queued",
+      ts: Date.now(),
+    });
+
+    const { unmount } = render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for polling to start
+    await waitFor(() => {
+      expect(mockGetRefreshStatus).toHaveBeenCalledWith("test-job-123");
+    });
+
+    // Unmount to trigger stop flag
+    unmount();
+
+    // Should not cause errors after unmount
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
+
+  it("disables button during different states", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    // Initially enabled
+    expect(button).not.toBeDisabled();
+
+    // Click to start job
+    fireEvent.click(button);
+
+    // Wait for queued state
+    await waitFor(() => {
+      expect(button).toHaveTextContent("Queued…");
+    });
+
+    // Button should be disabled in queued state
+    expect(button).toBeDisabled();
+  });
+
+  it("shows different button text for different states", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    // Initial state
+    expect(button).toHaveTextContent("Refresh");
+
+    // Click to start
+    fireEvent.click(button);
+
+    // Queued state
+    await waitFor(() => {
+      expect(button).toHaveTextContent("Queued…");
+    });
+  });
+
+  it("handles error state display", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "error",
+      ts: Date.now(),
+      error: "Custom error message",
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for error to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Custom error message")).toBeInTheDocument();
+    });
+
+    // Error should be styled correctly
+    const errorDiv = screen.getByText("Custom error message");
+    expect(errorDiv).toHaveStyle({
+      background: "#fee",
+      color: "#900",
+    });
+  });
+
+  it("handles error with empty error message", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "error",
+      ts: Date.now(),
+      error: "",
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for default error message to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Refresh failed")).toBeInTheDocument();
+    });
+  });
+
+  it("handles error with undefined error message", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "error",
+      ts: Date.now(),
+      error: undefined,
+    });
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for default error message to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Refresh failed")).toBeInTheDocument();
+    });
+  });
+
+  it("handles stop flag during error handling", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+
+    // First call succeeds, second call fails
+    mockGetRefreshStatus
+      .mockResolvedValueOnce({
+        id: "test-job-123",
+        state: "queued",
+        ts: Date.now(),
+      })
+      .mockRejectedValueOnce(new Error("Network error"));
+
+    const { unmount } = render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for first polling call
+    await waitFor(() => {
+      expect(mockGetRefreshStatus).toHaveBeenCalledWith("test-job-123");
+    });
+
+    // Wait a bit for the second call to be scheduled
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Unmount to set stop flag before the second call fails
+    unmount();
+
+    // Wait for the second call to potentially fail
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
+
+  it("handles stop flag during error handling with immediate unmount", async () => {
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+
+    // Set up a mock that will reject after a delay
+    mockGetRefreshStatus.mockRejectedValueOnce(new Error("Test error"));
+
+    const { unmount } = render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the first call to be made
+    await waitFor(() => {
+      expect(mockGetRefreshStatus).toHaveBeenCalledWith("test-job-123");
+    });
+
+    // Immediately unmount to set stop flag
+    unmount();
+
+    // Wait a bit to ensure the error handling has a chance to run
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  });
+
+  it("handles error with empty error message during polling", async () => {
+    // Clear any previous mock configurations
+    mockGetRefreshStatus.mockReset();
+
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    // Use a string that will be converted to an Error with an empty message
+    mockGetRefreshStatus.mockRejectedValue("");
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for default error message to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Refresh status failed")).toBeInTheDocument();
+    });
+  });
 });
