@@ -28,8 +28,7 @@ jest.mock("next/navigation", () => ({
 jest.mock("next/image", () => ({
   __esModule: true,
   default: (props: any) => {
-    // Return a simple div instead of JSX
-    const { src, alt, ...rest } = props;
-    return { type: "img", props: { src, alt, ...rest } };
+    // Return a simple object instead of JSX
+    return { type: "img", props };
   },
 }));
