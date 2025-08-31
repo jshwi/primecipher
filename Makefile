@@ -35,7 +35,7 @@ build: .make/format \
 
 .PHONY: test
 #: test source
-test: coverage.xml coverage/lcov.info
+cov: coverage.xml coverage/lcov.info
 
 .PHONY: clean
 #: clean compiled files
