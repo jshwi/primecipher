@@ -3,7 +3,7 @@ VERSION := 0.71.0
 POETRY := bin/poetry/bin/poetry
 
 PYTHON_FILES := $(shell git ls-files "*.py" ':!:whitelist.py')
-PACKAGE_FILES := $(shell git ls-files "backend/*.py")
+PYTHON_PACKAGE_FILES := $(shell git ls-files "backend/*.py")
 PYTHON_TEST_FILES := $(shell git ls-files "tests/*.py")
 DOCS_FILES := $(shell git ls-files "docs/*.rst" "docs/*.md")
 
@@ -100,11 +100,11 @@ $(POETRY):
 	@touch $@
 
 #: generate whitelist of allowed unused code
-whitelist.py: $(VENV) $(PACKAGE_FILES) $(PYTHON_TEST_FILES)
+whitelist.py: $(VENV) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
 	@$(POETRY) run vulture --make-whitelist backend tests > $@ || exit 0
 
 #: generate coverage report
-coverage.xml: $(VENV) $(PACKAGE_FILES) $(PYTHON_TEST_FILES)
+coverage.xml: $(VENV) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
 	@$(POETRY) run pytest tests --cov=backend \
 		&& $(POETRY) run coverage xml
 
