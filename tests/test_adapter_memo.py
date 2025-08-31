@@ -1,9 +1,16 @@
 """Tests for adapter memoization functionality."""
 
 import importlib
+import typing as t
+
+import pytest
 
 
-def _fresh_src(monkeypatch, ttl="60", mode="test"):
+def _fresh_src(
+    monkeypatch: pytest.MonkeyPatch,
+    ttl: str = "60",
+    mode: str = "test",
+) -> t.Any:
     monkeypatch.setenv("SOURCE_TTL", ttl)
     monkeypatch.setenv("SOURCE_MODE", mode)
     import backend.adapters.source as src
@@ -13,7 +20,7 @@ def _fresh_src(monkeypatch, ttl="60", mode="test"):
     return src
 
 
-def test_memo_reuses_results(monkeypatch) -> None:
+def test_memo_reuses_results(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that memoization reuses results for same terms.
 
     :param monkeypatch: Pytest fixture for patching.
@@ -22,7 +29,7 @@ def test_memo_reuses_results(monkeypatch) -> None:
 
     calls = {"n": 0}
 
-    def fake_det(_, __):
+    def fake_det(_: str, __: list[str]) -> list[dict]:
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]
 
@@ -35,7 +42,7 @@ def test_memo_reuses_results(monkeypatch) -> None:
     assert calls["n"] == 1  # second call hit memo
 
 
-def test_memo_ttl_expired(monkeypatch) -> None:
+def test_memo_ttl_expired(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that memoization expires after TTL.
 
     :param monkeypatch: Pytest fixture for patching.
@@ -44,7 +51,7 @@ def test_memo_ttl_expired(monkeypatch) -> None:
 
     calls = {"n": 0}
 
-    def fake_det(_, __):
+    def fake_det(_: str, __: list[str]) -> list[dict]:
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]
 

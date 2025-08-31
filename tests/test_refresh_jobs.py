@@ -3,13 +3,19 @@
 import asyncio
 import importlib
 import time
+import typing as t
+
+import pytest
 
 
 def _auth_headers(token: str = "testtoken") -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
-def _reload_with_token(monkeypatch, token="testtoken"):
+def _reload_with_token(
+    monkeypatch: pytest.MonkeyPatch,
+    token: str = "testtoken",
+) -> tuple[t.Any, t.Any]:
     # Ensure the auth layer expects our token
     monkeypatch.setenv("REFRESH_TOKEN", token)
     # Reload modules that read env at import time
@@ -25,7 +31,11 @@ def _reload_with_token(monkeypatch, token="testtoken"):
     return rj, jobs
 
 
-def _spin_until(cond, timeout=1.0, step=0.01):
+def _spin_until(
+    cond: t.Callable[[], bool],
+    timeout: float = 1.0,
+    step: float = 0.01,
+) -> bool:
     # Spin-wait helper for state transitions in background task
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -35,7 +45,10 @@ def _spin_until(cond, timeout=1.0, step=0.01):
     return False
 
 
-def test_refresh_async_and_status_done(client, monkeypatch) -> None:
+def test_refresh_async_and_status_done(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test async refresh job completes successfully.
 
     :param client: Pytest fixture for test client.
@@ -47,7 +60,7 @@ def test_refresh_async_and_status_done(client, monkeypatch) -> None:
     # Make the background job fast & deterministic
     # Patch the _run_refresh to tick the state machine without doing any
     # real work
-    async def _noop():
+    async def _noop() -> None:
         await asyncio.sleep(0)
 
     monkeypatch.setattr(jobs, "_run_refresh", lambda _: _noop())
@@ -58,7 +71,7 @@ def test_refresh_async_and_status_done(client, monkeypatch) -> None:
     job_id = resp.json()["jobId"]
 
     # Assert: it moves to done
-    def _is_done():
+    def _is_done() -> bool:
         s = client.get(f"/refresh/status/{job_id}", headers=_auth_headers())
         assert s.status_code == 200
         state = s.json()["state"]
@@ -71,7 +84,10 @@ def test_refresh_async_and_status_done(client, monkeypatch) -> None:
     ), "job did not reach 'done' state in time"
 
 
-def test_refresh_async_error_and_status(client, monkeypatch) -> None:
+def test_refresh_async_error_and_status(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test async refresh job handles errors properly.
 
     :param client: Pytest fixture for test client.
@@ -81,7 +97,7 @@ def test_refresh_async_error_and_status(client, monkeypatch) -> None:
     jobs = _reload_with_token(monkeypatch)[1]
 
     # Force background job to raise
-    async def _boom():
+    async def _boom() -> None:
         raise RuntimeError("kaboom")
 
     monkeypatch.setattr(jobs, "_run_refresh", lambda _: _boom())
@@ -92,7 +108,7 @@ def test_refresh_async_error_and_status(client, monkeypatch) -> None:
     job_id = resp.json()["jobId"]
 
     # Assert: it ends in error and exposes message
-    def _is_error():
+    def _is_error() -> bool:
         s = client.get(f"/refresh/status/{job_id}", headers=_auth_headers())
         assert s.status_code == 200
         js = s.json()
@@ -116,13 +132,13 @@ def test_jobs_gc_removes_old_done() -> None:
     importlib.reload(jobs)
 
     # Create a job and mark it as done immediately by running a no-op
-    async def _noop():
+    async def _noop() -> None:
         return
 
     jid = asyncio.run(jobs.start_refresh_job(_noop))
 
     # Wait until job transitions to done
-    def _done():
+    def _done() -> bool:
         j = jobs.get_job(jid)
         return j is not None and j["state"] == "done"
 
@@ -140,7 +156,10 @@ def test_jobs_gc_removes_old_done() -> None:
 # append to backend/tests/test_refresh_jobs.py
 
 
-def test_refresh_async_executes_do_calls(monkeypatch, client) -> None:
+def test_refresh_async_executes_do_calls(
+    monkeypatch: pytest.MonkeyPatch,
+    client: t.Any,
+) -> None:
     """Test that async refresh executes the required function calls.
 
     :param monkeypatch: Pytest fixture for patching.
@@ -156,10 +175,10 @@ def test_refresh_async_executes_do_calls(monkeypatch, client) -> None:
     # Count calls to the inner functions invoked by _do()
     counters = {"refresh": 0, "mark": 0}
 
-    def fake_refresh_all():
+    def fake_refresh_all() -> None:
         counters["refresh"] += 1
 
-    def fake_mark_refreshed():
+    def fake_mark_refreshed() -> None:
         counters["mark"] += 1
 
     # Patch the functions that _do() calls (lines 16–17)

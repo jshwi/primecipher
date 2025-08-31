@@ -28,11 +28,13 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
-async def _run_refresh(refresh_fn):
+async def _run_refresh(refresh_fn: t.Callable[[], t.Awaitable[None]]) -> None:
     await refresh_fn()
 
 
-async def start_refresh_job(refresh_fn) -> str:
+async def start_refresh_job(
+    refresh_fn: t.Callable[[], t.Awaitable[None]],
+) -> str:
     """Schedule refresh_fn() to run in the background.
 
     Returns a short job id immediately.
@@ -45,7 +47,7 @@ async def start_refresh_job(refresh_fn) -> str:
     async with _LOCK:
         JOBS[jid] = job
 
-    async def _runner():
+    async def _runner() -> None:
         job.state = "running"
         job.ts = time.time()
         try:

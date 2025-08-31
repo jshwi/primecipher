@@ -1,7 +1,9 @@
 """Tests for adapter memoization TTL functionality."""
 
+import pytest
 
-def test_memo_ttl_expiry(monkeypatch) -> None:
+
+def test_memo_ttl_expiry(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that memoization respects TTL expiration.
 
     :param monkeypatch: Pytest fixture for patching.
@@ -12,7 +14,7 @@ def test_memo_ttl_expiry(monkeypatch) -> None:
 
     calls = {"n": 0}
 
-    def fake_det(_, __):
+    def fake_det(_: str, __: list[str]) -> list[dict]:
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}]
 

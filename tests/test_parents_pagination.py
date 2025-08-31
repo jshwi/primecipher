@@ -2,18 +2,29 @@
 
 import base64
 import json
+import typing as t
+
+import pytest
 
 
 def _enc_cursor(n: int) -> str:
     return base64.urlsafe_b64encode(json.dumps({"o": n}).encode()).decode()
 
 
-def _fake_many(_self, _: str, __: list[str], **_kw):
+def _fake_many(
+    _self: t.Any,
+    _: str,
+    __: list[str],
+    **_kw: t.Any,
+) -> list[dict]:
     # 150 ascending matches; route will cap to TOP_N=100
     return [{"parent": f"p{i:03d}", "matches": i} for i in range(150)]
 
 
-def test_parents_pagination_two_pages(client, monkeypatch) -> None:
+def test_parents_pagination_two_pages(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test pagination across two pages.
 
     :param client: Pytest fixture for test client.
@@ -52,7 +63,10 @@ def test_parents_pagination_two_pages(client, monkeypatch) -> None:
     assert first_ids.isdisjoint(second_ids)
 
 
-def test_parents_pagination_end_of_list(client, monkeypatch) -> None:
+def test_parents_pagination_end_of_list(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test pagination at end of list.
 
     :param client: Pytest fixture for test client.
@@ -78,7 +92,7 @@ def test_parents_pagination_end_of_list(client, monkeypatch) -> None:
     assert b["nextCursor"] is None
 
 
-def test_parents_invalid_cursor_400(client) -> None:
+def test_parents_invalid_cursor_400(client: t.Any) -> None:
     """Test that invalid cursor returns 400 error.
 
     :param client: Pytest fixture for test client.

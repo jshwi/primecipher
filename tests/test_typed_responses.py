@@ -1,9 +1,12 @@
 """Tests for typed responses validation."""
 
 import importlib
+import typing as t
+
+import pytest
 
 
-def test_parents_response_shape(client) -> None:
+def test_parents_response_shape(client: t.Any) -> None:
     """Test that parents response has correct shape and types.
 
     :param client: Pytest fixture for test client.
@@ -27,8 +30,8 @@ def test_parents_response_shape(client) -> None:
 
 
 def test_refresh_validation_rejects_bad_items(
-    monkeypatch,
-    client,
+    monkeypatch: pytest.MonkeyPatch,
+    client: t.Any,
 ) -> None:
     """Test that refresh validation rejects invalid data.
 
@@ -39,7 +42,7 @@ def test_refresh_validation_rejects_bad_items(
     # handler
     import backend.adapters.source as src
 
-    def bad(_self, _: str, __: list[str], **_kw):
+    def bad(_self: t.Any, _: str, __: list[str], **_kw: t.Any) -> list[dict]:
         return [{"parent": "", "matches": -1}, {"parent": 123, "matches": "x"}]
 
     monkeypatch.setattr(src.Source, "parents_for", bad, raising=True)

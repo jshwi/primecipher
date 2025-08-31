@@ -1,7 +1,9 @@
 """Tests for adapter memoization term normalization."""
 
+import pytest
 
-def test_memo_normalizes_terms(monkeypatch) -> None:
+
+def test_memo_normalizes_terms(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that memoization normalizes terms before caching.
 
     :param monkeypatch: Pytest fixture for patching.
@@ -10,7 +12,7 @@ def test_memo_normalizes_terms(monkeypatch) -> None:
 
     import backend.adapters.source as src
 
-    def spy_det(_, terms):
+    def spy_det(_: str, terms: list[str]) -> list[dict]:
         # record normalized terms used by memo (via returning distinct
         # parents)
         return [

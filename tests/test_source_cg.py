@@ -4,13 +4,14 @@ import importlib
 import typing as t
 
 import httpx
+import pytest
 
 
 def reload_src(
-    monkeypatch,
-    ttl="60",
-    mode="test",
-    client_factory=None,
+    monkeypatch: pytest.MonkeyPatch,
+    ttl: str = "60",
+    mode: str = "test",
+    client_factory: t.Callable[[], t.Any] | None = None,
 ) -> t.Any:
     """Reload source module with new configuration.
 
@@ -40,7 +41,7 @@ class FakeResponse:
     :param js: JSON data to return.
     """
 
-    def __init__(self, js) -> None:
+    def __init__(self, js: dict) -> None:
         self._js = js
 
     def raise_for_status(self) -> bool:
@@ -64,16 +65,19 @@ class FakeClient:
     :param get_func: Function to handle GET requests.
     """
 
-    def __init__(self, get_func) -> None:
+    def __init__(
+        self,
+        get_func: t.Callable[[str, dict], FakeResponse],
+    ) -> None:
         self._get = get_func
 
-    def __enter__(self):
+    def __enter__(self) -> "FakeClient":
         return self
 
-    def __exit__(self, *_):
+    def __exit__(self, *_: t.Any) -> t.Literal[False]:
         return False
 
-    def get(self, url, params=None) -> FakeResponse:
+    def get(self, url: str, params: dict | None = None) -> FakeResponse:
         """Execute the fake GET request.
 
         :param url: Request URL.
@@ -83,7 +87,7 @@ class FakeClient:
         return self._get(url, params or {})
 
 
-def make_resp(js) -> FakeResponse:
+def make_resp(js: dict) -> FakeResponse:
     """Create a fake response with given JSON data.
 
     :param js: JSON data to include in response.
@@ -92,14 +96,14 @@ def make_resp(js) -> FakeResponse:
     return FakeResponse(js)
 
 
-def test_cg_happy_path(monkeypatch) -> None:
+def test_cg_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test CoinGecko happy path with normal response.
 
     :param monkeypatch: Pytest fixture for patching.
     """
 
     # normal case: coins returned
-    def fake_get(_, __):
+    def fake_get(_: str, __: dict) -> FakeResponse:
         return make_resp(
             {"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]},
         )
@@ -116,14 +120,14 @@ def test_cg_happy_path(monkeypatch) -> None:
     assert out[0]["parent"].lower() == "foxtrot"
 
 
-def test_cg_empty_results(monkeypatch) -> None:
+def test_cg_empty_results(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test CoinGecko fallback to deterministic when no results.
 
     :param monkeypatch: Pytest fixture for patching.
     """
 
     # api returns no coins -> fallback to deterministic
-    def fake_get(_, __):
+    def fake_get(_: str, __: dict) -> FakeResponse:
         return make_resp({"coins": []})
 
     src = reload_src(
@@ -138,14 +142,14 @@ def test_cg_empty_results(monkeypatch) -> None:
     assert len(out) > 0
 
 
-def test_cg_network_error_fallback(monkeypatch) -> None:
+def test_cg_network_error_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     """Test CoinGecko fallback to deterministic on network error.
 
     :param monkeypatch: Pytest fixture for patching.
     """
 
     # simulate network failure by raising inside get()
-    def fake_get(_, __):
+    def fake_get(_: str, __: dict) -> FakeResponse:
         raise httpx.RequestError("boom", request=None)
 
     src = reload_src(

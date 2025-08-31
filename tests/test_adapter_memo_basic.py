@@ -1,7 +1,11 @@
 """Tests for basic adapter memoization functionality."""
 
+import pytest
 
-def test_memo_across_narratives_same_terms(monkeypatch) -> None:
+
+def test_memo_across_narratives_same_terms(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test that memoization works across narratives with same terms.
 
     :param monkeypatch: Pytest fixture for patching.
@@ -11,7 +15,7 @@ def test_memo_across_narratives_same_terms(monkeypatch) -> None:
 
     import backend.adapters.source as src
 
-    def fake_det(_, __):
+    def fake_det(_: str, __: list[str]) -> list[dict]:
         calls["n"] += 1
         return [{"parent": "X", "matches": 10}, {"parent": "Y", "matches": 9}]
 

@@ -136,18 +136,18 @@ def _apply_seed_semantics(  # pylint: disable=too-many-positional-arguments
 
 
 @register_adapter("test")
-def _make_test():
+def _make_test() -> t.Any:
     class _TestAdapter:  # pylint: disable=too-few-public-methods
         # pylint: disable=too-many-positional-arguments
         # pylint: disable=missing-function-docstring
         def parents_for(
             self,
-            narrative,
-            terms,
-            allow_name_match=True,
-            block=None,
-            require_all_terms=False,
-        ):
+            narrative: str,
+            terms: list[str],
+            allow_name_match: bool = True,
+            block: list[str] | None = None,
+            require_all_terms: bool = False,
+        ) -> list[dict]:
             raw = _memo_raw(
                 "test",
                 terms,
@@ -167,18 +167,18 @@ def _make_test():
 
 
 @register_adapter("dev")
-def _make_dev():
+def _make_dev() -> t.Any:
     class _DevAdapter:  # pylint: disable=too-few-public-methods
         # pylint: disable=too-many-positional-arguments
         # pylint: disable=missing-function-docstring
         def parents_for(
             self,
-            narrative,
-            terms,
-            allow_name_match=True,
-            block=None,
-            require_all_terms=False,
-        ):
+            narrative: str,
+            terms: list[str],
+            allow_name_match: bool = True,
+            block: list[str] | None = None,
+            require_all_terms: bool = False,
+        ) -> list[dict]:
             raw = _memo_raw("dev", terms, lambda: _random_items(terms))
             return _apply_seed_semantics(
                 narrative,
@@ -194,7 +194,7 @@ def _make_dev():
 
 
 @register_adapter("coingecko")
-def _make_cg():
+def _make_cg() -> t.Any:
     import httpx
 
     class _CGAdapter:  # pylint: disable=too-few-public-methods
@@ -202,13 +202,13 @@ def _make_cg():
         # pylint: disable=missing-function-docstring
         def parents_for(
             self,
-            narrative,
-            terms,
-            allow_name_match=True,
-            block=None,
-            require_all_terms=False,
-        ):
-            def _fetch():
+            narrative: str,
+            terms: list[str],
+            allow_name_match: bool = True,
+            block: list[str] | None = None,
+            require_all_terms: bool = False,
+        ) -> list[dict]:
+            def _fetch() -> list[dict]:
                 try:
                     q = (
                         " ".join(sorted({t for t in terms if t.strip()}))

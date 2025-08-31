@@ -14,7 +14,7 @@ router = APIRouter()
 
 @router.post("/refresh/async")
 async def refresh_async(
-    _auth=Depends(require_refresh_token),  # noqa: B008
+    _auth: t.Any = Depends(require_refresh_token),  # noqa: B008
 ) -> dict[str, t.Any]:
     """Start a background refresh.
 
@@ -23,7 +23,7 @@ async def refresh_async(
     :return: Job ID.
     """
 
-    async def _do():
+    async def _do() -> None:
         refresh_all()
         mark_refreshed()
 
@@ -35,7 +35,7 @@ async def refresh_async(
 @router.get("/refresh/status/{job_id}")
 def refresh_status(
     job_id: str,
-    _auth=Depends(require_refresh_token),  # noqa: B008
+    _auth: t.Any = Depends(require_refresh_token),  # noqa: B008
 ) -> dict[str, t.Any]:
     """Get status of a refresh job.
 

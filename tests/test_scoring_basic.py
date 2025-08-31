@@ -1,7 +1,14 @@
 """Tests for basic scoring functionality."""
 
+import typing as t
 
-def test_scores_present_and_sorted(client, monkeypatch) -> None:
+import pytest
+
+
+def test_scores_present_and_sorted(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test that scores are present and sorted correctly.
 
     :param client: Pytest fixture for test client.
@@ -9,7 +16,12 @@ def test_scores_present_and_sorted(client, monkeypatch) -> None:
     """
 
     # force a known set: different matches to see ordering by score
-    def deterministic(_self, _: str, __: list[str], **_kw):
+    def deterministic(
+        _self: t.Any,
+        _: str,
+        __: list[str],
+        **_kw: t.Any,
+    ) -> list[dict]:
         return [
             {"parent": "a", "matches": 10},
             {"parent": "b", "matches": 20},
@@ -38,14 +50,17 @@ def test_scores_present_and_sorted(client, monkeypatch) -> None:
     assert scores == sorted(scores, reverse=True)
 
 
-def test_scores_zero_when_all_equal(client, monkeypatch) -> None:
+def test_scores_zero_when_all_equal(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Test that scores are zero when all matches are equal.
 
     :param client: Pytest fixture for test client.
     :param monkeypatch: Pytest fixture for patching.
     """
 
-    def same(_self, _: str, __: list[str], **_kw):
+    def same(_self: t.Any, _: str, __: list[str], **_kw: t.Any) -> list[dict]:
         return [{"parent": f"p{i}", "matches": 10} for i in range(5)]
 
     import backend.parents as parents_mod

@@ -1,14 +1,18 @@
 """Tests for top-N scoring functionality."""
 
+import typing as t
 
-def test_topn_cap_100(client, monkeypatch) -> None:
+import pytest
+
+
+def test_topn_cap_100(client: t.Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """Test that top-N scoring caps results at 100 items.
 
     :param client: Pytest fixture for test client.
     :param monkeypatch: Pytest fixture for patching.
     """
 
-    def many(_self, _: str, __: list[str], **_kw):
+    def many(_self: t.Any, _: str, __: list[str], **_kw: t.Any) -> list[dict]:
         # 150 items with increasing matches
         return [{"parent": f"p{i:03d}", "matches": i} for i in range(150)]
 

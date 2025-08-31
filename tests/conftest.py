@@ -28,7 +28,7 @@ from backend.repo import init_db  # noqa: E402
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _init_db():
+def _init_db() -> None:
     init_db()
 
 
@@ -43,7 +43,7 @@ def client() -> t.Generator[TestClient, None, None]:
 
 
 @pytest.fixture(autouse=True)
-def _clear_refresh_token_env(monkeypatch):
+def _clear_refresh_token_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("REFRESH_TOKEN", raising=False)
     monkeypatch.setenv(
         "SEEDS_FILE",

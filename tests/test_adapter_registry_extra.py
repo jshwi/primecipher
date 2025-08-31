@@ -10,7 +10,7 @@ def test_register_empty_name_raises() -> None:
     with pytest.raises(ValueError):
 
         @registry.register_adapter("")  # decorator should raise immediately
-        def _dummy():
+        def _dummy() -> object:
             return object()
 
 
