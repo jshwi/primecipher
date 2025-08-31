@@ -13,13 +13,11 @@ TOP_N = 100  # new
 
 
 def _validate_items(items: list[dict]) -> list[dict]:
-    """Validate and convert items to Parent schema."""
     return [Parent(**it).model_dump() for it in items]
 
 
 # new: z-score per narrative, clamped to [-3, 3]
 def _with_scores(items: list[dict]) -> list[dict]:
-    """Add z-scores to items and sort by score."""
     if not items:
         return items
     xs = [int(it["matches"]) for it in items]

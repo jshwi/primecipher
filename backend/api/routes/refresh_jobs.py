@@ -16,14 +16,14 @@ router = APIRouter()
 async def refresh_async(
     _auth=Depends(require_refresh_token),  # noqa: B008
 ) -> dict[str, Any]:
-    """
-    Start a background refresh. Returns { jobId } with 202 Accepted semantics.
+    """Start a background refresh.
+
+    Returns { jobId } with 202 Accepted semantics.
 
     :return: Job ID.
     """
 
     async def _do():
-        """Execute refresh operations."""
         refresh_all()
         mark_refreshed()
 

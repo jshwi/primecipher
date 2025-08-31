@@ -25,18 +25,16 @@ _LOCK = asyncio.Lock()
 
 
 def _new_id() -> str:
-    """Generate a new job ID."""
     return uuid.uuid4().hex[:12]
 
 
 async def _run_refresh(refresh_fn):
-    """Execute the refresh function."""
     await refresh_fn()
 
 
 async def start_refresh_job(refresh_fn) -> str:
-    """
-    Schedule refresh_fn() to run in the background.
+    """Schedule refresh_fn() to run in the background.
+
     Returns a short job id immediately.
 
     :param refresh_fn: The function to run in the background.

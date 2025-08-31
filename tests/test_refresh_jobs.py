@@ -6,12 +6,10 @@ import time
 
 
 def _auth_headers(token: str = "testtoken") -> dict[str, str]:
-    """Return authorization headers with token."""
     return {"Authorization": f"Bearer {token}"}
 
 
 def _reload_with_token(monkeypatch, token="testtoken"):
-    """Reload modules with new token configuration."""
     # Ensure the auth layer expects our token
     monkeypatch.setenv("REFRESH_TOKEN", token)
     # Reload modules that read env at import time
@@ -28,7 +26,7 @@ def _reload_with_token(monkeypatch, token="testtoken"):
 
 
 def _spin_until(cond, timeout=1.0, step=0.01):
-    """Spin-wait helper for state transitions in background task."""
+    # Spin-wait helper for state transitions in background task
     deadline = time.time() + timeout
     while time.time() < deadline:
         if cond():

@@ -11,20 +11,18 @@ from .registry import get_adapter_names, make_adapter, register_adapter
 # global ttl for raw provider results (seconds)
 TTL_SEC = int(os.getenv("SOURCE_TTL", "60"))
 
-# shared raw cache across providers: (provider, normalized_terms) -> (ts,
-# items)
+# shared raw cache across providers: (provider, normalized_terms) ->
+# (ts, items)
 _raw_cache: dict[tuple[str, tuple[str, ...]], tuple[float, list[dict]]] = {}
 # back-compat alias for older tests/helpers that expect `_cache`
 _cache = _raw_cache
 
 
 def _now() -> float:
-    """Get current timestamp."""
     return time.time()
 
 
 def _normalize_terms(terms: list[str]) -> tuple[str, ...]:
-    """Lower, strip, drop empties, unique, and sort for a stable cache key."""
     norm = {t.strip().lower() for t in (terms or []) if t and t.strip()}
     return tuple(sorted(norm))
 
@@ -32,7 +30,6 @@ def _normalize_terms(terms: list[str]) -> tuple[str, ...]:
 def _get_raw_cached(
     key: tuple[str, tuple[str, ...]],
 ) -> t.Optional[list[dict]]:
-    """Get cached raw results if not expired."""
     hit = _raw_cache.get(key)
     if not hit:
         return None
@@ -43,7 +40,6 @@ def _get_raw_cached(
 
 
 def _set_raw_cached(key: tuple[str, tuple[str, ...]], val: list[dict]) -> None:
-    """Set cached raw results with timestamp."""
     _raw_cache[key] = (_now(), val)
 
 
@@ -52,10 +48,6 @@ def _memo_raw(
     terms: list[str],
     producer: t.Callable[[], list[dict]],
 ) -> list[dict]:
-    """
-    Cache raw provider results per (provider, normalized terms).
-    Narrative-dependent filtering must be applied *after* this memoization.
-    """
     key = (provider, _normalize_terms(terms))
     cached = _get_raw_cached(key)
     if cached is not None:
@@ -71,9 +63,8 @@ def _memo_raw(
 
 
 def _deterministic_items(narrative: str, terms: list[str]) -> list[dict]:
-    """Generate deterministic test items."""
-    # restore: only 3 deterministic rows with matches 11,10,9 (tests expect
-    # this)
+    # restore: only 3 deterministic rows with matches 11,10,9 (tests
+    # expect this)
     base = terms or [narrative, "parent", "seed"]
     return [
         {"parent": f"{base[0]}-source-1", "matches": 11},
@@ -83,7 +74,6 @@ def _deterministic_items(narrative: str, terms: list[str]) -> list[dict]:
 
 
 def _random_items(terms: list[str]) -> list[dict]:
-    """Generate random dev items."""
     # restore: small dev list (tests expect 2..6 items)
     import random
 
@@ -112,7 +102,6 @@ def _apply_seed_semantics(  # pylint: disable=too-many-positional-arguments
     require_all_terms: bool = False,
     cap: int | None = 3,  # new: optional cap (default 3 for test/dev)
 ) -> list[dict]:
-    """Apply seed semantics filtering to items."""
     nl = (narrative or "").lower()
     term_list = [t.lower() for t in (terms or []) if t]
     block_list = [b.lower() for b in (block or []) if b]
@@ -148,10 +137,9 @@ def _apply_seed_semantics(  # pylint: disable=too-many-positional-arguments
 
 @register_adapter("test")
 def _make_test():
-    """Create test adapter."""
-
     class _TestAdapter:  # pylint: disable=too-few-public-methods
-        # pylint: disable=too-many-arguments,too-many-positional-arguments
+        # pylint: disable=too-many-positional-arguments
+        # pylint: disable=missing-function-docstring
         def parents_for(
             self,
             narrative,
@@ -160,7 +148,6 @@ def _make_test():
             block=None,
             require_all_terms=False,
         ):
-            """Get parents for test mode."""
             raw = _memo_raw(
                 "test",
                 terms,
@@ -181,10 +168,9 @@ def _make_test():
 
 @register_adapter("dev")
 def _make_dev():
-    """Create dev adapter."""
-
     class _DevAdapter:  # pylint: disable=too-few-public-methods
-        # pylint: disable=too-many-arguments,too-many-positional-arguments
+        # pylint: disable=too-many-positional-arguments
+        # pylint: disable=missing-function-docstring
         def parents_for(
             self,
             narrative,
@@ -193,7 +179,6 @@ def _make_dev():
             block=None,
             require_all_terms=False,
         ):
-            """Get parents for dev mode."""
             raw = _memo_raw("dev", terms, lambda: _random_items(terms))
             return _apply_seed_semantics(
                 narrative,
@@ -210,11 +195,12 @@ def _make_dev():
 
 @register_adapter("coingecko")
 def _make_cg():
-    """Create CoinGecko adapter."""
     import httpx
 
     class _CGAdapter:  # pylint: disable=too-few-public-methods
-        def parents_for(  # pylint: disable=too-many-positional-arguments
+        # pylint: disable=too-many-positional-arguments
+        # pylint: disable=missing-function-docstring
+        def parents_for(
             self,
             narrative,
             terms,
@@ -222,8 +208,6 @@ def _make_cg():
             block=None,
             require_all_terms=False,
         ):
-            """Get parents from CoinGecko API."""
-
             def _fetch():
                 try:
                     q = (

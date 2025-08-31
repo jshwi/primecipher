@@ -16,14 +16,12 @@ router = APIRouter()
 
 
 def _enc_cursor(offset: int) -> str:
-    """Encode cursor with offset."""
     return base64.urlsafe_b64encode(
         json.dumps({"o": offset}).encode(),
     ).decode()
 
 
 def _dec_cursor(cursor: str) -> int:
-    """Decode cursor to get offset."""
     try:
         data = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
         off = int(data.get("o", 0))

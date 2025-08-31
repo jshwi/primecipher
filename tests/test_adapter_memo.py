@@ -4,7 +4,6 @@ import importlib
 
 
 def _fresh_src(monkeypatch, ttl="60", mode="test"):
-    """Create a fresh source module with specified configuration."""
     monkeypatch.setenv("SOURCE_TTL", ttl)
     monkeypatch.setenv("SOURCE_MODE", mode)
     import backend.adapters.source as src

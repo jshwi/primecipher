@@ -29,7 +29,6 @@ async def lifespan(_: FastAPI) -> t.AsyncGenerator[None, None]:
 
 
 def _parse_origins() -> list[str]:
-    """Parse CORS origins from environment variable."""
     raw = (os.getenv("FRONTEND_ORIGINS") or "http://localhost:3000").strip()
     return [o.strip() for o in raw.split(",") if o.strip()]
 
