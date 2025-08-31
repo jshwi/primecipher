@@ -1,7 +1,7 @@
 """Tests for repository operations."""
 
+import typing as t
 from time import time
-from typing import Any
 
 from backend.repo import list_parents, replace_parents
 from backend.seeds import list_narrative_names
@@ -10,7 +10,7 @@ from backend.seeds import list_narrative_names
 def test_replace_and_list_parents_roundtrip() -> None:
     """Test that replace and list parents work together correctly."""
     narrative = list_narrative_names()[0]  # e.g. 'dogs'
-    items: list[dict[str, Any]] = [
+    items: list[dict[str, t.Any]] = [
         {"parent": "p1", "matches": 5},
         {"parent": "p2", "matches": 7},
     ]

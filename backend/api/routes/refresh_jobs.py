@@ -1,6 +1,6 @@
 """API routes for asynchronous refresh jobs."""
 
-from typing import Any
+import typing as t
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
@@ -15,7 +15,7 @@ router = APIRouter()
 @router.post("/refresh/async")
 async def refresh_async(
     _auth=Depends(require_refresh_token),  # noqa: B008
-) -> dict[str, Any]:
+) -> dict[str, t.Any]:
     """Start a background refresh.
 
     Returns { jobId } with 202 Accepted semantics.
@@ -36,7 +36,7 @@ async def refresh_async(
 def refresh_status(
     job_id: str,
     _auth=Depends(require_refresh_token),  # noqa: B008
-) -> dict[str, Any]:
+) -> dict[str, t.Any]:
     """Get status of a refresh job.
 
     :param job_id: The ID of the job to get status for.

@@ -2,7 +2,7 @@
 
 import base64
 import json
-from typing import Any
+import typing as t
 
 from fastapi import APIRouter, HTTPException, Path, Query
 
@@ -45,7 +45,7 @@ def get_parents_for_narrative(
     window: str = Query(default="24h"),  # noqa: B008
     limit: int = Query(default=25, ge=1, le=100),  # noqa: B008
     cursor: str | None = Query(default=None),  # noqa: B008
-) -> dict[str, Any]:
+) -> dict[str, t.Any]:
     """Get parents data for a narrative with pagination.
 
     :param narrative: The narrative to get parents data for.

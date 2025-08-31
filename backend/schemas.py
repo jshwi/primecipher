@@ -1,6 +1,6 @@
 """Pydantic schemas for API requests and responses."""
 
-from typing import Annotated, Literal
+import typing as t
 
 from pydantic import BaseModel, Field
 
@@ -8,23 +8,23 @@ from pydantic import BaseModel, Field
 class Parent(BaseModel):
     """Schema for parent data with matches and optional score."""
 
-    parent: Annotated[str, Field(min_length=1)]
-    matches: Annotated[int, Field(ge=0)]
+    parent: t.Annotated[str, Field(min_length=1)]
+    matches: t.Annotated[int, Field(ge=0)]
     score: float | None = None  # present after scoring
 
 
 class NarrativesResp(BaseModel):
     """Response schema for narratives list."""
 
-    items: list[Annotated[str, Field(min_length=1)]]
+    items: list[t.Annotated[str, Field(min_length=1)]]
     lastRefresh: float | None = Field(default=None)
 
 
 class ParentsResp(BaseModel):
     """Response schema for parents data."""
 
-    narrative: Annotated[str, Field(min_length=1)]
-    window: Annotated[str, Field(min_length=1)]
+    narrative: t.Annotated[str, Field(min_length=1)]
+    window: t.Annotated[str, Field(min_length=1)]
     items: list[Parent]
     # important: make sure the field exists in the schema so fastapi won't
     # drop it
@@ -34,8 +34,8 @@ class ParentsResp(BaseModel):
 class RefreshResp(BaseModel):
     """Response schema for refresh operations."""
 
-    ok: Literal[True]
-    window: Annotated[str, Field(min_length=1)]
+    ok: t.Literal[True]
+    window: t.Annotated[str, Field(min_length=1)]
     ts: float | None = None
     dryRun: bool | None = None
     items: dict[str, list[Parent]] | None = None

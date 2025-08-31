@@ -1,7 +1,7 @@
 """Tests for CoinGecko source functionality."""
 
 import importlib
-from typing import Any
+import typing as t
 
 import httpx
 
@@ -11,7 +11,7 @@ def reload_src(
     ttl="60",
     mode="test",
     client_factory=None,
-) -> Any:
+) -> t.Any:
     """Reload source module with new configuration.
 
     :param monkeypatch: Pytest fixture for patching.

@@ -2,14 +2,14 @@
 
 import json
 import os
+import typing as t
 from functools import lru_cache
-from typing import Any
 
 DEFAULT_SEEDS_PATH = "/app/seeds/narratives.seed.json"
 
 
 @lru_cache(maxsize=1)
-def load_seeds() -> dict[str, Any]:
+def load_seeds() -> dict[str, t.Any]:
     """Load and normalize seed data from JSON file.
 
     :return: Normalized seed data.

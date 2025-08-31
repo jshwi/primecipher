@@ -2,10 +2,10 @@
 
 import asyncio
 import time
+import typing as t
 import uuid
-from typing import Literal
 
-State = Literal["queued", "running", "done", "error"]
+State = t.Literal["queued", "running", "done", "error"]
 
 
 class _Job:  # pylint: disable=too-few-public-methods

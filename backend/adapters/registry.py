@@ -2,22 +2,21 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from typing import Any
+import typing as t
 
-_REGISTRY: dict[str, Callable[[], Any]] = {}
+_REGISTRY: dict[str, t.Callable[[], t.Any]] = {}
 
 
 def register_adapter(
     name: str,
-) -> Callable[[Callable[[], Any]], Callable[[], Any]]:
+) -> t.Callable[[t.Callable[[], t.Any]], t.Callable[[], t.Any]]:
     """Decorator to register an adapter factory under a stable name.
 
     :param name: The name to register the adapter under.
     :return: The decorator function.
     """
 
-    def _wrap(factory: Callable[[], Any]):
+    def _wrap(factory: t.Callable[[], t.Any]):
         key = name.lower().strip()
         if not key:
             raise ValueError("adapter name cannot be empty")
@@ -35,7 +34,7 @@ def get_adapter_names() -> list[str]:
     return sorted(_REGISTRY.keys())
 
 
-def make_adapter(name: str) -> Any:
+def make_adapter(name: str) -> t.Any:
     """Create an adapter instance by name.
 
     :param name: The name of the adapter to create.

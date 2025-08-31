@@ -1,6 +1,6 @@
 """API routes for refresh operations."""
 
-from typing import Any
+import typing as t
 
 from fastapi import APIRouter, Depends, Query
 
@@ -17,7 +17,7 @@ def refresh(
     window: str = Query(default="24h"),  # noqa: B008
     dry_run: bool = Query(default=False, alias="dryRun"),  # noqa: B008
     _auth=Depends(require_refresh_token),  # noqa: B008
-) -> dict[str, Any]:
+) -> dict[str, t.Any]:
     """Refresh parent data for all narratives.
 
     :param window: The window to refresh.
