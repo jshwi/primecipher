@@ -1,14 +1,11 @@
 name: CI (backend tests)
-
 on:
   push:
-    paths:
-      - "backend/**"
-      - ".github/workflows/ci.yml"
+    branches:
+      - master
   pull_request:
-    paths:
-      - "backend/**"
-      - ".github/workflows/ci.yml"
+    branches:
+      - master
 
 jobs:
   tests:
@@ -22,23 +19,26 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-          cache: "pip"
-          cache-dependency-path: backend/requirements.txt
+          cache-dependency-path: poetry.lock
 
-      - name: Install deps
-        run: |
-          python -m pip install -U pip
-          if [ -f backend/requirements.txt ]; then
-            pip install -r backend/requirements.txt
-          else
-            # Minimal deps for tests that import adapter/parents
-            pip install pytest httpx fastapi uvicorn
-          fi
+      - name: Install Poetry
+        run: make bin/poetry/bin/poetry
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-
+
+      - name: Install deps (Poetry)
+        run: make .venv/bin/activate
 
       - name: Run pytest
-        working-directory: backend
         env:
           PYTHONPATH: .
           PRIMECIPHER_TEST_MODE: "1"
-          NARRATIVES_SEEDS_FILE: "seeds/narratives.seed.json"
-        run: pytest -q
+          NARRATIVES_SEEDS_FILE: "../seeds/narratives.seed.json"
+        run: make coverage.xml
+

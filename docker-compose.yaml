@@ -1,22 +1,25 @@
 services:
   backend:
-    build: ./backend
+    build:
+      context: .
+      target: backend
     environment:
       SEEDS_FILE: /app/seeds/narratives.seed.json
       FRONTEND_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       GIT_SHA: "local"
       BUILT_AT: "local"
-      SOURCE_MODE: coingecko # uncomment to try real data
-      SOURCE_TTL: "60" # memoize responses for 60s
+      SOURCE_MODE: coingecko
+      SOURCE_TTL: "60"
       REFRESH_TOKEN: s3cr3t
     ports:
       - "8000:8000"
     volumes:
-      - ./backend/seeds:/app/seeds:ro
+      - ./seeds:/app/seeds:ro
 
   frontend:
     build:
-      context: ./frontend
+      context: .
+      target: frontend
       args:
         NEXT_PUBLIC_API_BASE: http://localhost:8000
         NEXT_PUBLIC_REFRESH_TOKEN: s3cr3t
