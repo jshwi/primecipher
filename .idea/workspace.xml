@@ -5,21 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="f7b8465f-acdc-4698-a724-2ba42fa49f7d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/backend/adapters/source.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/adapters/source.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/api/routes/refresh_jobs.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api/routes/refresh_jobs.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/jobs.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/jobs.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/conftest.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/conftest.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_adapter_memo.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_adapter_memo.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_adapter_memo_basic.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_adapter_memo_basic.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_adapter_memo_normalize.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_adapter_memo_normalize.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_adapter_memo_ttl.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_adapter_memo_ttl.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_adapter_registry_extra.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_adapter_registry_extra.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_parents_pagination.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_parents_pagination.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_refresh_jobs.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_refresh_jobs.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_scoring_basic.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_scoring_basic.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_scoring_topn.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_scoring_topn.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_source_cg.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_source_cg.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_typed_responses.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_typed_responses.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/Makefile" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -68,7 +54,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1756544603993</updated>
-      <workItem from="1756544605632" duration="8038000" />
+      <workItem from="1756544605632" duration="8619000" />
     </task>
     <servers />
   </component>

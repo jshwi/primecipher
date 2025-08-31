@@ -15,46 +15,27 @@ endif
 
 .PHONY: all
 #: install development environment
-all: .make/pre-commit .git/blame-ignore-revs
+all: .make/pre-commit
 
 #: build and check integrity of distribution
-$(BUILD): .make/doctest \
-	.make/format \
+.PHONY: build
+#: run all checks
+build: .make/format \
 	.make/lint \
 	.make/unused \
-	.make/update-docs \
 	.mypy_cache/CACHEDIR.TAG \
-	README.rst \
-	coverage.xml \
-	docs/_build/html/index.html \
-	docs/_build/linkcheck/output.json
-	@$(POETRY) build
+	coverage.xml
 	@touch $@
 
 .PHONY: test
 #: test source
-test: .make/doctest coverage.xml
-
-.PHONY: publish
-#: publish distribution
-publish: $(BUILD)
-	@$(POETRY) publish
-
-#: generate documentation
-docs/_build/html/index.html: $(VENV) \
-	$(PYTHON_FILES) \
-	$(DOCS_FILES) \
-	CHANGELOG.md \
-	.conform.yaml \
-	CONTRIBUTING.md
-	@$(POETRY) run $(MAKE) -C docs html
+test: coverage.xml
 
 .PHONY: clean
 #: clean compiled files
 clean:
 	@find . -name '__pycache__' -exec rm -rf {} +
 	@rm -rf .coverage
-	@rm -rf .git/blame-ignore-revs
 	@rm -rf .git/hooks/*
 	@rm -rf .make
 	@rm -rf .mypy_cache
@@ -62,9 +43,6 @@ clean:
 	@rm -rf .venv
 	@rm -rf bin
 	@rm -rf coverage.xml
-	@rm -rf dist
-	@rm -rf docs/_build
-	@rm -rf docs/_generated
 
 #: generate virtual environment
 $(VENV): $(POETRY) poetry.lock
@@ -89,32 +67,11 @@ $(VENV): $(POETRY) poetry.lock
 	@mkdir -p $(@D)
 	@touch $@
 
-#: install .git-blane-ignore-revs
-.git/blame-ignore-revs:
-	@git config --local include.path $(@F)
-	@printf '%s\n' '[blame]' 'ignoreRevsFile = .git-blame-ignore-revs' > $@
-
 #: install poetry
 $(POETRY):
 	@curl -sSL https://install.python-poetry.org | \
 		POETRY_HOME="$$(pwd)/bin/poetry" "$$(which python)" - --version 2.1.1
 	@touch $@
-
-#: update commandline documentation if needed
-README.rst: $(VENV) $(PACKAGE_FILES)
-	@$(POETRY) run python scripts/update_readme.py >/dev/null 2>&1 || exit 0
-	@touch $@
-
-#: update docs according to source
-.make/update-docs: $(VENV) $(PACKAGE_FILES)
-	@$(POETRY) run python scripts/update_docs.py
-	@mkdir -p $(@D)
-	@touch $@
-
-.PHONY: update-copyright
-#: update copyright year in files containing it
-update-copyright: $(VENV)
-	@$(POETRY) run python3 scripts/update_copyright.py
 
 #: run checks that format code
 .make/format: $(VENV) $(PYTHON_FILES)
@@ -148,44 +105,8 @@ whitelist.py: $(VENV) $(PACKAGE_FILES) $(TEST_FILES)
 
 #: generate coverage report
 coverage.xml: $(VENV) $(PACKAGE_FILES) $(TEST_FILES)
-	@$(POETRY) run pytest tests \
-		--cov=backend \
-		&& .venv/bin/coverage xml
-
-#: test code examples in documentation
-.make/doctest: $(VENV) README.rst $(PYTHON_FILES) $(DOCS_FILES)
-	@$(POETRY) run pytest docs README.rst --doctest-glob='*.rst'
-	@mkdir -p $(@D)
-	@touch $@
-
-.PHONY: benchmark
-#: run benchmarks
-benchmark: $(VENV)
-	@RUN_BENCHMARK=true $(POETRY) run pytest -m=benchmark --benchmark-save=benchmark
-
-#: check dependencies are properly managed
-.make/check-deps: $(VENV) $(PYTHON_FILES) pyproject.toml
-	@$(POETRY) run deptry .
-	@mkdir -p $(@D)
-	@touch $@
-
-#: test check news script
-.make/test-check-news: $(VENV) scripts/check_news.py
-	@$(POETRY) run pytest scripts/check_news.py --cov -n=auto
-	@mkdir -p $(@D)
-	@touch $@
-
-.PHONY: bump
-bump: part = patch
-#: bump version
-bump: .make/pre-commit
-	@$(POETRY) run python scripts/bump_version.py $(part)
-
-#: test bumping of version
-.make/test-bump: $(VENV) scripts/bump_version.py
-	@$(POETRY) run pytest scripts/bump_version.py -n=auto
-	@mkdir -p $(@D)
-	@touch $@
+	@$(POETRY) run pytest tests --cov=backend \
+		&& $(POETRY) run coverage xml
 
 #: poetry lock
 poetry.lock: pyproject.toml
