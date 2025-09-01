@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y make git curl
 COPY backend ./backend
 COPY seeds ./seeds
 COPY Makefile pyproject.toml poetry.lock ./
+RUN git init --quiet
 RUN make .venv/bin/activate
 
 EXPOSE 8000
