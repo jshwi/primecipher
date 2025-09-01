@@ -22,7 +22,7 @@ def _reload_with_token(
     from backend.deps import auth
 
     importlib.reload(auth)
-    import backend.api.routes.refresh_jobs as rj
+    import backend.api.routes.refresh as rj
 
     importlib.reload(rj)
     from backend import jobs
@@ -153,7 +153,7 @@ def test_jobs_gc_removes_old_done() -> None:
     assert jobs.get_job(jid) is None
 
 
-# append to backend/tests/test_refresh_jobs.py
+# append to backend/tests/test_refresh.py
 
 
 def test_refresh_async_executes_do_calls(
@@ -168,7 +168,7 @@ def test_refresh_async_executes_do_calls(
     # make auth pass and reload the route module so we can patch its
     # locals
     monkeypatch.setenv("REFRESH_TOKEN", "testtoken")
-    import backend.api.routes.refresh_jobs as rj
+    import backend.api.routes.refresh as rj
 
     importlib.reload(rj)
 

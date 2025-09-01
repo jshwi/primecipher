@@ -12,7 +12,6 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from .api.routes import narratives as r_narratives
 from .api.routes import parents as r_parents
 from .api.routes import refresh as r_refresh
-from .api.routes import refresh_jobs as r_refresh_jobs
 from .repo import init_db
 from .version import version_payload
 
@@ -82,7 +81,6 @@ async def unhandled_exc_handler(_: Request, _exc: Exception) -> JSONResponse:
 app.include_router(r_narratives.router)
 app.include_router(r_parents.router)
 app.include_router(r_refresh.router)
-app.include_router(r_refresh_jobs.router)
 
 
 @app.get("/healthz")
