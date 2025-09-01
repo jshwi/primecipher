@@ -238,3 +238,333 @@ def test_refresh_overview_status(
     assert "lastJob" in data
     assert data["running"] is False
     assert data["lastJob"] is None
+
+
+def test_refresh_job_tracking_flow(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test the complete refresh job tracking flow.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Test 1: GET first → running=false
+    response = client.get("/refresh/status", headers=_auth_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["running"] is False
+    assert data["lastJob"] is None
+
+    # Test 2: POST → 200, running=false, has jobId
+    # (job completes synchronously)
+    response = client.post(
+        "/refresh?mode=dev&window=24h",
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is True
+    assert data["window"] == "24h"
+
+    # Check that job state was tracked
+    response = client.get("/refresh/status", headers=_auth_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["running"] is False
+    assert data["lastJob"] is not None
+    assert data["lastJob"]["mode"] == "dev"
+    assert data["lastJob"]["window"] == "24h"
+    assert data["lastJob"]["narrativesTotal"] >= 0
+    assert data["lastJob"]["narratives_done"] >= 0
+    assert data["lastJob"]["errors"] == []
+
+    # Test 3: POST again → 200, new job starts and completes
+    response = client.post(
+        "/refresh?mode=prod&window=48h",
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is True
+    assert data["window"] == "48h"
+
+    # Check that new job state was tracked
+    response = client.get("/refresh/status", headers=_auth_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["running"] is False
+    assert data["lastJob"] is not None
+    assert data["lastJob"]["mode"] == "prod"
+    assert data["lastJob"]["window"] == "48h"
+
+
+def test_refresh_job_already_running(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that refresh returns 202 when a job is already running.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Mock the refresh function to simulate a long-running job
+    import backend.api.routes.refresh as refresh_mod
+
+    def mock_refresh_all():
+        # Simulate a job that takes time
+        time.sleep(0.1)
+        return []
+
+    monkeypatch.setattr(refresh_mod, "refresh_all", mock_refresh_all)
+
+    # Start a job in the background (this will take time)
+    import threading
+
+    def start_job():
+        client.post("/refresh?mode=dev&window=24h", headers=_auth_headers())
+
+    thread = threading.Thread(target=start_job)
+    thread.start()
+
+    # Wait a bit for the job to start
+    time.sleep(0.05)
+
+    # Try to start another job while one is running
+    response = client.post(
+        "/refresh?mode=prod&window=48h",
+        headers=_auth_headers(),
+    )
+    # The test is now working correctly! The global _job_state variable
+    # is being shared between threads, so when a job is running,
+    # subsequent requests get a 202 status.
+    assert response.status_code == 202  # Returns 202 when job is running
+    data = response.json()
+    assert data["running"] is True
+    assert data["mode"] == "dev"  # Should return the first job's state
+
+    # Wait for the first job to complete
+    thread.join()
+
+    # Now should be able to start a new job
+    response = client.post(
+        "/refresh?mode=prod&window=48h",
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 200
+
+
+def test_refresh_narratives_total_fallback(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that refresh handles missing or invalid seeds file gracefully.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Mock the _get_narratives_total function to return 0
+    # (simulating file not found)
+    import backend.api.routes.refresh as refresh_mod
+
+    def mock_get_narratives_total():
+        return 0  # Simulate no narratives found
+
+    monkeypatch.setattr(
+        refresh_mod,
+        "_get_narratives_total",
+        mock_get_narratives_total,
+    )
+
+    # Should still work and return 0 for narrativesTotal
+    response = client.post(
+        "/refresh?mode=dev&window=24h",
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is True
+
+    # Check that job state was tracked with fallback values
+    response = client.get("/refresh/status", headers=_auth_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["running"] is False
+    assert data["lastJob"] is not None
+    assert data["lastJob"]["narrativesTotal"] == 0
+
+
+def test_refresh_exception_handling(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that refresh handles exceptions properly and updates job state.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Mock the refresh_all function to raise an exception
+    # during the actual work
+    import backend.api.routes.refresh as refresh_mod
+
+    def mock_refresh_all():
+        raise RuntimeError("Simulated error during refresh")
+
+    monkeypatch.setattr(refresh_mod, "refresh_all", mock_refresh_all)
+
+    # Should return 500 due to global exception handler
+    response = client.post(
+        "/refresh?mode=dev&window=24h",
+        headers=_auth_headers(),
+    )
+    assert response.status_code == 500
+    data = response.json()
+    assert data["ok"] is False
+    assert "error" in data
+
+    # Check that job state was updated to error
+    response = client.get("/refresh/status", headers=_auth_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["running"] is False
+    assert data["lastJob"] is not None
+    assert data["lastJob"]["running"] is False
+    assert "Simulated error during refresh" in data["lastJob"]["errors"]
+
+
+def test_refresh_status_while_running(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that refresh status endpoint returns running job state when active.
+
+    This test covers line 158 in refresh.py where
+    _job_state.model_dump() is returned when a job is running.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Mock the refresh_all function to simulate a long-running operation
+    import threading
+
+    import backend.api.routes.refresh as refresh_mod
+
+    # Create an event to control when the mock function completes
+    completion_event = threading.Event()
+
+    def mock_refresh_all():
+        # Simulate a long-running operation
+        time.sleep(0.1)
+        completion_event.wait()  # Wait for the event to be set
+
+    monkeypatch.setattr(refresh_mod, "refresh_all", mock_refresh_all)
+
+    # Start a refresh job in a separate thread
+    def start_refresh():
+        client.post(
+            "/refresh?mode=dev&window=24h",
+            headers=_auth_headers(),
+        )
+        # The job should start but not complete immediately
+        # due to the sleep
+
+    refresh_thread = threading.Thread(target=start_refresh)
+    refresh_thread.start()
+
+    # Give the job a moment to start
+    time.sleep(0.05)
+
+    # While the job is running, check the status
+    response = client.get("/refresh/status", headers=_auth_headers())
+    assert response.status_code == 200
+    data = response.json()
+
+    # This should hit line 158: return _job_state.model_dump()
+    assert data["running"] is True
+    assert "jobId" in data
+    assert "startedAt" in data
+    assert "mode" in data
+    assert "window" in data
+
+    # Signal the mock function to complete
+    completion_event.set()
+
+    # Wait for the refresh thread to complete
+    refresh_thread.join()
+
+    # Now check that the job is no longer running
+    response = client.get("/refresh/status", headers=_auth_headers())
+    assert response.status_code == 200
+    data = response.json()
+    assert data["running"] is False
+    assert data["lastJob"] is not None
+    assert data["lastJob"]["running"] is False
+
+
+def test_refresh_job_already_running_coverage(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that refresh returns 202 when a job is already running.
+
+    Directly manipulates the global state to cover the missing
+    code path in refresh.py line 74.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Mock the refresh function to do nothing
+    import backend.api.routes.refresh as refresh_mod
+
+    def mock_refresh_all():
+        return []
+
+    monkeypatch.setattr(refresh_mod, "refresh_all", mock_refresh_all)
+
+    # Directly manipulate the global state to simulate a running job
+    from backend.schemas import JobState
+
+    # Set the global state to indicate a job is running
+    refresh_mod._job_state = JobState(
+        jobId="test-job",
+        running=True,
+        startedAt=time.time(),
+        mode="dev",
+        window="24h",
+        narrativesTotal=5,
+        narratives_done=0,
+        errors=[],
+    )
+
+    # Try to start another job while one is running
+    response = client.post(
+        "/refresh?mode=prod&window=48h",
+        headers=_auth_headers(),
+    )
+
+    # Should return 202 because a job is already running
+    assert response.status_code == 202
+    data = response.json()
+    assert data["running"] is True
+    assert data["mode"] == "dev"  # Should return the first job's state
+
+    # Clean up the global state
+    refresh_mod._job_state = None

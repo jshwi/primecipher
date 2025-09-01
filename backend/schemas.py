@@ -39,3 +39,16 @@ class RefreshResp(BaseModel):
     ts: float | None = None
     dryRun: bool | None = None
     items: dict[str, list[Parent]] | None = None
+
+
+class JobState(BaseModel):
+    """Schema for refresh job state."""
+
+    jobId: str
+    running: bool
+    startedAt: float
+    mode: str
+    window: str
+    narrativesTotal: int
+    narratives_done: int
+    errors: list[str]
