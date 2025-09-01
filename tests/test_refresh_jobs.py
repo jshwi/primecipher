@@ -214,3 +214,27 @@ def test_refresh_async_executes_do_calls(
     # Both inner calls were executed by _do()
     assert counters["refresh"] == 1
     assert counters["mark"] == 1
+
+
+def test_refresh_overview_status(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test the refresh overview endpoint returns expected status.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Act
+    response = client.get("/refresh/status", headers=_auth_headers())
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+    assert "running" in data
+    assert "lastJob" in data
+    assert data["running"] is False
+    assert data["lastJob"] is None

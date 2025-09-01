@@ -33,7 +33,7 @@ async def refresh_async(
 
 
 @router.get("/refresh/status/{job_id}")
-def refresh_status(
+async def refresh_status(
     job_id: str,
     _auth: t.Any = Depends(require_refresh_token),  # noqa: B008
 ) -> dict[str, t.Any]:
@@ -49,3 +49,14 @@ def refresh_status(
             detail="unknown job",
         )
     return j
+
+
+@router.get("/refresh/status")
+async def refresh_overview(
+    _auth: t.Any = Depends(require_refresh_token),  # noqa: B008
+) -> dict[str, t.Any]:
+    """Get the status of a refresh job.
+
+    :return: Status of the refresh job.
+    """
+    return {"running": False, "lastJob": None}
