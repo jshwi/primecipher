@@ -141,7 +141,7 @@ deps-update:
 .PHONY: api
 #: start api
 api: $(VENV)
-	@$(POETRY) run uvicorn backend.main:app --host 0.0.0.0 --port 8000
+	@$(POETRY) run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
 .PHONY: frontend
 #: start frontend
