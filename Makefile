@@ -7,8 +7,8 @@ PYTHON_PACKAGE_FILES := $(shell git ls-files "backend/*.py")
 PYTHON_TEST_FILES := $(shell git ls-files "tests/*.py")
 DOCS_FILES := $(shell git ls-files "docs/*.rst" "docs/*.md")
 JS_FILES := $(shell git ls-files | grep -E '\.js$$|\.jsx$$|\.ts$$|\.tsx$$')
-JS_PACKAGE_FILES := $(shell echo $(FILES) | grep -E 'src')
-TEST_JS_FILES := $(shell echo $(FILES) | grep -E '__tests__')
+JS_PACKAGE_FILES := $(shell echo $(JS_FILES) | grep -E 'src')
+TEST_JS_FILES := $(shell echo $(JS_FILES) | grep -E '__tests__')
 TEST_CONFIG := $(shell echo $(JS_FILES) | grep -E 'jest')
 
 
