@@ -184,6 +184,7 @@ repos:
     rev: "3.2.1"
     hooks:
       - id: editorconfig-checker
+        exclude: docs/REFRESH.md
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: "v1.16.1"
     hooks:
