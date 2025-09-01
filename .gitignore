@@ -12,6 +12,7 @@
 .make
 .make/
 .next
+.swc
 .tox
 .venv
 __pycache__/
