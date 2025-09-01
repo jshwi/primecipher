@@ -84,17 +84,22 @@ $(POETRY):
 	@touch $@
 
 #: run checks that format code
-.make/format: $(VENV) $(PYTHON_FILES) $(NODE_MODULES) $(JS_FILES)
+.make/format/py: $(VENV) $(PYTHON_FILES)
 	@$(POETRY) run black $(PYTHON_FILES)
 	@$(POETRY) run flynt $(PYTHON_FILES)
 	@$(POETRY) run isort $(PYTHON_FILES)
 	@mkdir -p $(@D)
 	@touch $@
 
-#: lint code
-.make/lint: $(VENV) $(PYTHON_FILES) $(NODE_MODULES) $(JS_FILES)
+#: lint python
+.make/lint/py: $(VENV) $(PYTHON_FILES)
 	@$(POETRY) run pylint --output-format=colorized $(PYTHON_FILES)
 	@$(POETRY) run docsig $(PYTHON_FILES)
+	@mkdir -p $(@D)
+	@touch $@
+
+#: lint js
+.make/lint/js: $(NODE_MODULES) $(JS_FILES)
 	@npx next lint
 	@mkdir -p $(@D)
 	@touch $@
@@ -105,8 +110,13 @@ $(POETRY):
 	@touch $@
 
 #: check for unused code
-.make/unused: whitelist.py $(NODE_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES)
+.make/unused/py: whitelist.py
 	@$(POETRY) run vulture whitelist.py backend tests
+	@mkdir -p $(@D)
+	@touch $@
+
+#: check for unused code
+.make/unused/js: $(NODE_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES)
 	@npm run unused
 	@mkdir -p $(@D)
 	@touch $@

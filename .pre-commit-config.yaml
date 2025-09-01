@@ -28,16 +28,28 @@ repos:
   - repo: local
     hooks:
       # local so package can be imported to lint
-      - id: lint
-        name: lint
-        entry: make .make/lint
+      - id: lint-py
+        name: lint-py
+        entry: make .make/lint/py
+        language: system
+        pass_filenames: false
+      # local so package can be imported to lint
+      - id: lint-js
+        name: lint-js
+        entry: make .make/lint/js
         language: system
         pass_filenames: false
       # analyze all files for reliable result
       - id: vulture
         name: check for unused code
         language: system
-        entry: make .make/unused
+        entry: make .make/unused/py
+        pass_filenames: false
+      # analyze all files for reliable result
+      - id: unused-js
+        name: check for unused js code
+        language: system
+        entry: make .make/unused/js
         pass_filenames: false
       # script also handles coverage
       - id: coverage
