@@ -1,0 +1,27 @@
+{
+  "expectations": [
+    {
+      "max_heat": 1.0,
+      "min_heat": 0.4,
+      "narrative": "dogs",
+      "notes": "Dogs should score higher than privacy with demo data."
+    },
+    {
+      "max_heat": 0.35,
+      "min_heat": 0.0,
+      "narrative": "privacy",
+      "notes": "Privacy should be cooler than dogs at MVP stage (few/no matches)."
+    },
+    {
+      "max_heat": 0.6,
+      "min_heat": 0.2,
+      "narrative": "ai",
+      "notes": "AI should fall between privacy and dogs (moderate matches)."
+    }
+  ],
+  "ordering": [
+    "dogs > ai > privacy"
+  ],
+  "version": 1,
+  "window": "24h"
+}

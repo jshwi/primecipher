@@ -1,25 +1,365 @@
 {
   "narratives": [
     {
-      "allowNameMatch": true,
-      "block": [],
+      "block": [
+        "fake",
+        "scam"
+      ],
+      "branches": [
+        {
+          "name": "solana-dogs",
+          "terms": [
+            "wif",
+            "bonk"
+          ],
+          "weight": 1.2
+        },
+        {
+          "name": "eth-dogs",
+          "terms": [
+            "doge",
+            "shiba"
+          ],
+          "weight": 1.0
+        }
+      ],
       "name": "dogs",
+      "require_all": [],
+      "synonyms": [
+        "doge",
+        "doggy"
+      ],
       "terms": [
         "dog",
-        "shib",
-        "wif"
-      ]
+        "wif",
+        "bonk",
+        "shiba"
+      ],
+      "weight": 1.0
     },
     {
-      "allowNameMatch": true,
-      "block": [],
+      "block": [
+        "australian institute",
+        "air india"
+      ],
+      "branches": [
+        {
+          "name": "infra-ai",
+          "terms": [
+            "inference",
+            "gpu",
+            "compute"
+          ],
+          "weight": 1.1
+        },
+        {
+          "name": "apps-ai",
+          "terms": [
+            "chatbot",
+            "assistant",
+            "copilot"
+          ],
+          "weight": 1.0
+        }
+      ],
       "name": "ai",
+      "require_all": [
+        "ai"
+      ],
+      "synonyms": [
+        "ml",
+        "machine learning"
+      ],
       "terms": [
         "ai",
+        "artificial",
+        "model",
         "gpt",
-        "openai",
-        "agent"
-      ]
+        "llm"
+      ],
+      "weight": 1.0
+    },
+    {
+      "block": [],
+      "branches": [
+        {
+          "name": "pepe-family",
+          "terms": [
+            "pepe",
+            "wojak"
+          ],
+          "weight": 1.2
+        },
+        {
+          "name": "random-memes",
+          "terms": [
+            "meme",
+            "troll"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "name": "memes",
+      "require_all": [],
+      "synonyms": [
+        "shitcoin",
+        "viral"
+      ],
+      "terms": [
+        "meme",
+        "pepe",
+        "wojak",
+        "troll"
+      ],
+      "weight": 1.0
+    },
+    {
+      "block": [],
+      "branches": [
+        {
+          "name": "fiat-backed",
+          "terms": [
+            "usdc",
+            "usdt"
+          ],
+          "weight": 1.1
+        },
+        {
+          "name": "algo-stables",
+          "terms": [
+            "dai",
+            "frax"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "name": "stablecoins",
+      "require_all": [],
+      "synonyms": [
+        "peg",
+        "collateral"
+      ],
+      "terms": [
+        "stable",
+        "usdc",
+        "usdt",
+        "dai"
+      ],
+      "weight": 1.0
+    },
+    {
+      "block": [],
+      "branches": [
+        {
+          "name": "treasuries",
+          "terms": [
+            "treasury",
+            "bond"
+          ],
+          "weight": 1.1
+        },
+        {
+          "name": "commodities",
+          "terms": [
+            "gold",
+            "silver"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "name": "rwa",
+      "require_all": [],
+      "synonyms": [
+        "real-world",
+        "securitized"
+      ],
+      "terms": [
+        "rwa",
+        "real world asset",
+        "treasury",
+        "bond",
+        "tokenized"
+      ],
+      "weight": 1.0
+    },
+    {
+      "block": [],
+      "branches": [
+        {
+          "name": "on-chain-games",
+          "terms": [
+            "game",
+            "nft"
+          ],
+          "weight": 1.1
+        },
+        {
+          "name": "metaverse",
+          "terms": [
+            "metaverse",
+            "virtual"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "name": "gaming",
+      "require_all": [],
+      "synonyms": [
+        "play-to-earn",
+        "p2e"
+      ],
+      "terms": [
+        "game",
+        "play",
+        "nft",
+        "metaverse"
+      ],
+      "weight": 1.0
+    },
+    {
+      "block": [],
+      "branches": [
+        {
+          "name": "dexes",
+          "terms": [
+            "dex",
+            "swap",
+            "amm"
+          ],
+          "weight": 1.1
+        },
+        {
+          "name": "yield",
+          "terms": [
+            "yield",
+            "lp",
+            "farm"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "name": "defi",
+      "require_all": [],
+      "synonyms": [
+        "decentralized finance",
+        "farming"
+      ],
+      "terms": [
+        "defi",
+        "dex",
+        "swap",
+        "amm",
+        "yield",
+        "lp"
+      ],
+      "weight": 1.0
+    },
+    {
+      "block": [],
+      "branches": [
+        {
+          "name": "l1s",
+          "terms": [
+            "solana",
+            "ethereum",
+            "avalanche"
+          ],
+          "weight": 1.1
+        },
+        {
+          "name": "l2s",
+          "terms": [
+            "arbitrum",
+            "optimism",
+            "base"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "name": "infrastructure",
+      "require_all": [],
+      "synonyms": [
+        "infra",
+        "base layer"
+      ],
+      "terms": [
+        "chain",
+        "l1",
+        "l2",
+        "validator",
+        "staking"
+      ],
+      "weight": 1.0
+    },
+    {
+      "block": [],
+      "branches": [
+        {
+          "name": "zk-tech",
+          "terms": [
+            "zk",
+            "proof"
+          ],
+          "weight": 1.1
+        },
+        {
+          "name": "mixers",
+          "terms": [
+            "mixer",
+            "tornado"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "name": "privacy",
+      "require_all": [],
+      "synonyms": [
+        "zero-knowledge",
+        "stealth"
+      ],
+      "terms": [
+        "privacy",
+        "anon",
+        "zk",
+        "mixer",
+        "shield"
+      ],
+      "weight": 1.0
+    },
+    {
+      "block": [],
+      "branches": [
+        {
+          "name": "solana-pump",
+          "terms": [
+            "pump",
+            "bonk"
+          ],
+          "weight": 1.1
+        },
+        {
+          "name": "meta-memes",
+          "terms": [
+            "meta",
+            "fun"
+          ],
+          "weight": 1.0
+        }
+      ],
+      "name": "pumpfun",
+      "require_all": [],
+      "synonyms": [
+        "bonding curve",
+        "pumpdotfun"
+      ],
+      "terms": [
+        "pump",
+        "fun",
+        "meta",
+        "launch"
+      ],
+      "weight": 1.0
     }
-  ]
+  ],
+  "version": 2
 }
