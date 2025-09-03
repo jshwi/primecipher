@@ -593,3 +593,38 @@ def test_refresh_overview_with_finished_jobs(
     data = response.json()
     assert data["running"] is False
     assert data["lastJob"]["id"] == new_job_id  # Should return the newer job
+
+
+def test_start_or_get_running_job_returns_existing_job(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that start_or_get_running_job returns existing running job ID.
+
+    This test covers the case where a job is already running when
+    start_or_get_running_job is called.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Import the function and the same JOBS instance it uses
+    from backend.api.routes.refresh import JOBS, start_or_get_running_job
+    from backend.jobs import _Job
+
+    # Create a running job manually
+    running_job_id = "test-running-job"
+    running_job = _Job(running_job_id)
+    running_job.state = "running"
+    JOBS[running_job_id] = running_job
+
+    # Act - call the function
+    result_job_id = asyncio.run(start_or_get_running_job())
+
+    # Assert - should return the existing running job ID
+    assert result_job_id == running_job_id
+
+    # Cleanup
+    JOBS.clear()

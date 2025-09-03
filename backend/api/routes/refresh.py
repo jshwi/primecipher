@@ -12,6 +12,32 @@ from ...storage import last_refresh_ts, mark_refreshed
 router = APIRouter()
 
 
+async def start_or_get_running_job(
+    mode: str = "dev",  # pylint: disable=unused-argument
+    window: str = "24h",  # pylint: disable=unused-argument
+) -> str:
+    """Start a new job or return the currently running job ID.
+
+    :param mode: The mode for the job (currently unused but kept for
+        compatibility).
+    :param window: The window for the job (currently unused but kept for
+        compatibility).
+    :return: Job ID.
+    """
+    # Check if there's already a running job
+    for job_id, job in JOBS.items():
+        if job.state == "running":
+            return job_id
+
+    # No running job found, start a new one
+    async def _do() -> None:
+        refresh_all()
+        mark_refreshed()
+
+    jid = await start_refresh_job(_do)
+    return jid
+
+
 @router.post("/refresh")
 async def refresh(
     window: str = Query(default="24h"),  # noqa: B008
@@ -53,16 +79,11 @@ async def refresh_async(
     """Start a background refresh.
 
     Returns { jobId } with 202 Accepted semantics.
+    If a job is already running, returns the same job ID.
 
     :return: Job ID.
     """
-
-    async def _do() -> None:
-        refresh_all()
-        mark_refreshed()
-
-    jid = await start_refresh_job(_do)
-    gc_jobs()  # opportunistic cleanup
+    jid = await start_or_get_running_job()
     return {"jobId": jid}
 
 
