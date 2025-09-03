@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import JSONResponse
 
 from ...deps.auth import require_refresh_token
-from ...jobs import gc_jobs, get_job, start_refresh_job
+from ...jobs import JOBS, gc_jobs, get_job, start_refresh_job
 from ...parents import compute_all, refresh_all
 from ...schemas import JobState, RefreshResp
 from ...storage import last_refresh_ts, mark_refreshed
@@ -115,28 +115,17 @@ async def refresh_async(
     """Start a background refresh.
 
     Returns { jobId } with 202 Accepted semantics.
-    If a job is already running, returns the same job ID.
 
     :return: Job ID.
     """
-    from ...jobs import _LOCK, JOBS
-
-    # Check if there's already a running or queued job
-    async with _LOCK:
-        for job_id, job in JOBS.items():
-            if job.state in ("running", "queued"):
-                return {"jobId": job_id, "id": job_id}
 
     async def _do() -> None:
-        import asyncio
-
-        await asyncio.sleep(0.1)  # Small delay to allow testing
         refresh_all()
         mark_refreshed()
 
     jid = await start_refresh_job(_do)
     gc_jobs()  # opportunistic cleanup
-    return {"jobId": jid, "id": jid}
+    return {"jobId": jid}
 
 
 @router.get("/refresh/status/{job_id}")
@@ -155,8 +144,6 @@ async def refresh_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="unknown job",
         )
-    # Add jobId field alongside existing id field
-    j["jobId"] = j["id"]
     return j
 
 
@@ -164,14 +151,40 @@ async def refresh_status(
 async def refresh_overview(
     _auth: t.Any = Depends(require_refresh_token),  # noqa: B008
 ) -> dict[str, t.Any]:
-    """Get the status of a refresh job.
+    """Get the status of refresh jobs.
 
-    :return: Status of the refresh job.
+    :return: Status of refresh jobs - either running job or last finished job.
     """
-    if _job_state and _job_state.running:
-        return _job_state.model_dump()
+    # Check for running jobs in the in-memory job store
+    running_job = None
+    last_finished_job = None
+
+    for _job_id, job in JOBS.items():
+        if job.state == "running":
+            running_job = {
+                "id": job.id,
+                "state": job.state,
+                "ts": job.ts,
+                "error": job.error,
+            }
+            break
+        if job.state in ("done", "error") and (
+            not last_finished_job
+            or t.cast(float, job.ts)
+            > t.cast(float, last_finished_job.get("ts", 0.0))
+        ):
+            # Keep track of the most recent finished job
+            last_finished_job = {
+                "id": job.id,
+                "state": job.state,
+                "ts": job.ts,
+                "error": job.error,
+            }
+
+    if running_job:
+        return {"running": True, **running_job}
 
     return {
         "running": False,
-        "lastJob": _job_state.model_dump() if _job_state else None,
+        "lastJob": last_finished_job,
     }

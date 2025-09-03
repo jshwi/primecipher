@@ -93,3 +93,8 @@ def gc_jobs(max_age_sec: int = 3600) -> None:
     ]
     for k in to_drop:
         JOBS.pop(k, None)
+
+
+def clear_jobs() -> None:
+    """Clear all jobs from the store. Used for testing."""
+    JOBS.clear()
