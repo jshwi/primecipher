@@ -18,6 +18,8 @@ class NarrativesResp(BaseModel):
 
     items: list[t.Annotated[str, Field(min_length=1)]]
     lastRefresh: float | None = Field(default=None)
+    stale: bool
+    lastUpdated: float | None = Field(default=None)
 
 
 class ParentsResp(BaseModel):
