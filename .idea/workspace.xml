@@ -4,13 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="f7b8465f-acdc-4698-a724-2ba42fa49f7d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/backend/api/routes/refresh.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/api/routes/refresh.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/api/routes/refresh_jobs.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tests/test_refresh_jobs.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/test_refresh_jobs.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/whitelist.py" beforeDir="false" afterPath="$PROJECT_DIR$/whitelist.py" afterDir="false" />
-    </list>
+    <list default="true" id="f7b8465f-acdc-4698-a724-2ba42fa49f7d" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
