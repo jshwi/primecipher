@@ -157,3 +157,7 @@ api: $(VENV)
 #: start frontend
 frontend: $(NODE_MODULES)
 	@npm run dev
+
+#: create a repo archive
+archive.zip: $(FILES)
+	@git archive --format=zip --output $@ HEAD
