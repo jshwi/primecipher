@@ -49,3 +49,18 @@ def _clear_refresh_token_env(monkeypatch: pytest.MonkeyPatch) -> None:
         "SEEDS_FILE",
         str(repo_root / "seeds" / "narratives.seed.json"),
     )
+
+
+@pytest.fixture(autouse=True)
+def _clear_refresh_module_state() -> None:
+    """Clear refresh module global state between tests for isolation.
+
+    This ensures that the idempotency state doesn't leak between tests.
+    """
+    # Import here to avoid circular imports
+    import backend.api.routes.refresh as refresh_module
+
+    # Reset the module-level global state
+    refresh_module.current_running_job = None
+    refresh_module.last_completed_job = None
+    refresh_module.last_started_ts = 0.0
