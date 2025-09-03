@@ -1059,3 +1059,384 @@ def test_jobs_start_refresh_job_oserror() -> None:
     assert job is not None
     assert job["state"] == "error"
     assert job["error"] == "File system error in job"
+
+
+def test_refresh_dev_mode_coverage(  # pylint: disable=too-many-locals
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode refresh functionality for coverage.
+
+    This test covers the dev mode specific code paths in refresh.py:
+    - _process_narrative_dev_mode function (lines 60-77)
+    - _write_narrative_to_storage function (lines 86-98)
+    - _process_dev_mode_job function (lines 119-194)
+    - dev mode path in start_or_get_job (line 249)
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Import the refresh module to test dev mode functions directly
+    import backend.api.routes.refresh as refresh_module
+    from backend.api.routes.refresh import (
+        _process_dev_mode_job,
+        _process_narrative_dev_mode,
+        _write_narrative_to_storage,
+        start_or_get_job,
+    )
+
+    # Test _process_narrative_dev_mode function (lines 60-77)
+    # This function processes a single narrative in dev mode
+    test_narrative = "test-narrative"
+
+    # Mock get_parents to return some test data for the fallback path
+    def mock_get_parents(narrative: str) -> list[dict]:
+        return [{"parent": f"stored-parent-{narrative}", "score": 0.7}]
+
+    # Patch the get_parents function that's imported at the top of the module
+    monkeypatch.setattr(refresh_module, "get_parents", mock_get_parents)
+
+    # Test the function - it should fall back to get_parents since no compute
+    # functions exist
+    result = _process_narrative_dev_mode(test_narrative)
+    assert isinstance(result, list)
+    assert len(result) > 0
+    assert result[0]["parent"] == f"stored-parent-{test_narrative}"
+
+    # Test _write_narrative_to_storage function (lines 86-98)
+    test_items = [{"parent": "test-parent", "score": 0.9}]
+
+    # This should call the existing set_parents function
+    _write_narrative_to_storage(test_narrative, test_items)
+
+    # Test _process_dev_mode_job function (lines 119-194)
+    # This is an async function that processes all narratives in dev mode
+    job_id = "test-dev-job"
+    mode = "dev"
+    window = "24h"
+    narratives_total = 1
+
+    # Mock the list_narrative_names to return our test narrative
+    def mock_list_narrative_names() -> list[str]:
+        return [test_narrative]
+
+    monkeypatch.setattr(
+        "backend.seeds.list_narrative_names",
+        mock_list_narrative_names,
+    )
+
+    # Run the dev mode job
+    asyncio.run(_process_dev_mode_job(job_id, mode, window, narratives_total))
+
+    # Verify the job was completed successfully
+    assert refresh_module.last_completed_job is not None
+    assert refresh_module.last_completed_job["id"] == job_id
+    assert refresh_module.last_completed_job["state"] == "done"
+    assert refresh_module.current_running_job is None
+
+    # Test dev mode path in start_or_get_job (line 249)
+    # This should trigger the dev mode processing
+    job = asyncio.run(start_or_get_job(mode="dev", window="24h"))
+
+    # Verify the job was created
+    assert job is not None
+    assert "jobId" in job
+    assert job["mode"] == "dev"
+    assert job["window"] == "24h"
+
+    # Wait a bit for the dev mode job to complete
+    time.sleep(0.1)
+
+    # Verify the job completed successfully
+    assert refresh_module.last_completed_job is not None
+    assert refresh_module.current_running_job is None
+
+
+def test_refresh_dev_mode_fallback_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode fallback paths for coverage.
+
+    This test covers the fallback code paths in _process_narrative_dev_mode
+    when the expected functions are not found.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    from backend.api.routes.refresh import _process_narrative_dev_mode
+
+    # Test fallback path when compute_parents and for_narrative are not found
+    # This should fall back to getting current stored items
+    test_narrative = "test-narrative-fallback"
+
+    # Mock get_parents to return some test data
+    def mock_get_parents(narrative: str) -> list[dict]:
+        return [{"parent": f"stored-parent-{narrative}", "score": 0.7}]
+
+    # Import the refresh module to patch the get_parents function
+    import backend.api.routes.refresh as refresh_module
+
+    monkeypatch.setattr(refresh_module, "get_parents", mock_get_parents)
+
+    # Test the function with no compute functions available
+    result = _process_narrative_dev_mode(test_narrative)
+    assert isinstance(result, list)
+    assert len(result) > 0
+    assert result[0]["parent"] == f"stored-parent-{test_narrative}"
+
+
+def test_refresh_dev_mode_compute_parents_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode with compute_parents function for coverage.
+
+    This test covers line 71 in refresh.py where compute_parents is called.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    from backend.api.routes.refresh import _process_narrative_dev_mode
+
+    # Test with compute_parents function available
+    test_narrative = "test-narrative-compute"
+
+    # Mock compute_parents function
+    def mock_compute_parents(narrative: str) -> list[dict]:
+        return [{"parent": f"computed-parent-{narrative}", "score": 0.9}]
+
+    # Import the refresh module to patch the parents module
+    import backend.parents as parents_module
+
+    # Add the compute_parents function to the parents module
+    monkeypatch.setattr(
+        parents_module,
+        "compute_parents",
+        mock_compute_parents,
+        raising=False,
+    )
+
+    # Test the function - it should use compute_parents (line 71)
+    result = _process_narrative_dev_mode(test_narrative)
+    assert isinstance(result, list)
+    assert len(result) > 0
+    assert result[0]["parent"] == f"computed-parent-{test_narrative}"
+
+
+def test_refresh_dev_mode_storage_error_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode storage error path for coverage.
+
+    This test covers line 97 in refresh.py where RuntimeError is raised.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    from backend.api.routes.refresh import _write_narrative_to_storage
+
+    # Test fallback path when set_parents and put_parents are not found
+    test_narrative = "test-narrative-storage-error"
+    test_items = [{"parent": "test-parent", "score": 0.9}]
+
+    # Mock the storage module to not have set_parents or put_parents
+    import backend.storage as storage_module
+
+    # Store original functions
+    original_set_parents = getattr(storage_module, "set_parents", None)
+
+    # Remove the functions
+    if hasattr(storage_module, "set_parents"):
+        delattr(storage_module, "set_parents")
+
+    try:
+        # This should raise RuntimeError (line 97)
+        with pytest.raises(RuntimeError, match="No storage writer found"):
+            _write_narrative_to_storage(test_narrative, test_items)
+    finally:
+        # Restore the original functions
+        if original_set_parents is not None:
+            storage_module.set_parents = original_set_parents
+
+
+def test_refresh_dev_mode_exception_handling_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode exception handling for coverage.
+
+    This test covers lines 142-154 in refresh.py where exceptions are handled.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    import backend.api.routes.refresh as refresh_module
+    from backend.api.routes.refresh import _process_dev_mode_job
+
+    # Test exception handling during narrative processing
+    job_id = "test-exception-job"
+    mode = "dev"
+    window = "24h"
+    narratives_total = 1
+
+    # Mock list_narrative_names to return a test narrative
+    def mock_list_narrative_names() -> list[str]:
+        return ["error-narrative"]
+
+    # Mock _process_narrative_dev_mode to raise an exception
+    def mock_process_narrative_dev_mode(narrative: str) -> list[dict]:
+        raise ValueError(f"Error processing {narrative}")
+
+    # Set up a running job state to test error handling
+    refresh_module.current_running_job = {
+        "id": job_id,
+        "state": "running",
+        "ts": time.time(),
+        "error": None,
+        "jobId": job_id,
+        "mode": mode,
+        "window": window,
+        "narrativesTotal": narratives_total,
+        "narrativesDone": 0,
+        "errors": [],
+    }
+
+    monkeypatch.setattr(
+        "backend.seeds.list_narrative_names",
+        mock_list_narrative_names,
+    )
+    monkeypatch.setattr(
+        refresh_module,
+        "_process_narrative_dev_mode",
+        mock_process_narrative_dev_mode,
+    )
+
+    # Run the dev mode job - it should handle the exception gracefully
+    asyncio.run(_process_dev_mode_job(job_id, mode, window, narratives_total))
+
+    # Verify the job was completed with errors (lines 142-154)
+    assert refresh_module.last_completed_job is not None
+    assert refresh_module.last_completed_job["id"] == job_id
+    assert refresh_module.last_completed_job["state"] == "done"
+    assert refresh_module.last_completed_job["errors"] is not None
+    assert len(refresh_module.last_completed_job["errors"]) > 0
+    # Check that there's an error message (the exact message may vary)
+    assert "Error processing" in refresh_module.last_completed_job["errors"][0]
+    assert refresh_module.current_running_job is None
+
+
+def test_refresh_dev_mode_job_exception_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode job-level exception handling for coverage.
+
+    This test covers lines 175-193 in refresh.py where job-level
+    exceptions are handled.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    import backend.api.routes.refresh as refresh_module
+    from backend.api.routes.refresh import _process_dev_mode_job
+
+    # Test job-level exception handling by mocking mark_refreshed to
+    # raise an exception
+    job_id = "test-job-exception"
+    mode = "dev"
+    window = "24h"
+    narratives_total = 1
+
+    # Set up a running job state
+    refresh_module.current_running_job = {
+        "id": job_id,
+        "state": "running",
+        "ts": time.time(),
+        "error": None,
+        "jobId": job_id,
+        "mode": mode,
+        "window": window,
+        "narrativesTotal": narratives_total,
+        "narrativesDone": 0,
+        "errors": [],
+    }
+
+    # Mock mark_refreshed to raise an exception (this will trigger the
+    # job-level exception handling)
+    def mock_mark_refreshed() -> None:
+        raise RuntimeError("Failed to mark refreshed")
+
+    monkeypatch.setattr(refresh_module, "mark_refreshed", mock_mark_refreshed)
+
+    # Run the dev mode job - it should handle the job-level exception
+    import contextlib
+
+    with contextlib.suppress(RuntimeError):
+        asyncio.run(
+            _process_dev_mode_job(job_id, mode, window, narratives_total),
+        )
+
+    # Verify the job was marked as error (lines 175-193)
+    assert refresh_module.last_completed_job is not None
+    assert refresh_module.last_completed_job["id"] == job_id
+    assert refresh_module.last_completed_job["state"] == "error"
+    assert (
+        refresh_module.last_completed_job["error"]
+        == "Failed to mark refreshed"
+    )
+    assert refresh_module.current_running_job is None
+
+
+def test_refresh_dev_mode_start_job_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode start job path for coverage.
+
+    This test covers line 248 in refresh.py where dev mode is started.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    import backend.api.routes.refresh as refresh_module
+    from backend.api.routes.refresh import start_or_get_job
+
+    # Test dev mode path in start_or_get_job (line 248)
+    # This should trigger the dev mode processing
+    job = asyncio.run(start_or_get_job(mode="dev", window="24h"))
+
+    # Verify the job was created
+    assert job is not None
+    assert "jobId" in job
+    assert job["mode"] == "dev"
+    assert job["window"] == "24h"
+
+    # Wait a bit for the dev mode job to complete
+    time.sleep(0.1)
+
+    # Verify the job completed successfully
+    assert refresh_module.last_completed_job is not None
+    assert refresh_module.current_running_job is None

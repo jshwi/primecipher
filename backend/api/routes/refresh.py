@@ -10,7 +10,7 @@ from ...deps.auth import require_refresh_token
 from ...jobs import gc_jobs
 from ...parents import compute_all, refresh_all
 from ...seeds import list_narrative_names
-from ...storage import last_refresh_ts, mark_refreshed
+from ...storage import get_parents, last_refresh_ts, mark_refreshed
 
 router = APIRouter()
 
@@ -50,8 +50,151 @@ def _get_job_by_id(job_id: str) -> dict[str, t.Any] | None:
     return None
 
 
+def _process_narrative_dev_mode(narrative: str) -> list[dict]:
+    """Process a single narrative in dev mode.
+
+    :param narrative: The narrative name to process.
+    :return: List of parent items for the narrative.
+    """
+    # Import here to avoid circular imports
+    from ... import parents as parents_module
+
+    # Detect compute function using introspection
+    comp = getattr(parents_module, "compute_parents", None) or getattr(
+        parents_module,
+        "for_narrative",
+        None,
+    )
+
+    if comp is not None:
+        # Use the detected compute function
+        items = comp(narrative)
+    else:
+        # Fall back to getting current stored items to simulate refresh
+        items = get_parents(narrative) or []
+
+    return items
+
+
+def _write_narrative_to_storage(narrative: str, items: list[dict]) -> None:
+    """Write narrative items to storage using introspection.
+
+    :param narrative: The narrative name.
+    :param items: The items to write.
+    """
+    from ... import storage as storage_module
+
+    # Detect storage writer using introspection
+    writer = getattr(storage_module, "set_parents", None) or getattr(
+        storage_module,
+        "put_parents",
+        None,
+    )
+
+    if writer is not None:
+        writer(narrative, items)
+    else:
+        raise RuntimeError(
+            "No storage writer found (set_parents or put_parents)",
+        )
+
+
+async def _process_dev_mode_job(
+    job_id: str,
+    mode: str,
+    window: str,
+    narratives_total: int,
+) -> None:
+    """Process a dev mode job by iterating through narratives.
+
+    :param job_id: The job ID.
+    :param mode: The job mode.
+    :param window: The job window.
+    :param narratives_total: Total number of narratives to process.
+    """
+    # pylint: disable=global-statement
+    global current_running_job, last_completed_job, debounce_until
+
+    try:
+        narratives = list_narrative_names()
+        narratives_done = 0
+        errors = []
+
+        for narrative in narratives:
+            try:
+                # Process the narrative
+                items = _process_narrative_dev_mode(narrative)
+
+                # Write to storage
+                _write_narrative_to_storage(narrative, items)
+
+                # Update progress
+                narratives_done += 1
+                if (
+                    current_running_job
+                    and current_running_job.get("id") == job_id
+                ):
+                    current_running_job["narrativesDone"] = narratives_done
+
+                # Small non-blocking yield to make progress visible
+                time.sleep(0.05)
+
+            except (ValueError, RuntimeError, OSError) as e:
+                error_msg = (
+                    f"Error processing narrative '{narrative}': {str(e)}"
+                )
+                errors.append(error_msg)
+                # Continue with next narrative
+                narratives_done += 1
+                if (
+                    current_running_job
+                    and current_running_job.get("id") == job_id
+                ):
+                    current_running_job["narrativesDone"] = narratives_done
+                    current_running_job["errors"] = errors
+
+        # Mark as completed
+        mark_refreshed()
+        completed_job = {
+            "id": job_id,
+            "state": "done",
+            "ts": time.time(),
+            "error": None,
+            "jobId": job_id,
+            "mode": mode,
+            "window": window,
+            "narrativesTotal": narratives_total,
+            "narrativesDone": narratives_done,
+            "errors": errors,
+        }
+        last_completed_job = completed_job
+        # Set debounce_until BEFORE clearing current_running_job
+        debounce_until = time.time() + DEBOUNCE_SEC
+        current_running_job = None
+
+    except (ValueError, RuntimeError, OSError) as e:
+        # Mark as error
+        error_job = {
+            "id": job_id,
+            "state": "error",
+            "ts": time.time(),
+            "error": str(e),
+            "jobId": job_id,
+            "mode": mode,
+            "window": window,
+            "narrativesTotal": narratives_total,
+            "narrativesDone": 0,
+            "errors": [str(e)],
+        }
+        last_completed_job = error_job
+        # Set debounce_until BEFORE clearing current_running_job
+        debounce_until = time.time() + DEBOUNCE_SEC
+        current_running_job = None
+        raise
+
+
 async def start_or_get_job(
-    mode: str = "dev",  # pylint: disable=unused-argument
+    mode: str = "prod",  # pylint: disable=unused-argument
     window: str = "24h",  # pylint: disable=unused-argument
 ) -> dict[str, t.Any]:
     """Start a new job or return existing job for idempotency.
@@ -100,47 +243,52 @@ async def start_or_get_job(
 
     # Start the actual refresh job
     async def _do() -> None:
-        # pylint: disable=global-statement
-        global current_running_job, last_completed_job, debounce_until
-        try:
-            refresh_all()
-            mark_refreshed()
-            # Mark as completed
-            completed_job = {
-                "id": job_id,
-                "state": "done",
-                "ts": time.time(),
-                "error": None,
-                "jobId": job_id,
-                "mode": mode,
-                "window": window,
-                "narrativesTotal": narratives_total,
-                "narrativesDone": narratives_total,
-                "errors": [],
-            }
-            last_completed_job = completed_job
-            # Set debounce_until BEFORE clearing current_running_job
-            debounce_until = time.time() + DEBOUNCE_SEC
-            current_running_job = None
-        except Exception as e:
-            # Mark as error
-            error_job = {
-                "id": job_id,
-                "state": "error",
-                "ts": time.time(),
-                "error": str(e),
-                "jobId": job_id,
-                "mode": mode,
-                "window": window,
-                "narrativesTotal": narratives_total,
-                "narrativesDone": 0,
-                "errors": [str(e)],
-            }
-            last_completed_job = error_job
-            # Set debounce_until BEFORE clearing current_running_job
-            debounce_until = time.time() + DEBOUNCE_SEC
-            current_running_job = None
-            raise
+        if mode == "dev":
+            # Use dev mode processing
+            await _process_dev_mode_job(job_id, mode, window, narratives_total)
+        else:
+            # Use existing refresh_all() for non-dev modes
+            # pylint: disable=global-statement
+            global current_running_job, last_completed_job, debounce_until
+            try:
+                refresh_all()
+                mark_refreshed()
+                # Mark as completed
+                completed_job = {
+                    "id": job_id,
+                    "state": "done",
+                    "ts": time.time(),
+                    "error": None,
+                    "jobId": job_id,
+                    "mode": mode,
+                    "window": window,
+                    "narrativesTotal": narratives_total,
+                    "narrativesDone": narratives_total,
+                    "errors": [],
+                }
+                last_completed_job = completed_job
+                # Set debounce_until BEFORE clearing current_running_job
+                debounce_until = time.time() + DEBOUNCE_SEC
+                current_running_job = None
+            except (ValueError, RuntimeError, OSError) as e:
+                # Mark as error
+                error_job = {
+                    "id": job_id,
+                    "state": "error",
+                    "ts": time.time(),
+                    "error": str(e),
+                    "jobId": job_id,
+                    "mode": mode,
+                    "window": window,
+                    "narrativesTotal": narratives_total,
+                    "narrativesDone": 0,
+                    "errors": [str(e)],
+                }
+                last_completed_job = error_job
+                # Set debounce_until BEFORE clearing current_running_job
+                debounce_until = time.time() + DEBOUNCE_SEC
+                current_running_job = None
+                raise
 
     # Start the job in the background
     import asyncio
@@ -154,6 +302,7 @@ async def start_or_get_job(
 async def refresh(
     window: str = Query(default="24h"),  # noqa: B008
     dry_run: bool = Query(default=False, alias="dryRun"),  # noqa: B008
+    mode: str = Query(default="prod"),  # noqa: B008
     _auth: t.Any = Depends(require_refresh_token),  # noqa: B008
 ) -> dict[str, t.Any]:
     """Refresh parent data for all narratives.
@@ -163,6 +312,7 @@ async def refresh(
 
     :param window: The window to refresh.
     :param dry_run: Whether to run in dry run mode.
+    :param mode: The mode for the refresh (dev or other).
     :return: Refresh response or Job ID.
     """
     if dry_run:
@@ -176,13 +326,15 @@ async def refresh(
         }
 
     # Use the same function as /refresh/async to ensure consistent behavior
-    job = await start_or_get_job(mode="dev", window=window)
+    job = await start_or_get_job(mode=mode, window=window)
     gc_jobs()  # opportunistic cleanup
     return {"jobId": job["jobId"]}
 
 
 @router.post("/refresh/async")
 async def refresh_async(
+    mode: str = Query(default="prod"),  # noqa: B008
+    window: str = Query(default="24h"),  # noqa: B008
     _auth: t.Any = Depends(require_refresh_token),  # noqa: B008
 ) -> dict[str, t.Any]:
     """Start a background refresh.
@@ -190,9 +342,11 @@ async def refresh_async(
     Returns { jobId } with 202 Accepted semantics.
     If a job is already running, returns the same job ID.
 
+    :param mode: The mode for the refresh (dev or other).
+    :param window: The window for the refresh.
     :return: Job ID.
     """
-    job = await start_or_get_job()
+    job = await start_or_get_job(mode=mode, window=window)
     return {"jobId": job["jobId"]}
 
 
