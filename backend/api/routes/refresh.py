@@ -96,7 +96,7 @@ def _check_budget_limits(
     :return: Tuple of (should_continue, error_dict_or_none).
     """
     # Check if we would exceed the maximum calls budget
-    if calls_used >= REFRESH_MAX_CALLS:
+    if calls_used + 1 > REFRESH_MAX_CALLS:
         budget_error = {
             "narrative": "*",
             "code": "BUDGET_EXCEEDED",
@@ -104,9 +104,8 @@ def _check_budget_limits(
         }
         return False, budget_error
 
-    # Check per-narrative cap (simulate cost per narrative)
-    narrative_calls = 1  # Each narrative costs 1 call
-    if narrative_calls > REFRESH_PER_NARRATIVE_CAP:
+    # Check per-narrative cap
+    if REFRESH_PER_NARRATIVE_CAP == 0:
         budget_error = {
             "narrative": narrative,
             "code": "BUDGET_EXCEEDED",
@@ -130,18 +129,18 @@ def _process_single_narrative(
     :return: Tuple of (success, new_calls_used, error_dict_or_none).
     """
     try:
-        # Process the narrative
-        items = _process_narrative_dev_mode(narrative)
-
-        # Write to storage
-        _write_narrative_to_storage(narrative, items)
-
-        # Spend the call for this narrative
+        # Spend the call for this narrative before processing
         calls_used += 1
 
         # Update progress
         if current_running_job and current_running_job.get("id") == job_id:
             current_running_job["calls_used"] = calls_used
+
+        # Process the narrative
+        items = _process_narrative_dev_mode(narrative)
+
+        # Write to storage
+        _write_narrative_to_storage(narrative, items)
 
         # Small non-blocking yield to make progress visible
         time.sleep(0.05)
@@ -210,6 +209,7 @@ async def _process_dev_mode_job(
     """
     # pylint: disable=global-statement,too-many-locals
     global current_running_job, last_completed_job, debounce_until
+    global last_success_at
 
     try:
         narratives = list_narrative_names()
@@ -227,7 +227,29 @@ async def _process_dev_mode_job(
             if budget_error:
                 errors.append(budget_error)
                 if not should_continue:
-                    break  # Stop processing remaining narratives
+                    # Budget exceeded - set state to done and break
+                    mark_refreshed()
+                    completed_ts = time.time()
+                    completed_job = {
+                        "id": job_id,
+                        "state": "done",
+                        "ts": completed_ts,
+                        "error": None,
+                        "jobId": job_id,
+                        "mode": mode,
+                        "window": window,
+                        "narrativesTotal": narratives_total,
+                        "narrativesDone": narratives_done,
+                        "errors": errors,
+                        "calls_used": calls_used,
+                    }
+                    last_completed_job = completed_job
+                    # Update last success timestamp
+                    last_success_at = completed_ts
+                    # Set debounce_until BEFORE clearing current_running_job
+                    debounce_until = time.time() + DEBOUNCE_SEC
+                    current_running_job = None
+                    return  # Exit the function early
                 # Skip this narrative and continue with next
                 narratives_done += 1
                 _update_job_progress(
@@ -270,8 +292,6 @@ async def _process_dev_mode_job(
         }
         last_completed_job = completed_job
         # Update last success timestamp
-        # pylint: disable=global-statement
-        global last_success_at
         last_success_at = completed_ts
         # Set debounce_until BEFORE clearing current_running_job
         debounce_until = time.time() + DEBOUNCE_SEC
@@ -382,6 +402,7 @@ async def start_or_get_job(
                 }
                 last_completed_job = completed_job
                 # Update last success timestamp
+                # pylint: disable=global-statement
                 global last_success_at
                 last_success_at = completed_ts
                 # Set debounce_until BEFORE clearing current_running_job
