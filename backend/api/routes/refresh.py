@@ -514,7 +514,12 @@ async def refresh_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="unknown job",
         )
-    return j
+
+    # Add budget information to the response
+    response = j.copy()
+    response["max_calls"] = REFRESH_MAX_CALLS
+    response["per_narrative_cap"] = REFRESH_PER_NARRATIVE_CAP
+    return response
 
 
 @router.get("/refresh/status")
@@ -530,6 +535,9 @@ async def refresh_overview(
         response = {"running": True, **current_running_job}
         if last_success_at > 0:
             response["lastSuccessAt"] = last_success_at
+        # Add budget information
+        response["max_calls"] = REFRESH_MAX_CALLS
+        response["per_narrative_cap"] = REFRESH_PER_NARRATIVE_CAP
         return response
 
     response = {
@@ -538,4 +546,7 @@ async def refresh_overview(
     }
     if last_success_at > 0:
         response["lastSuccessAt"] = last_success_at
+    # Add budget information
+    response["max_calls"] = REFRESH_MAX_CALLS
+    response["per_narrative_cap"] = REFRESH_PER_NARRATIVE_CAP
     return response
