@@ -21,6 +21,10 @@ DEBOUNCE_SEC = 2
 # TTL configuration for staleness checks
 TTL_SEC = int(os.getenv("REFRESH_TTL_SEC", "900"))  # default 15m
 
+# Budget control configuration
+REFRESH_MAX_CALLS = int(os.getenv("REFRESH_MAX_CALLS", "999999"))
+REFRESH_PER_NARRATIVE_CAP = int(os.getenv("REFRESH_PER_NARRATIVE_CAP", "1"))
+
 # Module-level registry for idempotency
 current_running_job: dict[str, t.Any] | None = None
 last_completed_job: dict[str, t.Any] | None = None
@@ -81,6 +85,97 @@ def _process_narrative_dev_mode(narrative: str) -> list[dict]:
     return items
 
 
+def _check_budget_limits(
+    calls_used: int,
+    narrative: str,
+) -> tuple[bool, dict | None]:
+    """Check if budget limits are exceeded.
+
+    :param calls_used: Current number of calls used.
+    :param narrative: Current narrative being processed.
+    :return: Tuple of (should_continue, error_dict_or_none).
+    """
+    # Check if we would exceed the maximum calls budget
+    if calls_used >= REFRESH_MAX_CALLS:
+        budget_error = {
+            "narrative": "*",
+            "code": "BUDGET_EXCEEDED",
+            "detail": "max calls exceeded",
+        }
+        return False, budget_error
+
+    # Check per-narrative cap (simulate cost per narrative)
+    narrative_calls = 1  # Each narrative costs 1 call
+    if narrative_calls > REFRESH_PER_NARRATIVE_CAP:
+        budget_error = {
+            "narrative": narrative,
+            "code": "BUDGET_EXCEEDED",
+            "detail": "per-narrative cap",
+        }
+        return True, budget_error  # Continue but skip this narrative
+
+    return True, None  # Continue processing
+
+
+def _process_single_narrative(
+    narrative: str,
+    job_id: str,
+    calls_used: int,
+) -> tuple[bool, int, dict | None]:
+    """Process a single narrative and return results.
+
+    :param narrative: The narrative to process.
+    :param job_id: The job ID.
+    :param calls_used: Current calls used count.
+    :return: Tuple of (success, new_calls_used, error_dict_or_none).
+    """
+    try:
+        # Process the narrative
+        items = _process_narrative_dev_mode(narrative)
+
+        # Write to storage
+        _write_narrative_to_storage(narrative, items)
+
+        # Spend the call for this narrative
+        calls_used += 1
+
+        # Update progress
+        if current_running_job and current_running_job.get("id") == job_id:
+            current_running_job["calls_used"] = calls_used
+
+        # Small non-blocking yield to make progress visible
+        time.sleep(0.05)
+
+        return True, calls_used, None
+
+    except (ValueError, RuntimeError, OSError) as e:
+        error_entry = {
+            "narrative": narrative,
+            "code": "PROCESSING_ERROR",
+            "detail": str(e),
+        }
+        return False, calls_used, error_entry
+
+
+def _update_job_progress(
+    job_id: str,
+    narratives_done: int,
+    calls_used: int,
+    errors: list[dict],
+) -> None:
+    """Update job progress in the global state.
+
+    :param job_id: The job ID.
+    :param narratives_done: Number of narratives completed.
+    :param calls_used: Number of calls used.
+    :param errors: List of errors.
+    """
+    if current_running_job and current_running_job.get("id") == job_id:
+        current_running_job["narrativesDone"] = narratives_done
+        current_running_job["calls_used"] = calls_used
+        current_running_job["errors"] = errors
+
+
 def _write_narrative_to_storage(narrative: str, items: list[dict]) -> None:
     """Write narrative items to storage using introspection.
 
@@ -113,46 +208,49 @@ async def _process_dev_mode_job(
     :param window: The job window.
     :param narratives_total: Total number of narratives to process.
     """
-    # pylint: disable=global-statement
+    # pylint: disable=global-statement,too-many-locals
     global current_running_job, last_completed_job, debounce_until
 
     try:
         narratives = list_narrative_names()
         narratives_done = 0
         errors = []
+        calls_used = 0
 
         for narrative in narratives:
-            try:
-                # Process the narrative
-                items = _process_narrative_dev_mode(narrative)
+            # Check budget limits
+            should_continue, budget_error = _check_budget_limits(
+                calls_used,
+                narrative,
+            )
 
-                # Write to storage
-                _write_narrative_to_storage(narrative, items)
-
-                # Update progress
+            if budget_error:
+                errors.append(budget_error)
+                if not should_continue:
+                    break  # Stop processing remaining narratives
+                # Skip this narrative and continue with next
                 narratives_done += 1
-                if (
-                    current_running_job
-                    and current_running_job.get("id") == job_id
-                ):
-                    current_running_job["narrativesDone"] = narratives_done
-
-                # Small non-blocking yield to make progress visible
-                time.sleep(0.05)
-
-            except (ValueError, RuntimeError, OSError) as e:
-                error_msg = (
-                    f"Error processing narrative '{narrative}': {str(e)}"
+                _update_job_progress(
+                    job_id,
+                    narratives_done,
+                    calls_used,
+                    errors,
                 )
-                errors.append(error_msg)
-                # Continue with next narrative
-                narratives_done += 1
-                if (
-                    current_running_job
-                    and current_running_job.get("id") == job_id
-                ):
-                    current_running_job["narrativesDone"] = narratives_done
-                    current_running_job["errors"] = errors
+                continue
+
+            # Process the narrative
+            _, calls_used, error_entry = _process_single_narrative(
+                narrative,
+                job_id,
+                calls_used,
+            )
+
+            narratives_done += 1
+
+            if error_entry:
+                errors.append(error_entry)
+
+            _update_job_progress(job_id, narratives_done, calls_used, errors)
 
         # Mark as completed
         mark_refreshed()
@@ -168,6 +266,7 @@ async def _process_dev_mode_job(
             "narrativesTotal": narratives_total,
             "narrativesDone": narratives_done,
             "errors": errors,
+            "calls_used": calls_used,
         }
         last_completed_job = completed_job
         # Update last success timestamp
@@ -180,6 +279,7 @@ async def _process_dev_mode_job(
 
     except (ValueError, RuntimeError, OSError) as e:
         # Mark as error
+        error_entry = {"narrative": "*", "code": "JOB_ERROR", "detail": str(e)}
         error_job = {
             "id": job_id,
             "state": "error",
@@ -190,7 +290,8 @@ async def _process_dev_mode_job(
             "window": window,
             "narrativesTotal": narratives_total,
             "narrativesDone": 0,
-            "errors": [str(e)],
+            "errors": [error_entry],
+            "calls_used": calls_used,
         }
         last_completed_job = error_job
         # Set debounce_until BEFORE clearing current_running_job
@@ -242,6 +343,7 @@ async def start_or_get_job(
         "narrativesTotal": narratives_total,
         "narrativesDone": 0,
         "errors": [],
+        "calls_used": 0,
     }
 
     # Update global state
@@ -272,6 +374,11 @@ async def start_or_get_job(
                     "narrativesTotal": narratives_total,
                     "narrativesDone": narratives_total,
                     "errors": [],
+                    "calls_used": (
+                        current_running_job.get("calls_used", 0)
+                        if current_running_job
+                        else 0
+                    ),
                 }
                 last_completed_job = completed_job
                 # Update last success timestamp
@@ -282,6 +389,11 @@ async def start_or_get_job(
                 current_running_job = None
             except (ValueError, RuntimeError, OSError) as e:
                 # Mark as error
+                error_entry = {
+                    "narrative": "*",
+                    "code": "JOB_ERROR",
+                    "detail": str(e),
+                }
                 error_job = {
                     "id": job_id,
                     "state": "error",
@@ -292,7 +404,12 @@ async def start_or_get_job(
                     "window": window,
                     "narrativesTotal": narratives_total,
                     "narrativesDone": 0,
-                    "errors": [str(e)],
+                    "errors": [error_entry],
+                    "calls_used": (
+                        current_running_job.get("calls_used", 0)
+                        if current_running_job
+                        else 0
+                    ),
                 }
                 last_completed_job = error_job
                 # Set debounce_until BEFORE clearing current_running_job

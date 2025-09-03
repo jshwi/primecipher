@@ -1475,8 +1475,161 @@ def test_refresh_dev_mode_exception_handling_coverage(
     assert refresh_module.last_completed_job["state"] == "done"
     assert refresh_module.last_completed_job["errors"] is not None
     assert len(refresh_module.last_completed_job["errors"]) > 0
-    # Check that there's an error message (the exact message may vary)
-    assert "Error processing" in refresh_module.last_completed_job["errors"][0]
+    # Check that there's a structured error entry
+    error_entry = refresh_module.last_completed_job["errors"][0]
+    assert isinstance(error_entry, dict)
+    assert "narrative" in error_entry
+    assert "code" in error_entry
+    assert "detail" in error_entry
+    assert error_entry["code"] == "PROCESSING_ERROR"
+    assert "Error processing" in error_entry["detail"]
+    assert refresh_module.current_running_job is None
+
+
+def test_refresh_dev_mode_budget_control_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode budget control for coverage.
+
+    This test covers the new budget control logic in refresh.py.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    import backend.api.routes.refresh as refresh_module
+    from backend.api.routes.refresh import _process_dev_mode_job
+
+    # Test budget control with low limits
+    job_id = "test-budget-job"
+    mode = "dev"
+    window = "24h"
+    narratives_total = 5
+
+    # Mock list_narrative_names to return test narratives
+    def mock_list_narrative_names() -> list[str]:
+        return [
+            "narrative1",
+            "narrative2",
+            "narrative3",
+            "narrative4",
+            "narrative5",
+        ]
+
+    # Set up a running job state
+    refresh_module.current_running_job = {
+        "id": job_id,
+        "state": "running",
+        "ts": time.time(),
+        "error": None,
+        "jobId": job_id,
+        "mode": mode,
+        "window": window,
+        "narrativesTotal": narratives_total,
+        "narrativesDone": 0,
+        "errors": [],
+        "calls_used": 0,
+    }
+
+    monkeypatch.setattr(
+        "backend.seeds.list_narrative_names",
+        mock_list_narrative_names,
+    )
+
+    # Set low budget limits
+    monkeypatch.setattr(refresh_module, "REFRESH_MAX_CALLS", 2)
+    monkeypatch.setattr(refresh_module, "REFRESH_PER_NARRATIVE_CAP", 1)
+
+    # Run the dev mode job - it should stop early due to budget
+    asyncio.run(_process_dev_mode_job(job_id, mode, window, narratives_total))
+
+    # Verify the job was completed with budget error
+    assert refresh_module.last_completed_job is not None
+    assert refresh_module.last_completed_job["id"] == job_id
+    assert refresh_module.last_completed_job["state"] == "done"
+    assert refresh_module.last_completed_job["calls_used"] == 2
+    assert refresh_module.last_completed_job["narrativesDone"] == 2
+    assert refresh_module.last_completed_job["errors"] is not None
+    assert len(refresh_module.last_completed_job["errors"]) > 0
+
+    # Check for budget exceeded error
+    budget_error = refresh_module.last_completed_job["errors"][0]
+    assert budget_error["code"] == "BUDGET_EXCEEDED"
+    assert budget_error["detail"] == "max calls exceeded"
+    assert refresh_module.current_running_job is None
+
+
+def test_refresh_dev_mode_per_narrative_cap_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test dev mode per-narrative cap for coverage.
+
+    This test covers the per-narrative cap logic in refresh.py.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    import backend.api.routes.refresh as refresh_module
+    from backend.api.routes.refresh import _process_dev_mode_job
+
+    # Test per-narrative cap with low limit
+    job_id = "test-per-narrative-cap-job"
+    mode = "dev"
+    window = "24h"
+    narratives_total = 3
+
+    # Mock list_narrative_names to return test narratives
+    def mock_list_narrative_names() -> list[str]:
+        return ["narrative1", "narrative2", "narrative3"]
+
+    # Set up a running job state
+    refresh_module.current_running_job = {
+        "id": job_id,
+        "state": "running",
+        "ts": time.time(),
+        "error": None,
+        "jobId": job_id,
+        "mode": mode,
+        "window": window,
+        "narrativesTotal": narratives_total,
+        "narrativesDone": 0,
+        "errors": [],
+        "calls_used": 0,
+    }
+
+    monkeypatch.setattr(
+        "backend.api.routes.refresh.list_narrative_names",
+        mock_list_narrative_names,
+    )
+
+    # Set per-narrative cap to 0 (should skip all narratives)
+    monkeypatch.setattr(refresh_module, "REFRESH_MAX_CALLS", 999999)
+    monkeypatch.setattr(refresh_module, "REFRESH_PER_NARRATIVE_CAP", 0)
+
+    # Run the dev mode job - all narratives should be skipped
+    asyncio.run(_process_dev_mode_job(job_id, mode, window, narratives_total))
+
+    # Verify the job was completed with per-narrative cap errors
+    assert refresh_module.last_completed_job is not None
+    assert refresh_module.last_completed_job["id"] == job_id
+    assert refresh_module.last_completed_job["state"] == "done"
+    assert refresh_module.last_completed_job["calls_used"] == 0
+    assert refresh_module.last_completed_job["narrativesDone"] == 3
+    assert refresh_module.last_completed_job["errors"] is not None
+    assert len(refresh_module.last_completed_job["errors"]) == 3
+
+    # Check for per-narrative cap errors
+    for i, error in enumerate(refresh_module.last_completed_job["errors"]):
+        assert error["code"] == "BUDGET_EXCEEDED"
+        assert error["detail"] == "per-narrative cap"
+        assert error["narrative"] == f"narrative{i+1}"
     assert refresh_module.current_running_job is None
 
 
