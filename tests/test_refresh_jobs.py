@@ -751,6 +751,43 @@ def test_get_job_by_id_coverage(
     assert result["id"] == job_id
 
 
+def test_get_job_by_id_running_job_coverage(
+    client: t.Any,  # pylint: disable=unused-argument
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test _get_job_by_id function specifically for running job coverage.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Import the function to test
+    import backend.api.routes.refresh as refresh_module
+    from backend.api.routes.refresh import _get_job_by_id
+
+    # Set up a running job state directly
+    test_job = {
+        "id": "running-test-job",
+        "state": "running",
+        "ts": 1234567890.0,
+        "error": None,
+        "jobId": "running-test-job",
+    }
+    refresh_module.current_running_job = test_job
+    refresh_module.last_completed_job = None
+
+    # Test lookup of running job (should hit line 38)
+    result = _get_job_by_id("running-test-job")
+    assert result is not None
+    assert result["id"] == "running-test-job"
+    assert result["state"] == "running"
+
+    # Clean up
+    refresh_module.current_running_job = None
+
+
 def test_debounce_window_expiry_coverage(
     client: t.Any,  # pylint: disable=unused-argument
     monkeypatch: pytest.MonkeyPatch,
@@ -771,8 +808,8 @@ def test_debounce_window_expiry_coverage(
     job1 = asyncio.run(start_or_get_job())
     time.sleep(0.5)  # Wait for completion
 
-    # Manually set last_started_ts to simulate expired debounce window
-    refresh_module.last_started_ts = time.time() - 10  # 10 seconds ago
+    # Manually set debounce_until to simulate expired debounce window
+    refresh_module.debounce_until = time.time() - 10  # 10 seconds ago
 
     # Create another job - this should trigger the debounce expiry code
     # (line 79)

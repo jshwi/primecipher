@@ -20,6 +20,7 @@ DEBOUNCE_SEC = 2
 current_running_job: dict[str, t.Any] | None = None
 last_completed_job: dict[str, t.Any] | None = None
 last_started_ts: float = 0.0
+debounce_until: float = 0.0
 
 
 def _gen_id() -> str:
@@ -53,32 +54,23 @@ async def start_or_get_job(
     :return: Job dictionary with id, state, ts, error, and jobId fields.
     """
     # pylint: disable=global-statement
-    global current_running_job, last_started_ts
+    global current_running_job
 
     now = time.time()
 
-    # If current_running_job exists and state=="running": return it
+    # 1) If current_running_job and state=="running": return it
     if current_running_job and current_running_job.get("state") == "running":
         return current_running_job
 
-    # If current_running_job exists and is completed/error AND within debounce
-    # window: return it
-    if (
-        current_running_job
-        and current_running_job.get("state") in ("done", "error")
-        and (now - last_started_ts) < DEBOUNCE_SEC
-    ):
-        return current_running_job
+    # 2) If now < debounce_until: return last_completed_job
+    # (and include "jobId" mirror)
+    if now < debounce_until and last_completed_job:
+        return last_completed_job
 
-    # If current_running_job exists but debounce window has expired, clear it
-    if (
-        current_running_job
-        and current_running_job.get("state") in ("done", "error")
-        and (now - last_started_ts) >= DEBOUNCE_SEC
-    ):
-        current_running_job = None
-
-    # Else create new job
+    # 3) Else create a new job (id, ts, state="running"), immediately finish it
+    # (Step-2 behavior), set last_completed_job = new_job,
+    # debounce_until = now + DEBOUNCE_SEC, current_running_job = None.
+    # Return new_job (and include "jobId").
     job_id = _gen_id()
     new_job = {
         "id": job_id,
@@ -90,12 +82,11 @@ async def start_or_get_job(
 
     # Update global state
     current_running_job = new_job
-    last_started_ts = now
 
     # Start the actual refresh job
     async def _do() -> None:
         # pylint: disable=global-statement
-        global current_running_job, last_completed_job
+        global current_running_job, last_completed_job, debounce_until
         try:
             refresh_all()
             mark_refreshed()
@@ -108,8 +99,9 @@ async def start_or_get_job(
                 "jobId": job_id,
             }
             last_completed_job = completed_job
-            # Keep current_running_job as completed for debounce window
-            current_running_job = completed_job
+            # Set debounce_until BEFORE clearing current_running_job
+            debounce_until = time.time() + DEBOUNCE_SEC
+            current_running_job = None
         except Exception as e:
             # Mark as error
             error_job = {
@@ -120,8 +112,9 @@ async def start_or_get_job(
                 "jobId": job_id,
             }
             last_completed_job = error_job
-            # Keep current_running_job as error for debounce window
-            current_running_job = error_job
+            # Set debounce_until BEFORE clearing current_running_job
+            debounce_until = time.time() + DEBOUNCE_SEC
+            current_running_job = None
             raise
 
     # Start the job in the background
