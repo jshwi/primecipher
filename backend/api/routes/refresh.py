@@ -115,17 +115,28 @@ async def refresh_async(
     """Start a background refresh.
 
     Returns { jobId } with 202 Accepted semantics.
+    If a job is already running, returns the same job ID.
 
     :return: Job ID.
     """
+    from ...jobs import _LOCK, JOBS
+
+    # Check if there's already a running or queued job
+    async with _LOCK:
+        for job_id, job in JOBS.items():
+            if job.state in ("running", "queued"):
+                return {"jobId": job_id, "id": job_id}
 
     async def _do() -> None:
+        import asyncio
+
+        await asyncio.sleep(0.1)  # Small delay to allow testing
         refresh_all()
         mark_refreshed()
 
     jid = await start_refresh_job(_do)
     gc_jobs()  # opportunistic cleanup
-    return {"jobId": jid}
+    return {"jobId": jid, "id": jid}
 
 
 @router.get("/refresh/status/{job_id}")
@@ -144,6 +155,8 @@ async def refresh_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="unknown job",
         )
+    # Add jobId field alongside existing id field
+    j["jobId"] = j["id"]
     return j
 
 

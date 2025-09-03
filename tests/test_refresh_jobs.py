@@ -568,3 +568,42 @@ def test_refresh_job_already_running_coverage(
 
     # Clean up the global state
     refresh_mod._job_state = None
+
+
+def test_refresh_async_already_running_coverage(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that refresh_async returns existing job ID when already running.
+
+    This test covers lines 127-128 in refresh.py where it checks for
+    already running or queued jobs and returns early.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _, jobs = _reload_with_token(monkeypatch)
+
+    # Create a job that's already running
+    async def _noop() -> None:
+        await asyncio.sleep(0.1)  # Small delay to keep it running
+
+    # Start a job and let it run
+    job_id = asyncio.run(jobs.start_refresh_job(_noop))
+
+    # Wait a moment for the job to be in "running" state
+    time.sleep(0.05)
+
+    # Try to start another async job while one is running
+    # This should hit lines 127-128 and return the existing job ID
+    response = client.post("/refresh/async", headers=_auth_headers())
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should return the same job ID as the already running job
+    assert data["jobId"] == job_id
+    assert data["id"] == job_id
+
+    # Wait for the job to complete
+    time.sleep(0.1)
