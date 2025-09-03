@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from ...deps.auth import require_refresh_token
 from ...jobs import gc_jobs
 from ...parents import compute_all, refresh_all
+from ...seeds import list_narrative_names
 from ...storage import last_refresh_ts, mark_refreshed
 
 router = APIRouter()
@@ -21,6 +22,14 @@ current_running_job: dict[str, t.Any] | None = None
 last_completed_job: dict[str, t.Any] | None = None
 last_started_ts: float = 0.0
 debounce_until: float = 0.0
+
+
+def _get_narrative_count() -> int:
+    """Get the total number of narratives from seeds.
+
+    :return: Total number of narratives.
+    """
+    return len(list_narrative_names())
 
 
 def _gen_id() -> str:
@@ -72,12 +81,18 @@ async def start_or_get_job(
     # debounce_until = now + DEBOUNCE_SEC, current_running_job = None.
     # Return new_job (and include "jobId").
     job_id = _gen_id()
+    narratives_total = _get_narrative_count()
     new_job = {
         "id": job_id,
         "state": "running",
         "ts": now,
         "error": None,
         "jobId": job_id,  # Include jobId mirror in response
+        "mode": mode,
+        "window": window,
+        "narrativesTotal": narratives_total,
+        "narrativesDone": 0,
+        "errors": [],
     }
 
     # Update global state
@@ -97,6 +112,11 @@ async def start_or_get_job(
                 "ts": time.time(),
                 "error": None,
                 "jobId": job_id,
+                "mode": mode,
+                "window": window,
+                "narrativesTotal": narratives_total,
+                "narrativesDone": narratives_total,
+                "errors": [],
             }
             last_completed_job = completed_job
             # Set debounce_until BEFORE clearing current_running_job
@@ -110,6 +130,11 @@ async def start_or_get_job(
                 "ts": time.time(),
                 "error": str(e),
                 "jobId": job_id,
+                "mode": mode,
+                "window": window,
+                "narrativesTotal": narratives_total,
+                "narrativesDone": 0,
+                "errors": [str(e)],
             }
             last_completed_job = error_job
             # Set debounce_until BEFORE clearing current_running_job
