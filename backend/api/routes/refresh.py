@@ -63,11 +63,8 @@ async def refresh(
             "ts": last_refresh_ts(),
         }
 
-    async def _do() -> None:
-        refresh_all()
-        mark_refreshed()
-
-    jid = await start_refresh_job(_do)
+    # Use the same function as /refresh/async to ensure consistent behavior
+    jid = await start_or_get_running_job(mode="dev", window=window)
     gc_jobs()  # opportunistic cleanup
     return {"jobId": jid}
 

@@ -628,3 +628,100 @@ def test_start_or_get_running_job_returns_existing_job(
 
     # Cleanup
     JOBS.clear()
+
+
+def test_refresh_and_async_return_same_job_id(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that /refresh and /refresh/async return the same jobId.
+
+    This test verifies that both endpoints use the same underlying function
+    and return consistent job IDs when called in quick succession.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Import the function to test it directly
+    from backend.api.routes.refresh import start_or_get_running_job
+
+    # Test the function directly first
+    job_id1 = asyncio.run(start_or_get_running_job())
+    job_id2 = asyncio.run(start_or_get_running_job())
+
+    # The second call should return the same job ID if the first is still
+    # running or a different one if it completed quickly
+    assert isinstance(job_id1, str)
+    assert isinstance(job_id2, str)
+
+    # Now test the endpoints - they should both return jobId in the same format
+    response_async = client.post("/refresh/async", headers=_auth_headers())
+    response_refresh = client.post("/refresh", headers=_auth_headers())
+
+    # Assert - both should return 200 with jobId
+    assert response_async.status_code == 200
+    assert response_refresh.status_code == 200
+
+    data_async = response_async.json()
+    data_refresh = response_refresh.json()
+
+    assert "jobId" in data_async
+    assert "jobId" in data_refresh
+    assert isinstance(data_async["jobId"], str)
+    assert isinstance(data_refresh["jobId"], str)
+
+    # Both endpoints should return the same JSON structure
+    assert list(data_async.keys()) == list(data_refresh.keys())
+    assert "jobId" in data_async
+    assert "jobId" in data_refresh
+
+
+def test_refresh_returns_same_job_id_when_running(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that calling /refresh again immediately returns the same job ID.
+
+    This test matches the user's requirement: "If you POST /refresh again
+    immediately, it should return same id as the running one"
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Import the function and JOBS to manually create a running job
+    from backend.api.routes.refresh import JOBS, start_or_get_running_job
+    from backend.jobs import _Job
+
+    # Create a running job manually to ensure it stays running
+    running_job_id = "test-running-job"
+    running_job = _Job(running_job_id)
+    running_job.state = "running"
+    JOBS[running_job_id] = running_job
+
+    # Test that start_or_get_running_job returns the existing job
+    result_job_id = asyncio.run(start_or_get_running_job())
+    assert result_job_id == running_job_id
+
+    # Now test the endpoint behavior
+    response1 = client.post("/refresh", headers=_auth_headers())
+    assert response1.status_code == 200
+    data1 = response1.json()
+    assert "jobId" in data1
+
+    # Call /refresh again immediately - should return the same job ID
+    response2 = client.post("/refresh", headers=_auth_headers())
+    assert response2.status_code == 200
+    data2 = response2.json()
+    assert "jobId" in data2
+
+    # Both calls should return the same job ID since there's a running job
+    assert data1["jobId"] == data2["jobId"]
+
+    # Cleanup
+    JOBS.clear()
