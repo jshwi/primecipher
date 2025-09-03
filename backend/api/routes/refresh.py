@@ -1,5 +1,6 @@
 """API routes for refresh operations."""
 
+import os
 import time
 import typing as t
 import uuid
@@ -17,11 +18,15 @@ router = APIRouter()
 # Idempotency configuration
 DEBOUNCE_SEC = 2
 
+# TTL configuration for staleness checks
+TTL_SEC = int(os.getenv("REFRESH_TTL_SEC", "900"))  # default 15m
+
 # Module-level registry for idempotency
 current_running_job: dict[str, t.Any] | None = None
 last_completed_job: dict[str, t.Any] | None = None
 last_started_ts: float = 0.0
 debounce_until: float = 0.0
+last_success_at: float = 0.0
 
 
 def _get_narrative_count() -> int:
@@ -84,18 +89,14 @@ def _write_narrative_to_storage(narrative: str, items: list[dict]) -> None:
     """
     from ... import storage as storage_module
 
-    # Detect storage writer using introspection
-    writer = getattr(storage_module, "set_parents", None) or getattr(
-        storage_module,
-        "put_parents",
-        None,
-    )
+    # Use set_parents which automatically records computedAt timestamp
+    writer = getattr(storage_module, "set_parents", None)
 
     if writer is not None:
         writer(narrative, items)
     else:
         raise RuntimeError(
-            "No storage writer found (set_parents or put_parents)",
+            "No storage writer found (set_parents)",
         )
 
 
@@ -155,10 +156,11 @@ async def _process_dev_mode_job(
 
         # Mark as completed
         mark_refreshed()
+        completed_ts = time.time()
         completed_job = {
             "id": job_id,
             "state": "done",
-            "ts": time.time(),
+            "ts": completed_ts,
             "error": None,
             "jobId": job_id,
             "mode": mode,
@@ -168,6 +170,10 @@ async def _process_dev_mode_job(
             "errors": errors,
         }
         last_completed_job = completed_job
+        # Update last success timestamp
+        # pylint: disable=global-statement
+        global last_success_at
+        last_success_at = completed_ts
         # Set debounce_until BEFORE clearing current_running_job
         debounce_until = time.time() + DEBOUNCE_SEC
         current_running_job = None
@@ -254,10 +260,11 @@ async def start_or_get_job(
                 refresh_all()
                 mark_refreshed()
                 # Mark as completed
+                completed_ts = time.time()
                 completed_job = {
                     "id": job_id,
                     "state": "done",
-                    "ts": time.time(),
+                    "ts": completed_ts,
                     "error": None,
                     "jobId": job_id,
                     "mode": mode,
@@ -267,6 +274,9 @@ async def start_or_get_job(
                     "errors": [],
                 }
                 last_completed_job = completed_job
+                # Update last success timestamp
+                global last_success_at
+                last_success_at = completed_ts
                 # Set debounce_until BEFORE clearing current_running_job
                 debounce_until = time.time() + DEBOUNCE_SEC
                 current_running_job = None
@@ -379,9 +389,15 @@ async def refresh_overview(
     """
     # Use the new module-level registry
     if current_running_job and current_running_job.get("state") == "running":
-        return {"running": True, **current_running_job}
+        response = {"running": True, **current_running_job}
+        if last_success_at > 0:
+            response["lastSuccessAt"] = last_success_at
+        return response
 
-    return {
+    response = {
         "running": False,
         "lastJob": last_completed_job,
     }
+    if last_success_at > 0:
+        response["lastSuccessAt"] = last_success_at
+    return response

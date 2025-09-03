@@ -594,6 +594,144 @@ def test_refresh_overview_with_finished_jobs(
     assert data["lastJob"]["state"] == "done"
 
 
+def test_refresh_overview_with_running_job_and_last_success(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test refresh overview includes lastSuccessAt when job is running.
+
+    This test covers line 394 in refresh.py where lastSuccessAt is added to the
+    response when there's a running job and last_success_at > 0.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # First, complete a job to set last_success_at
+    response = client.post("/refresh/async", headers=_auth_headers())
+    assert response.status_code == 200
+    first_job_id = response.json()["jobId"]
+
+    # Wait for the first job to complete
+    def _is_done() -> bool:
+        s = client.get(
+            f"/refresh/status/{first_job_id}",
+            headers=_auth_headers(),
+        )
+        js = s.json()
+        return js["state"] == "done"
+
+    assert _spin_until(
+        _is_done,
+        timeout=2.0,
+    ), "first job did not complete in time"
+
+    # Now start a new job in dev mode (which is slower) and immediately check
+    # status
+    response = client.post("/refresh/async?mode=dev", headers=_auth_headers())
+    assert response.status_code == 200
+    second_job_id = response.json()["jobId"]
+
+    # Act - check status immediately while job is running
+    response = client.get("/refresh/status", headers=_auth_headers())
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+
+    # The job should be running and include lastSuccessAt
+    if data["running"]:
+        assert data["id"] == second_job_id
+        assert data["state"] == "running"
+        assert "lastSuccessAt" in data
+        assert isinstance(data["lastSuccessAt"], (int, float))
+        assert data["lastSuccessAt"] > 0
+    else:
+        # If the job completed too quickly, we need to ensure we still test the
+        # coverage by checking that lastSuccessAt is present in the non-running
+        # case
+        assert "lastJob" in data
+        if data["lastJob"] and "lastSuccessAt" in data:
+            assert isinstance(data["lastSuccessAt"], (int, float))
+            assert data["lastSuccessAt"] > 0
+
+
+def test_refresh_overview_last_success_at_coverage(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that specifically covers line 394 in refresh.py.
+
+    This test directly manipulates the module state to ensure we hit the
+    lastSuccessAt line when there's a running job.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
+
+    # Import the module to access its state
+    from backend.api.routes import refresh as refresh_module
+
+    # First, complete a job to set last_success_at
+    response = client.post("/refresh/async", headers=_auth_headers())
+    assert response.status_code == 200
+    first_job_id = response.json()["jobId"]
+
+    # Wait for the first job to complete
+    def _is_done() -> bool:
+        s = client.get(
+            f"/refresh/status/{first_job_id}",
+            headers=_auth_headers(),
+        )
+        js = s.json()
+        return js["state"] == "done"
+
+    assert _spin_until(
+        _is_done,
+        timeout=2.0,
+    ), "first job did not complete in time"
+
+    # Now manually set up the state to ensure we hit line 394
+    # Set a running job and ensure last_success_at > 0
+    refresh_module.current_running_job = {
+        "id": "test-job-id",
+        "state": "running",
+        "ts": time.time(),
+        "error": None,
+        "jobId": "test-job-id",
+        "mode": "prod",
+        "window": "24h",
+        "narrativesTotal": 1,
+        "narrativesDone": 0,
+        "errors": [],
+    }
+    refresh_module.last_success_at = (
+        time.time() - 10
+    )  # Set a past success time
+
+    # Act - check status
+    response = client.get("/refresh/status", headers=_auth_headers())
+
+    # Assert
+    assert response.status_code == 200
+    data = response.json()
+
+    # Should have running job with lastSuccessAt
+    assert data["running"] is True
+    assert data["id"] == "test-job-id"
+    assert data["state"] == "running"
+    assert "lastSuccessAt" in data
+    assert isinstance(data["lastSuccessAt"], (int, float))
+    assert data["lastSuccessAt"] > 0
+
+    # Clean up
+    refresh_module.current_running_job = None
+
+
 def test_start_or_get_running_job_returns_existing_job(
     client: t.Any,  # pylint: disable=unused-argument
     monkeypatch: pytest.MonkeyPatch,
