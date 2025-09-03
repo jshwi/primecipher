@@ -32,4 +32,4 @@ def test_refresh_auth_required(client, monkeypatch) -> None:
     # correct header -> 200
     r3 = client.post("/refresh", headers={"Authorization": "Bearer s3cr3t"})
     assert r3.status_code == 200
-    assert r3.json().get("ok") is True
+    assert "jobId" in r3.json()

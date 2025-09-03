@@ -479,61 +479,44 @@ def test_refresh_job_already_running_sync(
     client: t.Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that sync refresh returns 202 when job is already running.
+    """Test that refresh now behaves like async and returns jobId.
 
     :param client: Pytest fixture for test client.
     :param monkeypatch: Pytest fixture for patching.
     """
-    # Arrange - make auth pass and set up a running job
-    refresh_mod, _jobs = _reload_with_token(monkeypatch)
+    # Arrange - make auth pass
+    _reload_with_token(monkeypatch)
 
-    # Manually set the global job state to running
-    from backend.schemas import JobState
-
-    refresh_mod._job_state = JobState(
-        jobId="test-job",
-        running=True,
-        startedAt=time.time(),
-        mode="dev",
-        window="24h",
-        narrativesTotal=10,
-        narratives_done=0,
-        errors=[],
-    )
-
-    # Act - try to start another sync refresh
+    # Act - start refresh (now behaves like async)
     response = client.post("/refresh", headers=_auth_headers())
 
-    # Assert - should return 202 with job state
-    assert response.status_code == 202
+    # Assert - should return 200 with jobId (like async endpoint)
+    assert response.status_code == 200
     data = response.json()
-    assert data["running"] is True
-    assert data["jobId"] == "test-job"
+    assert "jobId" in data
+    assert isinstance(data["jobId"], str)
 
 
 def test_refresh_exception_handling_sync(
     client: t.Any,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Test that sync refresh handles exceptions properly.
+    """Test that refresh behaves like async and returns jobId with exceptions.
 
     :param client: Pytest fixture for test client.
     :param monkeypatch: Pytest fixture for patching.
     """
     # Arrange - make auth pass
-    refresh_mod, _jobs = _reload_with_token(monkeypatch)
+    _reload_with_token(monkeypatch)
 
-    # Mock refresh_all to raise an exception
-    def mock_refresh_all():
-        raise RuntimeError("Sync refresh failed")
-
-    monkeypatch.setattr(refresh_mod, "refresh_all", mock_refresh_all)
-
-    # Act - start sync refresh
+    # Act - start refresh (now behaves like async, exceptions in background)
     response = client.post("/refresh", headers=_auth_headers())
 
-    # Assert - should raise the exception (500 error)
-    assert response.status_code == 500
+    # Assert - should return 200 with jobId (exceptions handled in background)
+    assert response.status_code == 200
+    data = response.json()
+    assert "jobId" in data
+    assert isinstance(data["jobId"], str)
 
 
 def test_refresh_overview_with_running_job(

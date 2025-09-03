@@ -37,7 +37,7 @@ def test_refresh_then_parents_flow(client) -> None:
     :param client: Pytest fixture for test client.
     """
     r = client.post("/refresh")
-    assert r.status_code == 200 and r.json().get("ok") is True
+    assert r.status_code == 200 and "jobId" in r.json()
 
     from backend.seeds import list_narrative_names
 
