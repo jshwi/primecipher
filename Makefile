@@ -35,7 +35,7 @@ build: .make/format \
 
 .PHONY: cov
 #: test source
-cov: coverage.xml coverage/lcov.info
+cov: coverage.xml .make/coverage/js
 
 .PHONY: clean
 #: clean compiled files
@@ -130,7 +130,7 @@ coverage.xml: $(VENV) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
 	@$(POETRY) run pytest tests --cov=backend \
 		&& $(POETRY) run coverage xml
 
-coverage/lcov.info: $(NODE_MODULES) \
+.make/coverage/js: $(NODE_MODULES) \
 	$(JS_PACKAGE_FILES) \
 	$(JS_TEST_FILES) \
 	$(TEST_CONFIG)
