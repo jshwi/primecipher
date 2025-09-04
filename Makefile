@@ -1,7 +1,7 @@
 VERSION := 0.71.0
 
-POETRY := bin/poetry/bin/poetry
-
+FILES := $(shell git ls-files)
+PYTHON_FILES := $(shell git ls-files "*.py" ':!:whitelist.py')
 PYTHON_FILES := $(shell git ls-files "*.py" ':!:whitelist.py')
 PYTHON_PACKAGE_FILES := $(shell git ls-files "backend/*.py")
 PYTHON_TEST_FILES := $(shell git ls-files "tests/*.py")
@@ -11,6 +11,7 @@ JS_PACKAGE_FILES := $(shell echo $(JS_FILES) | grep -E 'src')
 TEST_JS_FILES := $(shell echo $(JS_FILES) | grep -E '__tests__')
 TEST_CONFIG := $(shell echo $(JS_FILES) | grep -E 'jest')
 
+POETRY := bin/poetry/bin/poetry
 PY_LINT := .make/lint/py
 JS_LINT := .make/lint/js
 PRE_COMMIT := .make/pre-commit
@@ -27,6 +28,7 @@ REPO_ARCHIVE := archive.zip
 PY_FORMAT := .make/format/py
 PY_CONFIG := pyproject.toml
 MYPY := .mypy_cache/CACHEDIR.TAG
+POETRY_LOCK := poetry.lock
 
 .PHONY: all lint frontend api deps-update clean cov build hooks unused
 
