@@ -64,14 +64,6 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
             transition: "transform 0.2s ease, box-shadow 0.2s ease",
             cursor: "pointer",
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.transform = "translateY(-2px)";
-            e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow = "none";
-          }}
         >
           <h3
             style={{
@@ -181,16 +173,6 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
             fontSize: "14px",
             fontWeight: "500",
             transition: "transform 0.2s ease, box-shadow 0.2s ease",
-          }}
-          onMouseEnter={(e) => {
-            if (!loading) {
-              e.currentTarget.style.transform = "translateY(-1px)";
-              e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.2)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "translateY(0)";
-            e.currentTarget.style.boxShadow = "none";
           }}
         >
           {loading ? "Loading…" : "Load more"}
