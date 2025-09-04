@@ -35,15 +35,22 @@ describe("Main Page", () => {
   });
 
   it("renders the main page content", async () => {
-    render(await Page());
+    render(await Page({ searchParams: {} }));
 
     expect(screen.getByText("PrimeCipher Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Initial View: heatmap")).toBeInTheDocument();
   });
 
   it("passes correct initial view to HomeClient", async () => {
-    render(await Page());
+    render(await Page({ searchParams: {} }));
 
     expect(screen.getByText("Initial View: heatmap")).toBeInTheDocument();
+  });
+
+  it("handles narratives view from searchParams", async () => {
+    render(await Page({ searchParams: { view: "narratives" } }));
+
+    expect(screen.getByText("PrimeCipher Dashboard")).toBeInTheDocument();
+    expect(screen.getByText("Initial View: narratives")).toBeInTheDocument();
   });
 });
