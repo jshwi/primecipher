@@ -11,23 +11,27 @@ interface HeatmapGridProps {
 }
 
 function getScoreColor(score: number): string {
-  // Normalize score to 0-1 range for color calculation
-  // Assuming scores range from -1 to 1, with 0 being neutral
-  const normalizedScore = Math.max(-1, Math.min(1, score));
+  // Clamp score to 0-1 range for simple color intensity mapping
+  const clampedScore = Math.max(0, Math.min(1, score));
 
-  if (normalizedScore > 0.1) {
-    // High positive score - green
-    const intensity = Math.min(1, normalizedScore);
-    const alpha = 0.1 + intensity * 0.2; // 0.1 to 0.3 alpha
-    return `rgba(34, 197, 94, ${alpha})`; // green-500 with varying alpha
-  } else if (normalizedScore < -0.1) {
-    // Low negative score - red
-    const intensity = Math.min(1, Math.abs(normalizedScore));
-    const alpha = 0.1 + intensity * 0.2; // 0.1 to 0.3 alpha
-    return `rgba(239, 68, 68, ${alpha})`; // red-500 with varying alpha
+  // Use a blue-to-green gradient based on score intensity
+  // Higher scores get more intense colors with higher alpha
+  const alpha = 0.1 + clampedScore * 0.4; // 0.1 to 0.5 alpha
+
+  if (clampedScore < 0.5) {
+    // Low scores - blue gradient
+    const intensity = clampedScore * 2; // 0 to 1
+    const red = Math.floor(59 + intensity * 40); // 59 to 99
+    const green = Math.floor(130 + intensity * 125); // 130 to 255
+    const blue = Math.floor(246 + intensity * 9); // 246 to 255
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
   } else {
-    // Neutral score - gray
-    return `rgba(107, 114, 128, 0.1)`; // gray-500 with low alpha
+    // High scores - green gradient
+    const intensity = (clampedScore - 0.5) * 2; // 0 to 1
+    const red = Math.floor(99 + intensity * 155); // 99 to 254
+    const green = Math.floor(255 - intensity * 58); // 255 to 197
+    const blue = Math.floor(255 - intensity * 161); // 255 to 94
+    return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
   }
 }
 
@@ -198,6 +202,33 @@ export default function HeatmapGrid({
         stale={heatmapData.stale}
         lastUpdated={heatmapData.lastUpdated}
       />
+
+      {/* Compact Legend */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "8px",
+          marginTop: "16px",
+          marginBottom: "8px",
+          fontSize: "12px",
+          color: "var(--fg-muted)",
+        }}
+      >
+        <span>Low</span>
+        <div
+          style={{
+            width: "60px",
+            height: "12px",
+            background:
+              "linear-gradient(to right, rgba(59, 130, 246, 0.1), rgba(34, 197, 94, 0.5))",
+            borderRadius: "6px",
+            border: "1px solid var(--border)",
+          }}
+        />
+        <span>High</span>
+      </div>
 
       {sortedItems.length === 0 ? (
         <div
