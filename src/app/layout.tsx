@@ -17,7 +17,6 @@ export default function RootLayout({
           padding: "0 16px",
         }}
       >
-        <Header />
         {children}
       </body>
     </html>

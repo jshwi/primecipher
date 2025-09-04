@@ -1,11 +1,53 @@
 "use client";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import RefreshButton from "./RefreshButton";
 
-export default function Header() {
+interface HeaderProps {
+  onViewChange?: (view: "heatmap" | "narratives") => void;
+  refreshTrigger?: number;
+  onRefreshComplete?: () => void;
+}
+
+const STORAGE_KEY = "primecipher.home.view";
+
+export default function Header({
+  onViewChange,
+  refreshTrigger,
+  onRefreshComplete,
+}: HeaderProps) {
   const searchParams = useSearchParams();
-  const currentView = searchParams.get("view") || "heatmap";
+  const [mounted, setMounted] = useState(false);
+  const [currentView, setCurrentView] = useState<"heatmap" | "narratives">(
+    "heatmap",
+  );
+
+  useEffect(() => {
+    setMounted(true);
+
+    // Initialize view from URL params
+    const urlView = searchParams.get("view") || "heatmap";
+    const initialView = urlView === "narratives" ? "narratives" : "heatmap";
+    setCurrentView(initialView);
+
+    // Read from localStorage on mount and update if different
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (
+      stored &&
+      (stored === "heatmap" || stored === "narratives") &&
+      stored !== initialView
+    ) {
+      setCurrentView(stored);
+      onViewChange?.(stored);
+    }
+  }, [searchParams, onViewChange]);
+
+  const handleViewChange = (newView: "heatmap" | "narratives") => {
+    setCurrentView(newView);
+    localStorage.setItem(STORAGE_KEY, newView);
+    onViewChange?.(newView);
+  };
 
   return (
     <header
@@ -33,15 +75,15 @@ export default function Header() {
         </Link>
       </div>
 
-      {/* Center: Navigation links */}
+      {/* Center: Navigation buttons */}
       <nav
         style={{
           display: "flex",
           gap: "24px",
         }}
       >
-        <Link
-          href="/?view=heatmap"
+        <button
+          onClick={() => handleViewChange("heatmap")}
           style={{
             color: currentView === "heatmap" ? "#0066cc" : "#666",
             textDecoration: "none",
@@ -50,12 +92,15 @@ export default function Header() {
             borderRadius: "6px",
             backgroundColor:
               currentView === "heatmap" ? "#f0f8ff" : "transparent",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "16px",
           }}
         >
           Heatmap
-        </Link>
-        <Link
-          href="/?view=narratives"
+        </button>
+        <button
+          onClick={() => handleViewChange("narratives")}
           style={{
             color: currentView === "narratives" ? "#0066cc" : "#666",
             textDecoration: "none",
@@ -64,15 +109,18 @@ export default function Header() {
             borderRadius: "6px",
             backgroundColor:
               currentView === "narratives" ? "#f0f8ff" : "transparent",
+            border: "none",
+            cursor: "pointer",
+            fontSize: "16px",
           }}
         >
           Narratives
-        </Link>
+        </button>
       </nav>
 
       {/* Right: Refresh button */}
       <div>
-        <RefreshButton />
+        <RefreshButton onRefreshComplete={onRefreshComplete} />
       </div>
     </header>
   );
