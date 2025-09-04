@@ -85,6 +85,27 @@ def _process_narrative_dev_mode(narrative: str) -> list[dict]:
     return items
 
 
+def _process_narrative_real_mode(
+    narrative: str,
+    terms: list[str],
+) -> list[dict]:
+    """Process a single narrative in real mode using adapter.
+
+    :param narrative: The narrative name to process.
+    :param terms: List of search terms for the narrative.
+    :return: List of parent items for the narrative.
+    """
+    from ...adapters import get_adapter
+
+    # Get the appropriate adapter for real mode
+    adapter = get_adapter("real")
+
+    # Fetch parents using the adapter
+    items = adapter.fetch_parents(narrative, terms)
+
+    return items
+
+
 def _check_budget_limits(
     calls_used: int,
     narrative: str,
@@ -120,12 +141,16 @@ def _process_single_narrative(
     narrative: str,
     job_id: str,
     calls_used: int,
+    mode: str = "dev",
+    terms: list[str] | None = None,
 ) -> tuple[bool, int, dict | None]:
     """Process a single narrative and return results.
 
     :param narrative: The narrative to process.
     :param job_id: The job ID.
     :param calls_used: Current calls used count.
+    :param mode: The processing mode (dev or real).
+    :param terms: List of search terms for real mode.
     :return: Tuple of (success, new_calls_used, error_dict_or_none).
     """
     try:
@@ -136,8 +161,11 @@ def _process_single_narrative(
         if current_running_job and current_running_job.get("id") == job_id:
             current_running_job["calls_used"] = calls_used
 
-        # Process the narrative
-        items = _process_narrative_dev_mode(narrative)
+        # Process the narrative based on mode
+        if mode == "real" and terms is not None:
+            items = _process_narrative_real_mode(narrative, terms)
+        else:
+            items = _process_narrative_dev_mode(narrative)
 
         # Write to storage
         _write_narrative_to_storage(narrative, items)
@@ -200,10 +228,10 @@ async def _process_dev_mode_job(
     window: str,
     narratives_total: int,
 ) -> None:
-    """Process a dev mode job by iterating through narratives.
+    """Process a job by iterating through narratives.
 
     :param job_id: The job ID.
-    :param mode: The job mode.
+    :param mode: The job mode (dev or real).
     :param window: The job window.
     :param narratives_total: Total number of narratives to process.
     """
@@ -212,12 +240,25 @@ async def _process_dev_mode_job(
     global last_success_at
 
     try:
-        narratives = list_narrative_names()
+        # Get narratives with their terms for real mode
+        if mode == "real":
+            from ...seeds import load_seeds
+
+            seeds_data = load_seeds()
+            narratives_with_terms = [
+                (n["name"], n.get("terms", []))
+                for n in seeds_data["narratives"]
+            ]
+        else:
+            narratives_with_terms = [
+                (name, []) for name in list_narrative_names()
+            ]
+
         narratives_done = 0
         errors = []
         calls_used = 0
 
-        for narrative in narratives:
+        for narrative, terms in narratives_with_terms:
             # Check budget limits
             should_continue, budget_error = _check_budget_limits(
                 calls_used,
@@ -265,6 +306,8 @@ async def _process_dev_mode_job(
                 narrative,
                 job_id,
                 calls_used,
+                mode=mode,
+                terms=terms if mode == "real" else None,
             )
 
             narratives_done += 1
@@ -371,11 +414,11 @@ async def start_or_get_job(
 
     # Start the actual refresh job
     async def _do() -> None:
-        if mode == "dev":
-            # Use dev mode processing
+        if mode in ["dev", "real"]:
+            # Use new processing for dev and real modes
             await _process_dev_mode_job(job_id, mode, window, narratives_total)
         else:
-            # Use existing refresh_all() for non-dev modes
+            # Use existing refresh_all() for other modes (like prod)
             # pylint: disable=global-statement
             global current_running_job, last_completed_job, debounce_until
             try:
