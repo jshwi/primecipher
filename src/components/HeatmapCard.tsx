@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 interface HeatmapCardProps {
   name: string;
   score: number;
@@ -43,69 +45,71 @@ export default function HeatmapCard({
   const backgroundColor = getScoreColor(score);
 
   return (
-    <div
-      style={{
-        backgroundColor,
-        border: "1px solid var(--border)",
-        borderRadius: "8px",
-        padding: "16px",
-        position: "relative",
-        transition: "transform 0.2s ease, box-shadow 0.2s ease",
-        cursor: "pointer",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-2px)";
-        e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "none";
-      }}
-    >
-      {stale && (
-        <div
-          style={{
-            position: "absolute",
-            top: "8px",
-            right: "8px",
-            backgroundColor: "#f59e0b",
-            color: "#000",
-            fontSize: "10px",
-            fontWeight: "bold",
-            padding: "2px 6px",
-            borderRadius: "4px",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-          }}
-        >
-          STALE
-        </div>
-      )}
-
-      <h3
-        style={{
-          margin: "0 0 8px 0",
-          fontSize: "16px",
-          fontWeight: "600",
-          color: "var(--fg)",
-          lineHeight: "1.4",
-        }}
-      >
-        {name}
-      </h3>
-
+    <Link href={`/n/${encodeURIComponent(name)}`}>
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: "4px",
-          fontSize: "14px",
-          color: "var(--fg-muted)",
+          backgroundColor,
+          border: "1px solid var(--border)",
+          borderRadius: "8px",
+          padding: "16px",
+          position: "relative",
+          transition: "transform 0.2s ease, box-shadow 0.2s ease",
+          cursor: "pointer",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "translateY(-2px)";
+          e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "translateY(0)";
+          e.currentTarget.style.boxShadow = "none";
         }}
       >
-        <div>Score: {score.toFixed(4)}</div>
-        <div>Count: {count}</div>
+        {stale && (
+          <div
+            style={{
+              position: "absolute",
+              top: "8px",
+              right: "8px",
+              backgroundColor: "#f59e0b",
+              color: "#000",
+              fontSize: "10px",
+              fontWeight: "bold",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+            }}
+          >
+            STALE
+          </div>
+        )}
+
+        <h3
+          style={{
+            margin: "0 0 8px 0",
+            fontSize: "16px",
+            fontWeight: "600",
+            color: "var(--fg)",
+            lineHeight: "1.4",
+          }}
+        >
+          {name}
+        </h3>
+
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px",
+            fontSize: "14px",
+            color: "var(--fg-muted)",
+          }}
+        >
+          <div>Score: {score.toFixed(4)}</div>
+          <div>Count: {count}</div>
+        </div>
       </div>
-    </div>
+    </Link>
   );
 }

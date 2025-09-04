@@ -114,6 +114,20 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
 
   return (
     <div>
+      <div
+        style={{
+          marginBottom: "16px",
+          padding: "12px",
+          backgroundColor: "rgba(255, 255, 255, 0.02)",
+          border: "1px solid var(--border)",
+          borderRadius: "8px",
+          fontSize: "14px",
+          color: "var(--fg-muted)",
+        }}
+      >
+        Total loaded: {items.length} parents
+      </div>
+
       {error && (
         <div
           role="alert"

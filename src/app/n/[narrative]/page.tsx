@@ -19,7 +19,18 @@ export default async function NarrativePage({
           marginBottom: "20px",
         }}
       >
-        <h1 style={{ fontSize: 24, margin: 0 }}>{narrative}</h1>
+        <div>
+          <h1 style={{ fontSize: 24, margin: 0 }}>{narrative}</h1>
+          <p
+            style={{
+              fontSize: 14,
+              color: "var(--fg-muted)",
+              margin: "8px 0 0 0",
+            }}
+          >
+            {initial.items.length} parents loaded
+          </p>
+        </div>
       </div>
       <ParentsList narrative={narrative} initial={initial} />
     </div>
