@@ -11,59 +11,34 @@ JS_PACKAGE_FILES := $(shell echo $(JS_FILES) | grep -E 'src')
 TEST_JS_FILES := $(shell echo $(JS_FILES) | grep -E '__tests__')
 TEST_CONFIG := $(shell echo $(JS_FILES) | grep -E 'jest')
 
+PY_LINT := .make/lint/py
+JS_LINT := .make/lint/js
+PRE_COMMIT := .make/pre-commit
+PY_TYPES := .mypy_cache/CACHEDIR.TAG
+PY_UNUSED := .make/unused
+PY_COV := coverage.xml
+JS_COV := .make/coverage/js
+JS_MODULES := node_modules/.package-lock.json
+PY_MODULES := .venv/bin/activate
+PY_LOCK := poetry.lock
+JS_LOCK := package-lock.json
+PY_WHITELIST := whitelist.py
+REPO_ARCHIVE := archive.zip
+PY_FORMAT := .make/format/py
+PY_CONFIG := pyproject.toml
+MYPY := .mypy_cache/CACHEDIR.TAG
 
-ifeq ($(OS),Windows_NT)
-	VENV := .venv/Scripts/activate
-else
-	VENV := .venv/bin/activate
-endif
-NODE_MODULES := node_modules/.package-lock.json
-
-.PHONY: all
-#: install development environment
-all: .make/pre-commit $(NODE_MODULES)
-
-#: build and check integrity of distribution
-.PHONY: build
-#: run all checks
-build: .make/format \
-	.make/lint \
-	.make/unused \
-	.mypy_cache/CACHEDIR.TAG \
-	coverage.xml
-	@touch $@
-
-.PHONY: cov
-#: test source
-cov: coverage.xml .make/coverage/js
-
-.PHONY: clean
-#: clean compiled files
-clean:
-	@find . -name '__pycache__' -exec rm -rf {} +
-	@rm -rf .coverage
-	@rm -rf .git/hooks/*
-	@rm -rf .make
-	@rm -rf .mypy_cache
-	@rm -rf .pytest_cache
-	@rm -rf .venv
-	@rm -rf bin
-	@rm -rf coverage.xml
-
-#: generate virtual environment
-$(VENV): $(POETRY) poetry.lock
-	@[ ! $$(basename "$$($< env info --path)") = ".venv" ] \
-		&& rm -rf "$$($< env info --path)" \
-		|| exit 0
+$(PY_MODULES): $(POETRY) $(PY_LOCK)
+	@[ ! $$(basename "$$($< env info --path)") = ".venv" ] && rm -rf "$$($< env info --path)" || exit 0
 	@POETRY_VIRTUALENVS_IN_PROJECT=1 $< install
 	@touch $@
 
 #: install node modules
-$(NODE_MODULES): package-lock.json
+$(JS_MODULES): $(JS_LOCK)
 	@npm install
+	@touch $@
 
-#: install pre-commit hooks
-.make/pre-commit: $(VENV)
+$(PRE_COMMIT): $(PY_MODULES)
 	@$(POETRY) run pre-commit install \
 		--hook-type pre-commit \
 		--hook-type pre-merge-commit \
@@ -77,87 +52,105 @@ $(NODE_MODULES): package-lock.json
 	@mkdir -p $(@D)
 	@touch $@
 
-#: install poetry
 $(POETRY):
-	@curl -sSL https://install.python-poetry.org | \
-		POETRY_HOME="$$(pwd)/bin/poetry" "$$(which python)" - --version 2.1.1
+	@curl -sSL https://install.python-poetry.org | POETRY_HOME="$$(pwd)/bin/poetry" "$$(which python)" - --version 2.1.1
 	@touch $@
 
-#: run checks that format code
-.make/format/py: $(VENV) $(PYTHON_FILES)
+$(PY_FORMAT): $(PY_MODULES) $(PYTHON_FILES)
 	@$(POETRY) run black $(PYTHON_FILES)
 	@$(POETRY) run flynt $(PYTHON_FILES)
 	@$(POETRY) run isort $(PYTHON_FILES)
 	@mkdir -p $(@D)
 	@touch $@
 
-#: lint python
-.make/lint/py: $(VENV) $(PYTHON_FILES)
+$(PY_LINT): $(PY_MODULES) $(PYTHON_FILES)
 	@$(POETRY) run pylint --output-format=colorized $(PYTHON_FILES)
 	@$(POETRY) run docsig $(PYTHON_FILES)
 	@mkdir -p $(@D)
 	@touch $@
 
-#: lint js
-.make/lint/js: $(NODE_MODULES) $(JS_FILES)
+$(JS_LINT): $(JS_MODULES) $(JS_FILES)
 	@npx next lint
 	@mkdir -p $(@D)
 	@touch $@
 
-#: check typing
-.mypy_cache/CACHEDIR.TAG: $(VENV) $(PYTHON_FILES)
+$(MYPY): $(PY_MODULES) $(PYTHON_FILES)
 	@$(POETRY) run mypy $(PYTHON_FILES)
 	@touch $@
 
-#: check for unused code
-.make/unused/py: whitelist.py
+$(PY_UNUSED): $(PY_WHITELIST)
 	@$(POETRY) run vulture whitelist.py backend tests
 	@mkdir -p $(@D)
 	@touch $@
 
 #: check for unused code
-.make/unused/js: $(NODE_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES)
+$(JS_UNUSED): $(JS_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES)
 	@npm run unused
 	@mkdir -p $(@D)
 	@touch $@
 
 #: generate whitelist of allowed unused code
-whitelist.py: $(VENV) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
+$(PY_WHITELIST): $(PY_MODULES) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
 	@$(POETRY) run vulture --make-whitelist backend tests > $@ || exit 0
 
 #: generate coverage report
-coverage.xml: $(VENV) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
-	@$(POETRY) run pytest tests --cov=backend \
-		&& $(POETRY) run coverage xml
+$(PY_COV): $(PY_MODULES) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
+	@$(POETRY) run pytest tests --cov=backend && $(POETRY) run coverage xml
 
-.make/coverage/js: $(NODE_MODULES) \
-	$(JS_PACKAGE_FILES) \
-	$(JS_TEST_FILES) \
-	$(TEST_CONFIG)
+$(JS_COV): $(JS_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES) $(TEST_CONFIG)
 	@npx jest
 	@mkdir -p $(@D)
 	@touch $@
 
 #: poetry lock
-poetry.lock: pyproject.toml
+$(POETRY_LOCK): $(PY_CONFIG)
 	@$(POETRY) lock
 	@touch $@
 
-.PHONY: deps-update
+#: create a repo archive
+$(REPO_ARCHIVE): $(FILES)
+	@git archive --format=zip --output $@ HEAD
+
+
+.PHONY: all lint frontend api deps-update clean cov build
+
+all: $(PRE_COMMIT) $(JS_MODULES)
+
+lint: $(PY_LINT) $(JS_LINT)
+
+#: start frontend
+frontend: $(JS_MODULES)
+	@npm run dev
+
+#: start api
+api: $(PY_MODULES)
+	@$(POETRY) run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+
 #: update dependencies
 deps-update:
 	@$(POETRY) update
 
-.PHONY: api
-#: start api
-api: $(VENV)
-	@$(POETRY) run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+#: clean compiled files
+clean:
+	@find . -name '__pycache__' -exec rm -rf {} +
+	@rm -rf .coverage
+	@rm -rf .git/hooks/*
+	@rm -rf .make
+	@rm -rf .mypy_cache
+	@rm -rf .pytest_cache
+	@rm -rf .venv
+	@rm -rf bin
+	@rm -rf coverage.xml
 
-.PHONY: frontend
-#: start frontend
-frontend: $(NODE_MODULES)
-	@npm run dev
+#: test source
+cov: $(PY_COV) $(JS_COV)
 
-#: create a repo archive
-archive.zip: $(FILES)
-	@git archive --format=zip --output $@ HEAD
+#: run all checks
+build: $(PY_FORMAT) $(PY_LINT) $(PY_UNUSED) $(PY_TYPES) $(PY_COV)
+	@touch $@
+
+#: install pre-commit hooks
+hooks: $(PRE_COMMIT)
+
+#: check for unused code
+unused: $(PY_UNUSED) $(JS_UNUSED)
