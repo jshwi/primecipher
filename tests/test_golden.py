@@ -159,5 +159,5 @@ def test_golden_ranges_and_ordering() -> None:
 
     if failures:
         raise AssertionError(
-            "Golden checks failed:\n" + "\n".join(f"- {m}" for m in failures),
+            f"Golden checks failed:\n{'\n'.join(f'- {m}' for m in failures)}",
         )
