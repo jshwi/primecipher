@@ -4,6 +4,7 @@ import {
   doRefresh,
   startRefreshJob,
   getRefreshStatus,
+  getHeatmap,
 } from "../src/lib/api";
 
 // Mock fetch globally
@@ -239,6 +240,80 @@ describe("API Functions", () => {
       await expect(getRefreshStatus("nonexistent")).rejects.toThrow(
         "GET /refresh/status 404",
       );
+    });
+  });
+
+  describe("getHeatmap", () => {
+    it("fetches heatmap data successfully", async () => {
+      const mockResponse = {
+        items: [
+          {
+            name: "dogs",
+            score: 0.8,
+            count: 5,
+            lastUpdated: 1704067200,
+            stale: false,
+          },
+          {
+            name: "ai",
+            score: 0.6,
+            count: 3,
+            lastUpdated: 1704067200,
+            stale: true,
+          },
+        ],
+        stale: true,
+        lastUpdated: 1704067200,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      } as Response);
+
+      const result = await getHeatmap();
+
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/heatmap"),
+        { cache: "no-store" },
+      );
+    });
+
+    it("throws error on non-ok response", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      } as Response);
+
+      await expect(getHeatmap()).rejects.toThrow("GET /heatmap 500");
+    });
+
+    it("handles empty heatmap data", async () => {
+      const mockResponse = {
+        items: [],
+        stale: false,
+        lastUpdated: null,
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      } as Response);
+
+      const result = await getHeatmap();
+
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/heatmap"),
+        { cache: "no-store" },
+      );
+    });
+
+    it("handles fetch failure", async () => {
+      mockFetch.mockRejectedValueOnce(new Error("Network error"));
+
+      await expect(getHeatmap()).rejects.toThrow("Network error");
     });
   });
 

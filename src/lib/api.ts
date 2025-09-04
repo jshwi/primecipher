@@ -86,6 +86,20 @@ export type RefreshJob = {
   error?: string | null;
 };
 
+export type HeatmapItem = {
+  name: string;
+  score: number;
+  count: number;
+  lastUpdated?: number | null;
+  stale: boolean;
+};
+
+export type HeatmapResp = {
+  items: HeatmapItem[];
+  stale: boolean;
+  lastUpdated?: number | null;
+};
+
 /** GET /refresh/status/:jobId */
 export async function getRefreshStatus(jobId: string): Promise<RefreshJob> {
   const r = await fetch(`${BASE}/refresh/status/${jobId}`, {
@@ -93,5 +107,12 @@ export async function getRefreshStatus(jobId: string): Promise<RefreshJob> {
     cache: "no-store",
   });
   if (!r.ok) throw new Error(`GET /refresh/status ${r.status}`);
+  return r.json();
+}
+
+/** GET /heatmap */
+export async function getHeatmap(): Promise<HeatmapResp> {
+  const r = await fetch(`${BASE}/heatmap`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`GET /heatmap ${r.status}`);
   return r.json();
 }
