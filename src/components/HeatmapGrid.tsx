@@ -1,5 +1,8 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import { getHeatmap } from "@/lib/api";
-import { HeatmapItem } from "@/lib/api";
+import { HeatmapItem, HeatmapResp } from "@/lib/api";
 import StaleBanner from "@/components/StaleBanner";
 
 interface HeatmapGridProps {
@@ -89,7 +92,35 @@ function HeatmapCard({ item }: { item: HeatmapItem }) {
   );
 }
 
-export default async function HeatmapGrid({ error }: HeatmapGridProps) {
+export default function HeatmapGrid({ error }: HeatmapGridProps) {
+  const [heatmapData, setHeatmapData] = useState<HeatmapResp | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (error) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const data = await getHeatmap();
+        setHeatmapData(data);
+        setFetchError(null);
+      } catch (err) {
+        setFetchError(
+          err instanceof Error ? err.message : "Failed to fetch heatmap data",
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [error]);
+
   if (error) {
     return (
       <div
@@ -107,14 +138,19 @@ export default async function HeatmapGrid({ error }: HeatmapGridProps) {
     );
   }
 
-  let heatmapData;
-  let fetchError: string | null = null;
-
-  try {
-    heatmapData = await getHeatmap();
-  } catch (err) {
-    fetchError =
-      err instanceof Error ? err.message : "Failed to fetch heatmap data";
+  if (loading) {
+    return (
+      <div
+        style={{
+          padding: "40px",
+          textAlign: "center",
+          color: "var(--fg-muted)",
+          fontSize: "16px",
+        }}
+      >
+        Loading heatmap data...
+      </div>
+    );
   }
 
   if (fetchError) {
@@ -144,7 +180,7 @@ export default async function HeatmapGrid({ error }: HeatmapGridProps) {
           fontSize: "16px",
         }}
       >
-        Loading heatmap data...
+        No heatmap data available
       </div>
     );
   }

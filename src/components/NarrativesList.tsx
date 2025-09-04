@@ -1,12 +1,44 @@
+"use client";
+
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { getNarratives } from "@/lib/api";
+import { getNarratives, NarrativesResp } from "@/lib/api";
 import StaleBanner from "@/components/StaleBanner";
 
 interface NarrativesListProps {
   error?: string | null;
 }
 
-export default async function NarrativesList({ error }: NarrativesListProps) {
+export default function NarrativesList({ error }: NarrativesListProps) {
+  const [data, setData] = useState<NarrativesResp | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (error) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        const result = await getNarratives();
+        setData(result);
+        setFetchError(null);
+      } catch (err) {
+        setFetchError(
+          err instanceof Error ? err.message : "Failed to fetch narratives",
+        );
+        setData({ items: [], stale: true, lastUpdated: null });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [error]);
+
   if (error) {
     return (
       <div
@@ -24,15 +56,19 @@ export default async function NarrativesList({ error }: NarrativesListProps) {
     );
   }
 
-  let data;
-  let fetchError: string | null = null;
-
-  try {
-    data = await getNarratives();
-  } catch (err) {
-    fetchError =
-      err instanceof Error ? err.message : "Failed to fetch narratives";
-    data = { items: [], stale: true, lastUpdated: null };
+  if (loading) {
+    return (
+      <div
+        style={{
+          padding: "40px",
+          textAlign: "center",
+          color: "var(--fg-muted)",
+          fontSize: "16px",
+        }}
+      >
+        Loading narratives...
+      </div>
+    );
   }
 
   if (fetchError) {
