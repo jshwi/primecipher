@@ -47,21 +47,25 @@ describe("Main Page", () => {
     expect(screen.getByText("ai")).toBeInTheDocument();
   });
 
-  it("shows last refresh timestamp", async () => {
+  it("shows stale banner with fresh status", async () => {
     mockGetNarratives.mockResolvedValue({
       items: ["dogs", "ai"],
       lastRefresh: 1704067200,
+      stale: false,
+      lastUpdated: 1704067200,
     });
 
     render(await Page());
 
-    expect(screen.getByText(/Last refresh:/)).toBeInTheDocument();
+    expect(screen.getByText(/Fresh as of/)).toBeInTheDocument();
   });
 
   it("handles empty narratives array", async () => {
     mockGetNarratives.mockResolvedValue({
       items: [],
       lastRefresh: null,
+      stale: true,
+      lastUpdated: null,
     });
 
     render(await Page());
@@ -80,6 +84,8 @@ describe("Main Page", () => {
         { narrative: "ai", count: 3 },
       ],
       lastRefresh: 1704067200,
+      stale: false,
+      lastUpdated: 1704067200,
     });
 
     render(await Page());
@@ -92,6 +98,8 @@ describe("Main Page", () => {
     mockGetNarratives.mockResolvedValue({
       items: ["dogs", { narrative: "ai", count: 3 }, "blockchain"],
       lastRefresh: 1704067200,
+      stale: false,
+      lastUpdated: 1704067200,
     });
 
     render(await Page());
@@ -111,6 +119,8 @@ describe("Main Page", () => {
         { narrative: undefined, count: 1 },
       ],
       lastRefresh: 1704067200,
+      stale: false,
+      lastUpdated: 1704067200,
     });
 
     render(await Page());
@@ -124,45 +134,53 @@ describe("Main Page", () => {
   it("handles missing lastRefresh field", async () => {
     mockGetNarratives.mockResolvedValue({
       items: ["dogs", "ai"],
+      stale: true,
+      lastUpdated: null,
     });
 
     render(await Page());
 
     expect(screen.getByText("dogs")).toBeInTheDocument();
     expect(screen.getByText("ai")).toBeInTheDocument();
-    expect(screen.queryByText(/Last refresh:/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Data may be stale/)).toBeInTheDocument();
   });
 
   it("handles null lastRefresh value", async () => {
     mockGetNarratives.mockResolvedValue({
       items: ["dogs", "ai"],
       lastRefresh: null,
+      stale: true,
+      lastUpdated: null,
     });
 
     render(await Page());
 
     expect(screen.getByText("dogs")).toBeInTheDocument();
     expect(screen.getByText("ai")).toBeInTheDocument();
-    expect(screen.queryByText(/Last refresh:/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Data may be stale/)).toBeInTheDocument();
   });
 
   it("handles zero timestamp for lastRefresh", async () => {
     mockGetNarratives.mockResolvedValue({
       items: ["dogs", "ai"],
       lastRefresh: 0,
+      stale: true,
+      lastUpdated: null,
     });
 
     render(await Page());
 
     expect(screen.getByText("dogs")).toBeInTheDocument();
     expect(screen.getByText("ai")).toBeInTheDocument();
-    expect(screen.queryByText(/Last refresh:/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Data may be stale/)).toBeInTheDocument();
   });
 
   it("displays refresh button", async () => {
     mockGetNarratives.mockResolvedValue({
       items: ["dogs", "ai"],
       lastRefresh: 1704067200,
+      stale: false,
+      lastUpdated: 1704067200,
     });
 
     render(await Page());
@@ -176,6 +194,8 @@ describe("Main Page", () => {
     mockGetNarratives.mockResolvedValue({
       items: ["dogs", "ai"],
       lastRefresh: 1704067200,
+      stale: false,
+      lastUpdated: 1704067200,
     });
 
     render(await Page());
@@ -191,6 +211,8 @@ describe("Main Page", () => {
     mockGetNarratives.mockResolvedValue({
       items: "not an array",
       lastRefresh: 1704067200,
+      stale: true,
+      lastUpdated: null,
     });
 
     render(await Page());
@@ -202,6 +224,8 @@ describe("Main Page", () => {
   it("handles undefined items data gracefully", async () => {
     mockGetNarratives.mockResolvedValue({
       lastRefresh: 1704067200,
+      stale: true,
+      lastUpdated: null,
     });
 
     render(await Page());
@@ -214,11 +238,57 @@ describe("Main Page", () => {
     mockGetNarratives.mockResolvedValue({
       items: null,
       lastRefresh: 1704067200,
+      stale: true,
+      lastUpdated: null,
     });
 
     render(await Page());
 
     // Should show empty state when items is null
+    expect(screen.getByText(/No narratives yet/)).toBeInTheDocument();
+  });
+
+  it("handles API error and shows error message", async () => {
+    mockGetNarratives.mockRejectedValue(new Error("API connection failed"));
+
+    render(await Page());
+
+    expect(
+      screen.getByText(/Backend unavailable: API connection failed/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/No narratives yet/)).toBeInTheDocument();
+  });
+
+  it("handles non-Error object in catch block", async () => {
+    mockGetNarratives.mockRejectedValue("String error");
+
+    render(await Page());
+
+    expect(
+      screen.getByText(/Backend unavailable: Failed to fetch data/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/No narratives yet/)).toBeInTheDocument();
+  });
+
+  it("handles undefined error in catch block", async () => {
+    mockGetNarratives.mockRejectedValue(undefined);
+
+    render(await Page());
+
+    expect(
+      screen.getByText(/Backend unavailable: Failed to fetch data/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/No narratives yet/)).toBeInTheDocument();
+  });
+
+  it("handles null error in catch block", async () => {
+    mockGetNarratives.mockRejectedValue(null);
+
+    render(await Page());
+
+    expect(
+      screen.getByText(/Backend unavailable: Failed to fetch data/),
+    ).toBeInTheDocument();
     expect(screen.getByText(/No narratives yet/)).toBeInTheDocument();
   });
 });

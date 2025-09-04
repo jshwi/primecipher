@@ -1,17 +1,18 @@
 import Link from "next/link";
 import RefreshButton from "@/components/RefreshButton";
+import StaleBanner from "@/components/StaleBanner";
 import { getNarratives } from "@/lib/api";
 
-function fmt(ts?: number) {
-  if (!ts) return null;
-  const s = new Date(ts * 1000).toLocaleString();
-  return (
-    <div style={{ color: "#888", marginBottom: 8 }}>Last refresh: {s}</div>
-  );
-}
-
 export default async function Page() {
-  const data = await getNarratives();
+  let data;
+  let error = null;
+
+  try {
+    data = await getNarratives();
+  } catch (e) {
+    error = e instanceof Error ? e.message : "Failed to fetch data";
+    data = { items: [], stale: true, lastUpdated: null };
+  }
 
   // Defensive: handle either ['dogs','ai'] or [{narrative:'dogs',count:2}, ...]
   const rows = Array.isArray(data?.items)
@@ -35,7 +36,25 @@ export default async function Page() {
         <RefreshButton />
       </div>
 
-      {fmt(data?.lastRefresh ?? undefined)}
+      <StaleBanner
+        stale={data?.stale ?? true}
+        lastUpdated={data?.lastUpdated ?? null}
+      />
+
+      {error && (
+        <div
+          style={{
+            background: "#fee",
+            color: "#900",
+            padding: "12px",
+            borderRadius: 8,
+            marginBottom: "16px",
+            border: "1px solid #f5c6cb",
+          }}
+        >
+          Backend unavailable: {error}
+        </div>
+      )}
 
       {rows.length === 0 ? (
         <div

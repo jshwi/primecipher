@@ -23,6 +23,8 @@ export type ParentsResp = {
 export type NarrativesResp = {
   items: string[];
   lastRefresh?: number | null;
+  stale?: boolean;
+  lastUpdated?: number | null;
 };
 
 /** GET /narratives */

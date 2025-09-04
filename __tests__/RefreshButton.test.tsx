@@ -1,4 +1,10 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import RefreshButton from "../src/components/RefreshButton";
 import { startRefreshJob, getRefreshStatus } from "../src/lib/api";
 
@@ -68,7 +74,9 @@ describe("RefreshButton", () => {
     // Wait for the async operation to complete
     await new Promise((resolve) => setTimeout(resolve, 0));
 
-    expect(button).toHaveTextContent("Queued…");
+    expect(
+      screen.getByText(/Refresh started \(job: test-job-123\)/),
+    ).toBeInTheDocument();
   });
 
   it("displays refresh button with proper styling", () => {
@@ -110,6 +118,8 @@ describe("RefreshButton", () => {
       id: "test-job-123",
       state: "running",
       ts: Date.now(),
+      narrativesDone: 2,
+      narrativesTotal: 5,
     });
 
     render(<RefreshButton />);
@@ -122,8 +132,8 @@ describe("RefreshButton", () => {
       expect(mockGetRefreshStatus).toHaveBeenCalledWith("test-job-123");
     });
 
-    // The button should show running state (which is "Refreshing…" in the component)
-    expect(button).toHaveTextContent("Refreshing…");
+    // The status banner should show running state with progress
+    expect(screen.getByText(/Updating… \(2\/5\)/)).toBeInTheDocument();
   });
 
   it("does not start polling when jobId is null", () => {
@@ -241,7 +251,9 @@ describe("RefreshButton", () => {
 
     // Wait for the state to change to queued
     await waitFor(() => {
-      expect(button).toHaveTextContent("Queued…");
+      expect(
+        screen.getByText(/Refresh started \(job: test-job-123\)/),
+      ).toBeInTheDocument();
     });
 
     // Button should have reduced opacity when not idle
@@ -385,14 +397,16 @@ describe("RefreshButton", () => {
 
     // Wait for queued state
     await waitFor(() => {
-      expect(button).toHaveTextContent("Queued…");
+      expect(
+        screen.getByText(/Refresh started \(job: test-job-123\)/),
+      ).toBeInTheDocument();
     });
 
     // Button should be disabled in queued state
     expect(button).toBeDisabled();
   });
 
-  it("shows different button text for different states", async () => {
+  it("shows different status text for different states", async () => {
     mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
 
     render(<RefreshButton />);
@@ -406,7 +420,9 @@ describe("RefreshButton", () => {
 
     // Queued state
     await waitFor(() => {
-      expect(button).toHaveTextContent("Queued…");
+      expect(
+        screen.getByText(/Refresh started \(job: test-job-123\)/),
+      ).toBeInTheDocument();
     });
   });
 
@@ -549,5 +565,139 @@ describe("RefreshButton", () => {
     await waitFor(() => {
       expect(screen.getByText("Refresh status failed")).toBeInTheDocument();
     });
+  });
+
+  it("handles 401 error when starting refresh job", async () => {
+    mockStartRefreshJob.mockRejectedValue(new Error("401 Unauthorized"));
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(
+        screen.getByText("Authentication failed - check refresh token"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("handles 500 error when starting refresh job", async () => {
+    mockStartRefreshJob.mockRejectedValue(
+      new Error("500 Internal Server Error"),
+    );
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(
+        screen.getByText("Server error - please try again later"),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("handles generic error when starting refresh job", async () => {
+    mockStartRefreshJob.mockRejectedValue(new Error("Network error"));
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Network error")).toBeInTheDocument();
+    });
+  });
+
+  it("handles non-Error object when starting refresh job", async () => {
+    mockStartRefreshJob.mockRejectedValue("String error");
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("String error")).toBeInTheDocument();
+    });
+  });
+
+  it("handles error with empty message when starting refresh job", async () => {
+    mockStartRefreshJob.mockRejectedValue(new Error(""));
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Failed to start refresh")).toBeInTheDocument();
+    });
+  });
+
+  it("handles error with undefined message when starting refresh job", async () => {
+    mockStartRefreshJob.mockRejectedValue(new Error(undefined as any));
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(screen.getByText("Failed to start refresh")).toBeInTheDocument();
+    });
+  });
+
+  it("handles 401 error during status polling with fake timers", async () => {
+    jest.useFakeTimers();
+
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockRejectedValue(new Error("401 Unauthorized"));
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(
+        screen.getByText("Authentication failed - check refresh token"),
+      ).toBeInTheDocument();
+    });
+
+    jest.useRealTimers();
+  });
+
+  it("handles 500 error during status polling with fake timers", async () => {
+    jest.useFakeTimers();
+
+    mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockRejectedValue(
+      new Error("500 Internal Server Error"),
+    );
+
+    render(<RefreshButton />);
+    const button = screen.getByRole("button");
+
+    fireEvent.click(button);
+
+    // Wait for the error to be displayed
+    await waitFor(() => {
+      expect(
+        screen.getByText("Server error - please try again later"),
+      ).toBeInTheDocument();
+    });
+
+    jest.useRealTimers();
   });
 });
