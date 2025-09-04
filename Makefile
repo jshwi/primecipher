@@ -33,7 +33,7 @@ build: .make/format \
 	coverage.xml
 	@touch $@
 
-.PHONY: test
+.PHONY: cov
 #: test source
 cov: coverage.xml coverage/lcov.info
 
