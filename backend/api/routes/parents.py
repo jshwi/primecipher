@@ -24,9 +24,11 @@ def _enc_cursor(offset: int) -> str:
 def _dec_cursor(cursor: str) -> int:
     try:
         data = json.loads(base64.urlsafe_b64decode(cursor.encode()).decode())
-        off = int(data.get("o", 0))
+        if "o" not in data:
+            raise ValueError("missing 'o' field")
+        off = int(data["o"])
         if off < 0:
-            raise ValueError
+            raise ValueError("negative offset")
         return off
     except Exception as exc:
         raise HTTPException(status_code=400, detail="invalid cursor") from exc
@@ -43,7 +45,7 @@ def _dec_cursor(cursor: str) -> int:
 def get_parents_for_narrative(
     narrative: str = Path(..., min_length=1),  # noqa: B008
     window: str = Query(default="24h"),  # noqa: B008
-    limit: int = Query(default=25, ge=1, le=100),  # noqa: B008
+    limit: int = Query(default=25),  # noqa: B008
     cursor: str | None = Query(default=None),  # noqa: B008
 ) -> dict[str, t.Any]:
     """Get parents data for a narrative with pagination.
@@ -61,8 +63,21 @@ def get_parents_for_narrative(
     items = list_parents_db(narrative) or get_parents(narrative)
     items = _with_scores(items)[:TOP_N]  # keep consistent with compute_all cap
 
+    # clamp limit to 1..100 range
+    limit = max(1, min(100, limit))
+
     # decode cursor -> start offset
     start = _dec_cursor(cursor) if cursor else 0
+
+    # if start offset >= len(items), return empty page
+    if start >= len(items):
+        return {
+            "narrative": narrative,
+            "window": window,
+            "items": [],
+            "nextCursor": None,
+        }
+
     end = min(start + limit, len(items))
     page = items[start:end]
 

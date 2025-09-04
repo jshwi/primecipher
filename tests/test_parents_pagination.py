@@ -104,3 +104,74 @@ def test_parents_invalid_cursor_400(client: t.Any) -> None:
     # "..."}
     assert body.get("ok") is False
     assert "error" in body
+
+
+def test_parents_cursor_missing_o_field_400(client: t.Any) -> None:
+    """Test that cursor missing 'o' field returns 400 error.
+
+    :param client: Pytest fixture for test client.
+    """
+    # create cursor with missing 'o' field
+    bad_cursor = base64.urlsafe_b64encode(
+        json.dumps({"offset": 10}).encode(),
+    ).decode()
+    r = client.get(f"/parents/dogs?cursor={bad_cursor}")
+    assert r.status_code == 400
+    body = r.json()
+    assert body.get("ok") is False
+    assert "error" in body
+
+
+def test_parents_cursor_out_of_range_empty_page(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that cursor beyond available items returns empty page.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    import backend.parents as parents_mod
+
+    monkeypatch.setattr(
+        parents_mod.Source,
+        "parents_for",
+        _fake_many,
+        raising=True,
+    )
+    client.post("/refresh")
+
+    # cursor way beyond available items (100 capped)
+    cursor = _enc_cursor(999999)
+    r = client.get(f"/parents/dogs?cursor={cursor}")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["narrative"] == "dogs"
+    assert body["items"] == []
+    assert body["nextCursor"] is None
+
+
+def test_parents_limit_clamping(
+    client: t.Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test that oversized limits are clamped to 100.
+
+    :param client: Pytest fixture for test client.
+    :param monkeypatch: Pytest fixture for patching.
+    """
+    import backend.parents as parents_mod
+
+    monkeypatch.setattr(
+        parents_mod.Source,
+        "parents_for",
+        _fake_many,
+        raising=True,
+    )
+    client.post("/refresh")
+
+    # request with limit > 100 should be clamped
+    r = client.get("/parents/dogs?limit=9999")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body["items"]) <= 100  # should be clamped to 100
