@@ -143,6 +143,7 @@ def _process_single_narrative(
     calls_used: int,
     mode: str = "dev",
     terms: list[str] | None = None,
+    _memo: dict | None = None,
 ) -> tuple[bool, int, dict | None]:
     """Process a single narrative and return results.
 
@@ -151,21 +152,30 @@ def _process_single_narrative(
     :param calls_used: Current calls used count.
     :param mode: The processing mode (dev or real).
     :param terms: List of search terms for real mode.
+    :param _memo: Per-run memo dict for caching results.
     :return: Tuple of (success, new_calls_used, error_dict_or_none).
     """
     try:
-        # Spend the call for this narrative before processing
-        calls_used += 1
-
-        # Update progress
-        if current_running_job and current_running_job.get("id") == job_id:
-            current_running_job["calls_used"] = calls_used
-
-        # Process the narrative based on mode
-        if mode == "real" and terms is not None:
-            items = _process_narrative_real_mode(narrative, terms)
+        # Check if we have cached results in memo
+        if _memo is not None and narrative in _memo:
+            items = _memo[narrative]
         else:
-            items = _process_narrative_dev_mode(narrative)
+            # Spend the call for this narrative before processing
+            calls_used += 1
+
+            # Update progress
+            if current_running_job and current_running_job.get("id") == job_id:
+                current_running_job["calls_used"] = calls_used
+
+            # Process the narrative based on mode
+            if mode == "real" and terms is not None:
+                items = _process_narrative_real_mode(narrative, terms)
+            else:
+                items = _process_narrative_dev_mode(narrative)
+
+            # Cache the results in memo
+            if _memo is not None:
+                _memo[narrative] = items
 
         # Write to storage
         _write_narrative_to_storage(narrative, items)
@@ -204,18 +214,31 @@ def _update_job_progress(
 
 
 def _write_narrative_to_storage(narrative: str, items: list[dict]) -> None:
-    """Write narrative items to storage using introspection.
+    """Write narrative items to storage and database.
 
     :param narrative: The narrative name.
     :param items: The items to write.
     """
     from ... import storage as storage_module
+    from ...repo import replace_parents
 
     # Use set_parents which automatically records computedAt timestamp
     writer = getattr(storage_module, "set_parents", None)
 
     if writer is not None:
         writer(narrative, items)
+
+        # Transform items for database storage (needs 'parent' and 'matches')
+        db_items = []
+        for item in items:
+            db_item = {
+                "parent": item.get("name", item.get("parent", "unknown")),
+                "matches": int(item.get("matches", 0)),
+            }
+            db_items.append(db_item)
+
+        # Also write to database for API consistency
+        replace_parents(narrative, db_items, time.time())
     else:
         raise RuntimeError(
             "No storage writer found (set_parents)",
@@ -240,6 +263,9 @@ async def _process_dev_mode_job(
     global last_success_at
 
     try:
+        # Per-run memo: dict to cache computed parents by narrative
+        _memo: dict[str, list[dict]] = {}
+
         # Get narratives with their terms for real mode
         if mode == "real":
             from ...seeds import load_seeds
@@ -308,6 +334,7 @@ async def _process_dev_mode_job(
                 calls_used,
                 mode=mode,
                 terms=terms if mode == "real" else None,
+                _memo=_memo,
             )
 
             narratives_done += 1
