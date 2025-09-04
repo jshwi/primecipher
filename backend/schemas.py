@@ -5,12 +5,29 @@ import typing as t
 from pydantic import BaseModel, Field
 
 
+class Child(BaseModel):
+    """Schema for child data in parent responses."""
+
+    pair: str
+    chain: str
+    dex: str
+    url: str
+    vol24h: float
+
+
 class Parent(BaseModel):
     """Schema for parent data with matches and optional score."""
 
     parent: t.Annotated[str, Field(min_length=1)]
     matches: t.Annotated[int, Field(ge=0)]
     score: float | None = None  # present after scoring
+    # Optional fields that may be present in real mode
+    symbol: str | None = None
+    source: str | None = None
+    chain: str | None = None
+    address: str | None = None
+    url: str | None = None
+    children: list[Child] = Field(default_factory=list)
 
 
 class NarrativesResp(BaseModel):
