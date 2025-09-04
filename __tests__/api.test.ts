@@ -146,7 +146,7 @@ describe("API Functions", () => {
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/refresh"),
-        { method: "POST", headers: undefined },
+        { method: "POST", headers: { Authorization: "Bearer s3cr3t" } },
       );
     });
 
@@ -163,7 +163,7 @@ describe("API Functions", () => {
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/refresh?window=7d"),
-        { method: "POST", headers: undefined },
+        { method: "POST", headers: { Authorization: "Bearer s3cr3t" } },
       );
     });
 
@@ -191,7 +191,7 @@ describe("API Functions", () => {
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/refresh/async"),
-        { method: "POST", headers: undefined },
+        { method: "POST", headers: { Authorization: "Bearer s3cr3t" } },
       );
     });
 
@@ -226,7 +226,7 @@ describe("API Functions", () => {
       expect(result).toEqual(mockResponse);
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining("/refresh/status/job-123"),
-        { headers: undefined, cache: "no-store" },
+        { headers: { Authorization: "Bearer s3cr3t" }, cache: "no-store" },
       );
     });
 
