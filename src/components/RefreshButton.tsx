@@ -3,7 +3,13 @@ import { useTransition, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { startRefreshJob, getRefreshStatus } from "@/lib/api";
 
-export default function RefreshButton() {
+interface RefreshButtonProps {
+  onRefreshComplete?: () => void;
+}
+
+export default function RefreshButton({
+  onRefreshComplete,
+}: RefreshButtonProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [err, setErr] = useState<string | null>(null);
@@ -42,6 +48,7 @@ export default function RefreshButton() {
         });
 
         if (s.state === "done") {
+          onRefreshComplete?.();
           setTimeout(() => router.refresh(), 100); // re-render page data
         } else if (s.state === "error") {
           setErr(s.error || "Refresh failed");
@@ -111,7 +118,7 @@ export default function RefreshButton() {
         display: "flex",
         flexDirection: "column",
         alignItems: "end",
-        gap: 6,
+        position: "relative",
       }}
     >
       <button
@@ -127,37 +134,50 @@ export default function RefreshButton() {
         {isPending ? "Starting…" : "Refresh"}
       </button>
 
-      {statusText && (
-        <div
-          style={{
-            background: state === "done" ? "#d1edff" : "#fff3cd",
-            color: state === "done" ? "#0c5460" : "#856404",
-            border:
-              state === "done" ? "1px solid #74c0fc" : "1px solid #f6d55c",
-            padding: "6px 8px",
-            borderRadius: 6,
-            fontSize: 13,
-            maxWidth: 360,
-          }}
-        >
-          {statusText}
-        </div>
-      )}
+      {/* Status messages positioned absolutely to avoid layout shift */}
+      <div
+        style={{
+          position: "absolute",
+          top: "100%",
+          right: 0,
+          marginTop: "6px",
+          zIndex: 10,
+        }}
+      >
+        {statusText && (
+          <div
+            style={{
+              background: state === "done" ? "#d1edff" : "#fff3cd",
+              color: state === "done" ? "#0c5460" : "#856404",
+              border:
+                state === "done" ? "1px solid #74c0fc" : "1px solid #f6d55c",
+              padding: "6px 8px",
+              borderRadius: 6,
+              fontSize: 13,
+              maxWidth: 360,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {statusText}
+          </div>
+        )}
 
-      {err && (
-        <div
-          style={{
-            background: "#fee",
-            color: "#900",
-            padding: "6px 8px",
-            borderRadius: 6,
-            fontSize: 13,
-            maxWidth: 360,
-          }}
-        >
-          {err}
-        </div>
-      )}
+        {err && (
+          <div
+            style={{
+              background: "#fee",
+              color: "#900",
+              padding: "6px 8px",
+              borderRadius: 6,
+              fontSize: 13,
+              maxWidth: 360,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {err}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

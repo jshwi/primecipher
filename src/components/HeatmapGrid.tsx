@@ -7,6 +7,7 @@ import StaleBanner from "@/components/StaleBanner";
 
 interface HeatmapGridProps {
   error?: string | null;
+  refreshTrigger?: number;
 }
 
 function getScoreColor(score: number): string {
@@ -92,7 +93,10 @@ function HeatmapCard({ item }: { item: HeatmapItem }) {
   );
 }
 
-export default function HeatmapGrid({ error }: HeatmapGridProps) {
+export default function HeatmapGrid({
+  error,
+  refreshTrigger,
+}: HeatmapGridProps) {
   const [heatmapData, setHeatmapData] = useState<HeatmapResp | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -119,7 +123,7 @@ export default function HeatmapGrid({ error }: HeatmapGridProps) {
     };
 
     fetchData();
-  }, [error]);
+  }, [error, refreshTrigger]);
 
   if (error) {
     return (

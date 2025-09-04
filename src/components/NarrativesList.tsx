@@ -7,9 +7,13 @@ import StaleBanner from "@/components/StaleBanner";
 
 interface NarrativesListProps {
   error?: string | null;
+  refreshTrigger?: number;
 }
 
-export default function NarrativesList({ error }: NarrativesListProps) {
+export default function NarrativesList({
+  error,
+  refreshTrigger,
+}: NarrativesListProps) {
   const [data, setData] = useState<NarrativesResp | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -37,7 +41,7 @@ export default function NarrativesList({ error }: NarrativesListProps) {
     };
 
     fetchData();
-  }, [error]);
+  }, [error, refreshTrigger]);
 
   if (error) {
     return (

@@ -12,6 +12,11 @@ interface HomeClientProps {
   narrativesError?: string | null;
 }
 
+interface RefreshableComponentProps {
+  error?: string | null;
+  refreshTrigger?: number;
+}
+
 export default function HomeClient({
   initialView,
   heatmapError,
@@ -19,6 +24,7 @@ export default function HomeClient({
 }: HomeClientProps) {
   const [view, setView] = useState<"heatmap" | "narratives">(initialView);
   const [mounted, setMounted] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   useEffect(() => {
     setMounted(true);
@@ -26,6 +32,10 @@ export default function HomeClient({
 
   const handleViewChange = (newView: "heatmap" | "narratives") => {
     setView(newView);
+  };
+
+  const handleRefreshComplete = () => {
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   // Prevent hydration mismatch by showing loading state until mounted
@@ -104,14 +114,17 @@ export default function HomeClient({
           }}
         >
           <HomeToggle view={view} onChange={handleViewChange} />
-          <RefreshButton />
+          <RefreshButton onRefreshComplete={handleRefreshComplete} />
         </div>
       </div>
 
       {view === "heatmap" ? (
-        <HeatmapGrid error={heatmapError} />
+        <HeatmapGrid error={heatmapError} refreshTrigger={refreshTrigger} />
       ) : (
-        <NarrativesList error={narrativesError} />
+        <NarrativesList
+          error={narrativesError}
+          refreshTrigger={refreshTrigger}
+        />
       )}
     </div>
   );
