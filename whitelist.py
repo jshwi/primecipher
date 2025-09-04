@@ -1,7 +1,7 @@
 _make_test  # unused function (backend/adapters/source.py:138)
 _make_dev  # unused function (backend/adapters/source.py:169)
 _make_cg  # unused function (backend/adapters/source.py:196)
-get_heatmap  # unused function (backend/api/routes/heatmap.py:8)
+get_heatmap  # unused function (backend/api/routes/heatmap.py:13)
 list_narratives  # unused function (backend/api/routes/narratives.py:33)
 get_parents_for_narrative  # unused function (backend/api/routes/parents.py:37)
 last_started_ts  # unused variable (backend/api/routes/refresh.py:31)
