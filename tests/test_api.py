@@ -11,6 +11,19 @@ def test_healthz(client) -> None:
     assert r.json().get("ready") is True
 
 
+def test_heatmap(client) -> None:
+    """Test heatmap endpoint returns expected structure.
+
+    :param client: Pytest fixture for test client.
+    """
+    r = client.get("/heatmap")
+    assert r.status_code == 200
+    js = r.json()
+    assert "items" in js and isinstance(js["items"], list)
+    assert "stale" in js and isinstance(js["stale"], bool)
+    assert "lastUpdated" in js and js["lastUpdated"] is None
+
+
 def test_narratives_list(client) -> None:
     """Test narratives list endpoint returns items list.
 

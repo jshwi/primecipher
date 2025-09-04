@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
+from .api.routes import heatmap as r_heatmap
 from .api.routes import narratives as r_narratives
 from .api.routes import parents as r_parents
 from .api.routes import refresh as r_refresh
@@ -78,6 +79,7 @@ async def unhandled_exc_handler(_: Request, _exc: Exception) -> JSONResponse:
 
 
 # routes
+app.include_router(r_heatmap.router)
 app.include_router(r_narratives.router)
 app.include_router(r_parents.router)
 app.include_router(r_refresh.router)
