@@ -24,6 +24,25 @@ def test_heatmap(client) -> None:
     assert "lastUpdated" in js and js["lastUpdated"] is None
 
 
+def test_heatmap_with_metadata(client) -> None:
+    """Test heatmap endpoint with metadata for coverage.
+
+    :param client: Pytest fixture for test client.
+    """
+    from backend.storage import set_parents
+
+    # Set some parent data with metadata to trigger computed_at coverage
+    # Use "dogs" which is one of the existing narratives
+    set_parents("dogs", [{"name": "test", "score": 1.0}])
+
+    r = client.get("/heatmap")
+    assert r.status_code == 200
+    js = r.json()
+    assert "items" in js and isinstance(js["items"], list)
+    assert "stale" in js and isinstance(js["stale"], bool)
+    assert "lastUpdated" in js
+
+
 def test_narratives_list(client) -> None:
     """Test narratives list endpoint returns items list.
 
