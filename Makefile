@@ -12,15 +12,13 @@ POETRY := bin/poetry/bin/poetry
 # FILE COLLECTIONS
 # =============================================================================
 FILES := $(shell git ls-files)
-PYTHON_FILES := $(shell git ls-files "*.py" ':!:whitelist.py')
-PYTHON_PACKAGE_FILES := $(shell git ls-files "backend/*.py")
-PYTHON_TEST_FILES := $(shell git ls-files "tests/*.py")
-DOCS_FILES := $(shell git ls-files "docs/*.rst" "docs/*.md")
-
-JS_FILES := $(shell git ls-files | grep -E '\.js$$|\.jsx$$|\.ts$$|\.tsx$$')
-JS_PACKAGE_FILES := $(shell echo $(JS_FILES) | grep -E 'src')
-TEST_JS_FILES := $(shell echo $(JS_FILES) | grep -E '__tests__')
-TEST_CONFIG := $(shell echo $(JS_FILES) | grep -E 'jest')
+PY_FILES := $(shell git ls-files "*.py" ':!:whitelist.py')
+PY_PROD_FILES := $(shell git ls-files "backend/*.py")
+PY_TEST_FILES := $(shell git ls-files "tests/*.py")
+JS_ALL_FILES := $(shell git ls-files | grep -E '\.js$$|\.jsx$$|\.ts$$|\.tsx$$')
+JS_PROD_FILES := $(shell echo $(JS_FILES) | grep -E 'src')
+JS_TEST_FILES := $(shell echo $(JS_FILES) | grep -E '__tests__')
+JS_CONF_FILES := $(shell echo $(JS_FILES) | grep -E 'jest')
 
 # =============================================================================
 # DEPENDENCY FILES
@@ -36,6 +34,8 @@ PY_WHITELIST := whitelist.py
 PY_MODULES := .venv/bin/activate
 JS_MODULES := node_modules/.package-lock.json
 REPO_ARCHIVE := archive.zip
+PY_COV := coverage.xml
+PY_TYPES := .mypy_cache/CACHEDIR.TAG
 
 # =============================================================================
 # TASK MARKERS
@@ -44,18 +44,14 @@ PY_LINT := .make/lint/py
 JS_LINT := .make/lint/js
 PY_FORMAT := .make/format/py
 PY_UNUSED := .make/unused
-PY_COV := coverage.xml
 JS_COV := .make/coverage/js
 PRE_COMMIT := .make/pre-commit
-PY_TYPES := .mypy_cache/CACHEDIR.TAG
-MYPY := .mypy_cache/CACHEDIR.TAG
-POETRY_LOCK := poetry.lock
 
 # =============================================================================
 # COMMON COMMANDS
 # =============================================================================
-POETRY_RUN := $(POETRY) run
-NPM_RUN := npm run
+PY_RUN := $(POETRY) run
+JS_RUN := npm run
 
 # =============================================================================
 # PHONY TARGETS
@@ -86,11 +82,11 @@ help:
 # =============================================================================
 #: start frontend development server
 frontend: $(JS_MODULES)
-	@$(NPM_RUN) dev
+	@$(JS_RUN) dev
 
 #: start API development server
 api: $(PY_MODULES)
-	@$(POETRY_RUN) uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+	@$(PY_RUN) uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 
 #: update all dependencies
 deps-update:
@@ -133,7 +129,7 @@ $(PY_MODULES): $(POETRY) $(PY_LOCK)
 	@touch $@
 
 $(JS_MODULES): $(JS_LOCK)
-	@$(NPM_RUN) install
+	@$(JS_RUN) install
 	@touch $@
 
 $(POETRY):
@@ -144,7 +140,7 @@ $(POETRY):
 # HOOK TARGETS
 # =============================================================================
 $(PRE_COMMIT): $(PY_MODULES)
-	@$(POETRY_RUN) pre-commit install \
+	@$(PY_RUN) pre-commit install \
 		--hook-type pre-commit \
 		--hook-type pre-merge-commit \
 		--hook-type pre-push \
@@ -160,65 +156,65 @@ $(PRE_COMMIT): $(PY_MODULES)
 # =============================================================================
 # FORMATTING TARGETS
 # =============================================================================
-$(PY_FORMAT): $(PY_MODULES) $(PYTHON_FILES)
-	@$(POETRY_RUN) black $(PYTHON_FILES)
-	@$(POETRY_RUN) flynt $(PYTHON_FILES)
-	@$(POETRY_RUN) isort $(PYTHON_FILES)
+$(PY_FORMAT): $(PY_MODULES) $(PY_FILES)
+	@$(PY_RUN) black $(PY_FILES)
+	@$(PY_RUN) flynt $(PY_FILES)
+	@$(PY_RUN) isort $(PY_FILES)
 	@mkdir -p $(@D)
 	@touch $@
 
 # =============================================================================
 # LINTING TARGETS
 # =============================================================================
-$(PY_LINT): $(PY_MODULES) $(PYTHON_FILES)
-	@$(POETRY_RUN) pylint --output-format=colorized $(PYTHON_FILES)
-	@$(POETRY_RUN) docsig $(PYTHON_FILES)
+$(PY_LINT): $(PY_MODULES) $(PY_FILES)
+	@$(PY_RUN) pylint --output-format=colorized $(PY_FILES)
+	@$(PY_RUN) docsig $(PY_FILES)
 	@mkdir -p $(@D)
 	@touch $@
 
 $(JS_LINT): $(JS_MODULES) $(JS_FILES)
-	@npx next lint
+	@$(JS_RUN) next lint
 	@mkdir -p $(@D)
 	@touch $@
 
 # =============================================================================
 # TYPE CHECKING TARGETS
 # =============================================================================
-$(MYPY): $(PY_MODULES) $(PYTHON_FILES)
-	@$(POETRY_RUN) mypy $(PYTHON_FILES)
+$(PY_TYPES): $(PY_MODULES) $(PY_FILES)
+	@$(PY_RUN) mypy $(PY_FILES)
 	@touch $@
 
 # =============================================================================
 # UNUSED CODE TARGETS
 # =============================================================================
 $(PY_UNUSED): $(PY_WHITELIST)
-	@$(POETRY_RUN) vulture whitelist.py backend tests
+	@$(PY_RUN) vulture whitelist.py backend tests
 	@mkdir -p $(@D)
 	@touch $@
 
-$(JS_UNUSED): $(JS_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES)
-	@$(NPM_RUN) unused
+$(JS_UNUSED): $(JS_MODULES) $(JS_PROD_FILES) $(JS_TEST_FILES)
+	@$(JS_RUN) unused
 	@mkdir -p $(@D)
 	@touch $@
 
-$(PY_WHITELIST): $(PY_MODULES) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
-	@$(POETRY_RUN) vulture --make-whitelist backend tests > $@ || exit 0
+$(PY_WHITELIST): $(PY_MODULES) $(PY_PROD_FILES) $(PY_TEST_FILES)
+	@$(PY_RUN) vulture --make-whitelist backend tests > $@ || exit 0
 
 # =============================================================================
 # COVERAGE TARGETS
 # =============================================================================
-$(PY_COV): $(PY_MODULES) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
-	@$(POETRY_RUN) pytest tests --cov=backend && $(POETRY_RUN) coverage xml
+$(PY_COV): $(PY_MODULES) $(PY_PROD_FILES) $(PY_TEST_FILES)
+	@$(PY_RUN) pytest tests --cov=backend && $(POETRY_RUN) coverage xml
 
-$(JS_COV): $(JS_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES) $(TEST_CONFIG)
-	@npx jest
+$(JS_COV): $(JS_MODULES) $(JS_PROD_FILES) $(JS_TEST_FILES) $(JS_CONF_FILES)
+	@$(NPM_RUN) jest
 	@mkdir -p $(@D)
 	@touch $@
 
 # =============================================================================
 # LOCK FILE TARGETS
 # =============================================================================
-$(POETRY_LOCK): $(PY_CONFIG)
+$(PY_LOCK): $(PY_CONFIG)
 	@$(POETRY) lock
 	@touch $@
 
