@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import HomeToggle from "./HomeToggle";
 import HeatmapGrid from "./HeatmapGrid";
 import NarrativesList from "./NarrativesList";
+import RefreshButton from "./RefreshButton";
 
 interface HomeClientProps {
   initialView: "heatmap" | "narratives";
@@ -43,22 +44,31 @@ export default function HomeClient({
           <div
             style={{
               display: "flex",
-              backgroundColor: "rgba(255, 255, 255, 0.02)",
-              borderRadius: "8px",
-              padding: "4px",
-              width: "fit-content",
+              alignItems: "center",
+              gap: "16px",
             }}
           >
             <div
               style={{
-                padding: "8px 16px",
-                fontSize: "14px",
-                fontWeight: "500",
-                color: "var(--fg-muted)",
+                display: "flex",
+                backgroundColor: "rgba(255, 255, 255, 0.02)",
+                borderRadius: "8px",
+                padding: "4px",
+                width: "fit-content",
               }}
             >
-              Loading...
+              <div
+                style={{
+                  padding: "8px 16px",
+                  fontSize: "14px",
+                  fontWeight: "500",
+                  color: "var(--fg-muted)",
+                }}
+              >
+                Loading...
+              </div>
             </div>
+            <RefreshButton />
           </div>
         </div>
         <div
@@ -86,7 +96,16 @@ export default function HomeClient({
         }}
       >
         <h1 style={{ fontSize: 24, margin: 0 }}>PrimeCipher Dashboard</h1>
-        <HomeToggle view={view} onChange={handleViewChange} />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
+          }}
+        >
+          <HomeToggle view={view} onChange={handleViewChange} />
+          <RefreshButton />
+        </div>
       </div>
 
       {view === "heatmap" ? (
