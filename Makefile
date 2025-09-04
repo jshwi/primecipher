@@ -58,6 +58,30 @@ JS_RUN := npm run
 # =============================================================================
 .PHONY: all lint frontend api deps-update clean cov build hooks unused test help
 
+#: start frontend development server
+frontend: $(JS_MODULES)
+	@$(JS_RUN) dev
+
+#: start API development server
+api: $(PY_MODULES)
+	@$(PY_RUN) uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+
+#: update all dependencies
+deps-update:
+	@$(POETRY) update
+#: run all linting checks
+lint: $(PY_LINT) $(JS_LINT)
+
+#: run all tests with coverage
+cov: $(PY_COV) $(JS_COV)
+
+#: run all quality checks
+build: $(PY_FORMAT) $(PY_LINT) $(PY_UNUSED) $(PY_TYPES) $(PY_COV)
+	@touch $@
+
+#: check for unused code
+unused: $(PY_UNUSED) $(JS_UNUSED)
+
 # =============================================================================
 # MAIN TARGETS
 # =============================================================================
@@ -78,35 +102,8 @@ help:
 	@echo "  unused       - Check for unused code"
 
 # =============================================================================
-# DEVELOPMENT TARGETS
-# =============================================================================
-#: start frontend development server
-frontend: $(JS_MODULES)
-	@$(JS_RUN) dev
-
-#: start API development server
-api: $(PY_MODULES)
-	@$(PY_RUN) uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-
-#: update all dependencies
-deps-update:
-	@$(POETRY) update
-
-# =============================================================================
 # QUALITY ASSURANCE TARGETS
 # =============================================================================
-#: run all linting checks
-lint: $(PY_LINT) $(JS_LINT)
-
-#: run all tests with coverage
-cov: $(PY_COV) $(JS_COV)
-
-#: run all quality checks
-build: $(PY_FORMAT) $(PY_LINT) $(PY_UNUSED) $(PY_TYPES) $(PY_COV)
-	@touch $@
-
-#: check for unused code
-unused: $(PY_UNUSED) $(JS_UNUSED)
 
 # =============================================================================
 # UTILITY TARGETS
