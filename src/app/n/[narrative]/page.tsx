@@ -10,17 +10,18 @@ export default async function NarrativePage({
   const { narrative } = await params;
   const initial = await getParents(narrative, { limit: 25 });
   return (
-    <main>
+    <div style={{ padding: "20px" }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          marginBottom: "20px",
         }}
       >
-        <h1 style={{ fontSize: 22, margin: "8px 0 12px" }}>{narrative}</h1>
+        <h1 style={{ fontSize: 24, margin: 0 }}>{narrative}</h1>
       </div>
       <ParentsList narrative={narrative} initial={initial} />
-    </main>
+    </div>
   );
 }

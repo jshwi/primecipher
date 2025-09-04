@@ -24,15 +24,16 @@ export default async function Page() {
     : [];
 
   return (
-    <main>
+    <div style={{ padding: "20px" }}>
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          marginBottom: "20px",
         }}
       >
-        <h1 style={{ fontSize: 24, margin: "8px 0 16px" }}>Narratives (24h)</h1>
+        <h1 style={{ fontSize: 24, margin: 0 }}>Narratives (24h)</h1>
         <RefreshButton />
       </div>
 
@@ -44,12 +45,12 @@ export default async function Page() {
       {error && (
         <div
           style={{
-            background: "#fee",
-            color: "#900",
-            padding: "12px",
-            borderRadius: 8,
-            marginBottom: "16px",
-            border: "1px solid #f5c6cb",
+            backgroundColor: "var(--error-bg)",
+            color: "var(--error-fg)",
+            padding: "16px",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            border: "1px solid var(--error-fg)",
           }}
         >
           Backend unavailable: {error}
@@ -59,33 +60,84 @@ export default async function Page() {
       {rows.length === 0 ? (
         <div
           style={{
-            padding: 12,
-            border: "1px dashed #444",
-            borderRadius: 8,
-            color: "#888",
+            padding: "40px",
+            textAlign: "center",
+            color: "var(--fg-muted)",
+            fontSize: "16px",
+            border: "1px dashed var(--border)",
+            borderRadius: "8px",
+            backgroundColor: "rgba(255, 255, 255, 0.02)",
           }}
         >
           No narratives yet. Add one in{" "}
-          <code>backend/seeds/narratives.seed.json</code> then hit Refresh.
+          <code
+            style={{
+              backgroundColor: "rgba(255, 255, 255, 0.1)",
+              padding: "2px 6px",
+              borderRadius: "4px",
+              fontSize: "14px",
+            }}
+          >
+            backend/seeds/narratives.seed.json
+          </code>{" "}
+          then hit Refresh.
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 8 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gap: "16px",
+            marginTop: "20px",
+          }}
+        >
           {rows.map((n: string) => (
             <Link
               key={n}
               href={`/n/${encodeURIComponent(n)}`}
               style={{
-                padding: 12,
-                border: "1px solid #222",
-                borderRadius: 8,
+                backgroundColor: "rgba(255, 255, 255, 0.02)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                padding: "16px",
                 textDecoration: "none",
+                color: "var(--fg)",
+                transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                display: "block",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = "translateY(-2px)";
+                e.currentTarget.style.boxShadow =
+                  "0 4px 12px rgba(0, 0, 0, 0.3)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow = "none";
               }}
             >
-              {n}
+              <h3
+                style={{
+                  margin: "0 0 8px 0",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                  color: "var(--fg)",
+                  lineHeight: "1.4",
+                }}
+              >
+                {n}
+              </h3>
+              <div
+                style={{
+                  fontSize: "14px",
+                  color: "var(--fg-muted)",
+                }}
+              >
+                View narrative details →
+              </div>
             </Link>
           ))}
         </div>
       )}
-    </main>
+    </div>
   );
 }

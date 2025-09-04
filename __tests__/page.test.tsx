@@ -31,8 +31,9 @@ describe("Main Page", () => {
 
     render(await Page());
 
-    expect(screen.getByRole("main")).toBeInTheDocument();
     expect(screen.getByText("Narratives (24h)")).toBeInTheDocument();
+    expect(screen.getByText("dogs")).toBeInTheDocument();
+    expect(screen.getByText("ai")).toBeInTheDocument();
   });
 
   it("displays narrative links", async () => {

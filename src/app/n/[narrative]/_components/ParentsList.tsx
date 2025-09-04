@@ -57,19 +57,45 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
         <div
           key={`${item.parent}-${index}`}
           style={{
+            backgroundColor: "rgba(255, 255, 255, 0.02)",
             border: "1px solid var(--border)",
-            borderRadius: 8,
-            padding: 12,
-            background: "rgba(255,255,255,0.02)",
+            borderRadius: "8px",
+            padding: "16px",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
+            cursor: "pointer",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = "translateY(-2px)";
+            e.currentTarget.style.boxShadow = "0 4px 12px rgba(0, 0, 0, 0.3)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "none";
           }}
         >
-          <div style={{ fontWeight: 600, color: "var(--fg)" }}>
+          <h3
+            style={{
+              margin: "0 0 8px 0",
+              fontSize: "16px",
+              fontWeight: "600",
+              color: "var(--fg)",
+              lineHeight: "1.4",
+            }}
+          >
             {item.parent}
-          </div>
-          <div style={{ fontSize: 13, color: "var(--fg-muted)" }}>
-            matches: {item.matches}
+          </h3>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "4px",
+              fontSize: "14px",
+              color: "var(--fg-muted)",
+            }}
+          >
+            <div>Matches: {item.matches}</div>
             {typeof item.score === "number" ? (
-              <span> • score: {item.score}</span>
+              <div>Score: {item.score.toFixed(4)}</div>
             ) : null}
           </div>
         </div>
@@ -81,13 +107,13 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
       <div
         key={`item-${index}`}
         style={{
+          backgroundColor: "rgba(255, 255, 255, 0.02)",
           border: "1px solid var(--border)",
-          borderRadius: 8,
-          padding: 12,
-          background: "rgba(255,255,255,0.02)",
+          borderRadius: "8px",
+          padding: "16px",
         }}
       >
-        <pre style={{ margin: 0, fontSize: 13, color: "var(--fg)" }}>
+        <pre style={{ margin: 0, fontSize: "13px", color: "var(--fg)" }}>
           {JSON.stringify(item, null, 2)}
         </pre>
       </div>
@@ -100,13 +126,13 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
         <div
           role="alert"
           style={{
-            background: "var(--error-bg)",
+            backgroundColor: "var(--error-bg)",
             color: "var(--error-fg)",
-            padding: 8,
-            borderRadius: 6,
-            marginBottom: 8,
-            border: "1px solid var(--border)",
-            fontSize: 13,
+            padding: "16px",
+            borderRadius: "8px",
+            marginBottom: "20px",
+            border: "1px solid var(--error-fg)",
+            fontSize: "14px",
           }}
         >
           {error}
@@ -116,17 +142,26 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
       {items.length === 0 ? (
         <div
           style={{
-            padding: 12,
-            border: "1px dashed var(--border)",
-            borderRadius: 8,
+            padding: "40px",
+            textAlign: "center",
             color: "var(--fg-muted)",
-            background: "transparent",
+            fontSize: "16px",
+            border: "1px dashed var(--border)",
+            borderRadius: "8px",
+            backgroundColor: "rgba(255, 255, 255, 0.02)",
           }}
         >
           No parents yet. Try Refresh on the homepage.
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
           {items.map((item, index) => renderItem(item, index))}
         </div>
       )}
@@ -136,13 +171,26 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
           onClick={loadMore}
           disabled={loading}
           style={{
-            padding: "8px 12px",
+            padding: "12px 24px",
             border: "1px solid var(--border)",
-            borderRadius: 6,
-            background: "transparent",
+            borderRadius: "8px",
+            backgroundColor: "rgba(255, 255, 255, 0.02)",
             color: "var(--fg)",
             opacity: loading ? 0.7 : 1,
             cursor: loading ? "not-allowed" : "pointer",
+            fontSize: "14px",
+            fontWeight: "500",
+            transition: "transform 0.2s ease, box-shadow 0.2s ease",
+          }}
+          onMouseEnter={(e) => {
+            if (!loading) {
+              e.currentTarget.style.transform = "translateY(-1px)";
+              e.currentTarget.style.boxShadow = "0 2px 8px rgba(0, 0, 0, 0.2)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "translateY(0)";
+            e.currentTarget.style.boxShadow = "none";
           }}
         >
           {loading ? "Loading…" : "Load more"}
