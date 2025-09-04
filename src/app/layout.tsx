@@ -1,4 +1,6 @@
 import "./globals.css";
+import Header from "@/components/Header";
+
 export const metadata = { title: "PrimeCipher" };
 export default function RootLayout({
   children,
@@ -15,6 +17,7 @@ export default function RootLayout({
           padding: "0 16px",
         }}
       >
+        <Header />
         {children}
       </body>
     </html>
