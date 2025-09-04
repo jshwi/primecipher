@@ -28,12 +28,54 @@ PY_FORMAT := .make/format/py
 PY_CONFIG := pyproject.toml
 MYPY := .mypy_cache/CACHEDIR.TAG
 
+.PHONY: all lint frontend api deps-update clean cov build hooks unused
+
+all: $(PRE_COMMIT) $(JS_MODULES)
+
+lint: $(PY_LINT) $(JS_LINT)
+
+#: start frontend
+frontend: $(JS_MODULES)
+	@npm run dev
+
+#: start api
+api: $(PY_MODULES)
+	@$(POETRY) run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
+
+#: update dependencies
+deps-update:
+	@$(POETRY) update
+
+#: clean compiled files
+clean:
+	@find . -name '__pycache__' -exec rm -rf {} +
+	@rm -rf .coverage
+	@rm -rf .git/hooks/*
+	@rm -rf .make
+	@rm -rf .mypy_cache
+	@rm -rf .pytest_cache
+	@rm -rf .venv
+	@rm -rf bin
+	@rm -rf coverage.xml
+
+#: test source
+cov: $(PY_COV) $(JS_COV)
+
+#: run all checks
+build: $(PY_FORMAT) $(PY_LINT) $(PY_UNUSED) $(PY_TYPES) $(PY_COV)
+	@touch $@
+
+#: install pre-commit hooks
+hooks: $(PRE_COMMIT)
+
+#: check for unused code
+unused: $(PY_UNUSED) $(JS_UNUSED)
+
 $(PY_MODULES): $(POETRY) $(PY_LOCK)
 	@[ ! $$(basename "$$($< env info --path)") = ".venv" ] && rm -rf "$$($< env info --path)" || exit 0
 	@POETRY_VIRTUALENVS_IN_PROJECT=1 $< install
 	@touch $@
 
-#: install node modules
 $(JS_MODULES): $(JS_LOCK)
 	@npm install
 	@touch $@
@@ -93,7 +135,6 @@ $(JS_UNUSED): $(JS_MODULES) $(JS_PACKAGE_FILES) $(JS_TEST_FILES)
 $(PY_WHITELIST): $(PY_MODULES) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
 	@$(POETRY) run vulture --make-whitelist backend tests > $@ || exit 0
 
-#: generate coverage report
 $(PY_COV): $(PY_MODULES) $(PYTHON_PACKAGE_FILES) $(PYTHON_TEST_FILES)
 	@$(POETRY) run pytest tests --cov=backend && $(POETRY) run coverage xml
 
@@ -111,46 +152,3 @@ $(POETRY_LOCK): $(PY_CONFIG)
 $(REPO_ARCHIVE): $(FILES)
 	@git archive --format=zip --output $@ HEAD
 
-
-.PHONY: all lint frontend api deps-update clean cov build
-
-all: $(PRE_COMMIT) $(JS_MODULES)
-
-lint: $(PY_LINT) $(JS_LINT)
-
-#: start frontend
-frontend: $(JS_MODULES)
-	@npm run dev
-
-#: start api
-api: $(PY_MODULES)
-	@$(POETRY) run uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
-
-#: update dependencies
-deps-update:
-	@$(POETRY) update
-
-#: clean compiled files
-clean:
-	@find . -name '__pycache__' -exec rm -rf {} +
-	@rm -rf .coverage
-	@rm -rf .git/hooks/*
-	@rm -rf .make
-	@rm -rf .mypy_cache
-	@rm -rf .pytest_cache
-	@rm -rf .venv
-	@rm -rf bin
-	@rm -rf coverage.xml
-
-#: test source
-cov: $(PY_COV) $(JS_COV)
-
-#: run all checks
-build: $(PY_FORMAT) $(PY_LINT) $(PY_UNUSED) $(PY_TYPES) $(PY_COV)
-	@touch $@
-
-#: install pre-commit hooks
-hooks: $(PRE_COMMIT)
-
-#: check for unused code
-unused: $(PY_UNUSED) $(JS_UNUSED)
