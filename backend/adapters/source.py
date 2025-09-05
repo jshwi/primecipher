@@ -374,8 +374,8 @@ def _make_cg() -> t.Any:
 
                 if market_data:
                     # Use market data if available (preferred approach)
-                    # Return raw market rows as requested
-                    return self._map_market_to_raw_rows(market_data)
+                    # Return parent dicts with metadata as requested
+                    return self._map_market_to_parents(market_data)
                 if search_results:
                     # Fall back to search results if no market data
                     return self._map_search_to_parents(search_results)

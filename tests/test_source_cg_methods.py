@@ -391,13 +391,14 @@ class TestCGAdapterMethods:
 
         # Should use market data path (line 353)
         assert len(result) == 1
-        assert result[0]["name"] == "Bitcoin"
+        assert result[0]["parent"] == "Bitcoin"
+        assert result[0]["matches"] == 0
+        assert result[0]["vol24h"] == 1000000000
+        assert result[0]["marketCap"] == 800000000000
+        assert result[0]["price"] == 45000
         assert result[0]["symbol"] == "btc"
-        assert result[0]["current_price"] == 45000
-        assert result[0]["market_cap"] == 800000000000
-        assert result[0]["total_volume"] == 1000000000
-        assert result[0]["id"] == "bitcoin"
         assert result[0]["image"] == "https://example.com/btc.png"
+        assert result[0]["url"] == "https://www.coingecko.com/en/coins/bitcoin"
 
     @patch("httpx.Client")
     @patch("time.sleep")
