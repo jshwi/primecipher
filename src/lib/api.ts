@@ -11,6 +11,17 @@ export type ParentItem = {
   parent: string;
   matches: number;
   score?: number;
+  // Optional fields that may be present in real mode
+  symbol?: string;
+  source?: string;
+  chain?: string;
+  address?: string;
+  url?: string;
+  // Optional CoinGecko metadata fields
+  price?: number;
+  marketCap?: number;
+  vol24h?: number;
+  image?: string;
 };
 
 export type ParentsResp = {

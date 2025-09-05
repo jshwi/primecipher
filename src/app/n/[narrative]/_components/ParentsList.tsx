@@ -50,9 +50,59 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
     }
   };
 
+  const formatPrice = (price: number): string => {
+    if (price >= 1) {
+      return `$${price.toFixed(2)}`;
+    } else if (price >= 0.01) {
+      return `$${price.toFixed(4)}`;
+    } else {
+      return `$${price.toExponential(2)}`;
+    }
+  };
+
+  const formatMarketCap = (marketCap: number): string => {
+    if (marketCap >= 1e12) {
+      return `$${(marketCap / 1e12).toFixed(1)}T`;
+    } else if (marketCap >= 1e9) {
+      return `$${(marketCap / 1e9).toFixed(1)}B`;
+    } else if (marketCap >= 1e6) {
+      return `$${(marketCap / 1e6).toFixed(1)}M`;
+    } else if (marketCap >= 1e3) {
+      return `$${(marketCap / 1e3).toFixed(1)}K`;
+    } else {
+      return `$${marketCap.toFixed(0)}`;
+    }
+  };
+
   const renderItem = (item: ParentItem, index: number) => {
     // Check if item has the expected structure
     if (item.parent && typeof item.matches === "number") {
+      const nameElement = item.url ? (
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            color: "var(--fg)",
+            textDecoration: "none",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.textDecoration = "underline";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.textDecoration = "none";
+          }}
+        >
+          {item.parent}
+          <span style={{ fontSize: "12px", opacity: 0.7 }}>↗</span>
+        </a>
+      ) : (
+        item.parent
+      );
+
       return (
         <div
           key={`${item.parent}-${index}`}
@@ -65,17 +115,42 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
             cursor: "pointer",
           }}
         >
-          <h3
+          <div
             style={{
-              margin: "0 0 8px 0",
-              fontSize: "16px",
-              fontWeight: "600",
-              color: "var(--fg)",
-              lineHeight: "1.4",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: "8px",
             }}
           >
-            {item.parent}
-          </h3>
+            <h3
+              style={{
+                margin: "0",
+                fontSize: "16px",
+                fontWeight: "600",
+                color: "var(--fg)",
+                lineHeight: "1.4",
+              }}
+            >
+              {nameElement}
+            </h3>
+            {item.symbol && (
+              <span
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.1)",
+                  color: "var(--fg-muted)",
+                  padding: "2px 8px",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  fontWeight: "500",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                {item.symbol}
+              </span>
+            )}
+          </div>
           <div
             style={{
               display: "flex",
@@ -88,6 +163,29 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
             <div>Matches: {item.matches}</div>
             {typeof item.score === "number" ? (
               <div>Score: {item.score.toFixed(4)}</div>
+            ) : null}
+            {(item.price !== undefined && item.price !== null) ||
+            (item.marketCap !== undefined && item.marketCap !== null) ? (
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  marginTop: "4px",
+                  paddingTop: "4px",
+                  borderTop: "1px solid rgba(255, 255, 255, 0.1)",
+                }}
+              >
+                {item.price !== undefined && item.price !== null && (
+                  <div style={{ color: "var(--fg)", fontWeight: "500" }}>
+                    {formatPrice(item.price)}
+                  </div>
+                )}
+                {item.marketCap !== undefined && item.marketCap !== null && (
+                  <div style={{ color: "var(--fg)", fontWeight: "500" }}>
+                    {formatMarketCap(item.marketCap)}
+                  </div>
+                )}
+              </div>
             ) : null}
           </div>
         </div>
