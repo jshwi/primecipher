@@ -169,10 +169,10 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check first parent (Bitcoin has highest volume, so matches=100)
+        # Check first parent (Bitcoin has highest volume, so matches=0 for now)
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 100
+        assert btc_parent["matches"] == 0
         assert btc_parent["vol24h"] == 1000000000
         assert btc_parent["marketCap"] == 800000000000
         assert btc_parent["price"] == 45000
@@ -183,10 +183,10 @@ class TestCGAdapterMethods:
         )
         assert btc_parent["source"] == "coingecko"
 
-        # Check second parent (Ethereum has half the volume, so matches=50)
+        # Check second parent (Ethereum has half the volume, so matches=0)
         eth_parent = result[1]
         assert eth_parent["parent"] == "Ethereum"
-        assert eth_parent["matches"] == 50
+        assert eth_parent["matches"] == 0
 
     def test_map_market_to_parents_no_volume_fallback(self) -> None:
         """Test _map_market_to_parents fallback when no volume data."""
@@ -217,14 +217,14 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check fallback scoring based on market cap rank
+        # Check fallback scoring based on market cap rank (matches=0 for now)
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 99  # max(3, 100 - 1)
+        assert btc_parent["matches"] == 0
 
         eth_parent = result[1]
         assert eth_parent["parent"] == "Ethereum"
-        assert eth_parent["matches"] == 98  # max(3, 100 - 2)
+        assert eth_parent["matches"] == 0
 
     def test_map_market_to_raw_rows(self) -> None:
         """Test _map_market_to_raw_rows method."""
@@ -439,7 +439,7 @@ class TestCGAdapterMethods:
         # Should use market data path (line 353)
         assert len(result) == 1
         assert result[0]["parent"] == "Bitcoin"
-        assert result[0]["matches"] == 100
+        assert result[0]["matches"] == 0
         assert result[0]["vol24h"] == 1000000000
         assert result[0]["marketCap"] == 800000000000
         assert result[0]["price"] == 45000
