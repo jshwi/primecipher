@@ -1267,7 +1267,7 @@ def test_refresh_dev_mode_coverage(  # pylint: disable=too-many-locals
     )
 
     # Run the dev mode job
-    asyncio.run(_process_dev_mode_job(job_id, mode, window, narratives_total))
+    _process_dev_mode_job(job_id, mode, window, narratives_total)
 
     # Verify the job was completed successfully
     assert refresh_module.last_completed_job is not None
@@ -1467,7 +1467,7 @@ def test_refresh_dev_mode_exception_handling_coverage(
     )
 
     # Run the dev mode job - it should handle the exception gracefully
-    asyncio.run(_process_dev_mode_job(job_id, mode, window, narratives_total))
+    _process_dev_mode_job(job_id, mode, window, narratives_total)
 
     # Verify the job was completed with errors (lines 142-154)
     assert refresh_module.last_completed_job is not None
@@ -1544,7 +1544,7 @@ def test_refresh_dev_mode_budget_control_coverage(
     monkeypatch.setattr(refresh_module, "REFRESH_PER_NARRATIVE_CAP", 1)
 
     # Run the dev mode job - it should stop early due to budget
-    asyncio.run(_process_dev_mode_job(job_id, mode, window, narratives_total))
+    _process_dev_mode_job(job_id, mode, window, narratives_total)
 
     # Verify the job was completed with budget error
     assert refresh_module.last_completed_job is not None
@@ -1614,7 +1614,7 @@ def test_refresh_dev_mode_per_narrative_cap_coverage(
     monkeypatch.setattr(refresh_module, "REFRESH_PER_NARRATIVE_CAP", 0)
 
     # Run the dev mode job - all narratives should be skipped
-    asyncio.run(_process_dev_mode_job(job_id, mode, window, narratives_total))
+    _process_dev_mode_job(job_id, mode, window, narratives_total)
 
     # Verify the job was completed with per-narrative cap errors
     assert refresh_module.last_completed_job is not None
@@ -1683,9 +1683,7 @@ def test_refresh_dev_mode_job_exception_coverage(
     import contextlib
 
     with contextlib.suppress(RuntimeError):
-        asyncio.run(
-            _process_dev_mode_job(job_id, mode, window, narratives_total),
-        )
+        _process_dev_mode_job(job_id, mode, window, narratives_total)
 
     # Verify the job was marked as error (lines 175-193)
     assert refresh_module.last_completed_job is not None

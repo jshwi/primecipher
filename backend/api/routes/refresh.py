@@ -111,7 +111,7 @@ def _process_narrative_real_mode(
 def _check_budget_limits(
     calls_used: int,
     narrative: str,
-) -> tuple[bool, dict | None]:
+) -> tuple[bool, dict[str, str] | None]:
     """Check if budget limits are exceeded.
 
     :param calls_used: Current number of calls used.
@@ -247,7 +247,123 @@ def _write_narrative_to_storage(narrative: str, items: list[dict]) -> None:
         )
 
 
-async def _process_dev_mode_job(
+def _process_narrative_real_cg(
+    narrative: str,
+    terms: list[str],
+    _memo: dict[str, list[dict]],
+    job_id: str,
+    calls_used: int,
+) -> tuple[bool, int, list[dict]]:
+    """Process a narrative in real_cg mode with memo and budget checking.
+
+    :param narrative: The narrative name.
+    :param terms: List of search terms.
+    :param _memo: Per-run memo dict for caching results.
+    :param job_id: The job ID.
+    :param calls_used: Current calls used count.
+    :return: Tuple of (should_continue, new_calls_used, items).
+    """
+    if narrative in _memo:
+        # Use cached results from memo
+        items = _memo[narrative]
+        return True, calls_used, items
+
+    # Check budget before making API call
+    if calls_used + 1 > REFRESH_MAX_CALLS:
+        return False, calls_used, []
+
+    # Fetch data using CoinGeckoAdapter
+    from ...adapters import get_adapter
+
+    adapter = get_adapter("real_cg")
+    items = adapter.fetch_parents(narrative, terms)
+    _memo[narrative] = items
+    calls_used += 1
+
+    # Update progress in global job state
+    if current_running_job and current_running_job.get("id") == job_id:
+        current_running_job["calls_used"] = calls_used
+
+    return True, calls_used, items
+
+
+def _create_completed_job(  # pylint: disable=too-many-positional-arguments
+    job_id: str,
+    mode: str,
+    window: str,
+    narratives_total: int,
+    narratives_done: int,
+    calls_used: int,
+    errors: list[dict],
+) -> dict[str, t.Any]:
+    """Create a completed job dictionary.
+
+    :param job_id: The job ID.
+    :param mode: The job mode.
+    :param window: The job window.
+    :param narratives_total: Total number of narratives.
+    :param narratives_done: Number of narratives completed.
+    :param calls_used: Number of calls used.
+    :param errors: List of errors.
+    :return: Completed job dictionary.
+    """
+    return {
+        "id": job_id,
+        "state": "done",
+        "ts": time.time(),
+        "error": None,
+        "jobId": job_id,
+        "mode": mode,
+        "window": window,
+        "narrativesTotal": narratives_total,
+        "narrativesDone": narratives_done,
+        "errors": errors,
+        "calls_used": calls_used,
+    }
+
+
+def _finalize_job(  # pylint: disable=too-many-positional-arguments
+    job_id: str,
+    mode: str,
+    window: str,
+    narratives_total: int,
+    narratives_done: int,
+    calls_used: int,
+    errors: list[dict],
+) -> None:
+    """Finalize a job by marking it as completed.
+
+    :param job_id: The job ID.
+    :param mode: The job mode.
+    :param window: The job window.
+    :param narratives_total: Total number of narratives.
+    :param narratives_done: Number of narratives completed.
+    :param calls_used: Number of calls used.
+    :param errors: List of errors.
+    """
+    # pylint: disable=global-statement
+    global current_running_job, last_completed_job, debounce_until
+    global last_success_at
+
+    mark_refreshed()
+    completed_job = _create_completed_job(
+        job_id=job_id,
+        mode=mode,
+        window=window,
+        narratives_total=narratives_total,
+        narratives_done=narratives_done,
+        calls_used=calls_used,
+        errors=errors,
+    )
+    last_completed_job = completed_job
+    # Update last success timestamp
+    last_success_at = completed_job["ts"]
+    # Set debounce_until BEFORE clearing current_running_job
+    debounce_until = time.time() + DEBOUNCE_SEC
+    current_running_job = None
+
+
+def _process_dev_mode_job(
     job_id: str,
     mode: str,
     window: str,
@@ -262,7 +378,6 @@ async def _process_dev_mode_job(
     """
     # pylint: disable=global-statement,too-many-locals
     global current_running_job, last_completed_job, debounce_until
-    global last_success_at
 
     try:
         # Per-run memo: dict to cache computed parents by narrative
@@ -287,37 +402,67 @@ async def _process_dev_mode_job(
         calls_used = 0
 
         for narrative, terms in narratives_with_terms:
-            # Check budget limits
-            should_continue, budget_error = _check_budget_limits(
+            # Special handling for real_cg mode with per-run memo and budget
+            if mode == "real_cg":
+                should_continue, calls_used, items = (
+                    _process_narrative_real_cg(
+                        narrative,
+                        terms,
+                        _memo,
+                        job_id,
+                        calls_used,
+                    )
+                )
+
+                if not should_continue:
+                    # Budget exceeded - add error and finalize
+                    budget_error = {
+                        "narrative": "*",
+                        "code": "BUDGET_EXCEEDED",
+                        "detail": "max calls exceeded",
+                    }
+                    errors.append(budget_error)
+                    _finalize_job(
+                        job_id=job_id,
+                        mode=mode,
+                        window=window,
+                        narratives_total=narratives_total,
+                        narratives_done=narratives_done,
+                        calls_used=calls_used,
+                        errors=errors,
+                    )
+                    return  # Exit the function early
+
+                # Write to storage using current storage writer
+                _write_narrative_to_storage(narrative, items)
+                narratives_done += 1
+                _update_job_progress(
+                    job_id,
+                    narratives_done,
+                    calls_used,
+                    errors,
+                )
+                continue
+
+            # Check budget limits for other modes
+            should_continue_other, budget_error_other = _check_budget_limits(
                 calls_used,
                 narrative,
             )
 
-            if budget_error:
-                errors.append(budget_error)
-                if not should_continue:
-                    # Budget exceeded - set state to done and break
-                    mark_refreshed()
-                    completed_ts = time.time()
-                    completed_job = {
-                        "id": job_id,
-                        "state": "done",
-                        "ts": completed_ts,
-                        "error": None,
-                        "jobId": job_id,
-                        "mode": mode,
-                        "window": window,
-                        "narrativesTotal": narratives_total,
-                        "narrativesDone": narratives_done,
-                        "errors": errors,
-                        "calls_used": calls_used,
-                    }
-                    last_completed_job = completed_job
-                    # Update last success timestamp
-                    last_success_at = completed_ts
-                    # Set debounce_until BEFORE clearing current_running_job
-                    debounce_until = time.time() + DEBOUNCE_SEC
-                    current_running_job = None
+            if budget_error_other:
+                errors.append(budget_error_other)
+                if not should_continue_other:
+                    # Budget exceeded - finalize and break
+                    _finalize_job(
+                        job_id=job_id,
+                        mode=mode,
+                        window=window,
+                        narratives_total=narratives_total,
+                        narratives_done=narratives_done,
+                        calls_used=calls_used,
+                        errors=errors,
+                    )
                     return  # Exit the function early
                 # Skip this narrative and continue with next
                 narratives_done += 1
@@ -329,7 +474,7 @@ async def _process_dev_mode_job(
                 )
                 continue
 
-            # Process the narrative
+            # Process the narrative for other modes
             _, calls_used, error_entry = _process_single_narrative(
                 narrative,
                 job_id,
@@ -347,27 +492,15 @@ async def _process_dev_mode_job(
             _update_job_progress(job_id, narratives_done, calls_used, errors)
 
         # Mark as completed
-        mark_refreshed()
-        completed_ts = time.time()
-        completed_job = {
-            "id": job_id,
-            "state": "done",
-            "ts": completed_ts,
-            "error": None,
-            "jobId": job_id,
-            "mode": mode,
-            "window": window,
-            "narrativesTotal": narratives_total,
-            "narrativesDone": narratives_done,
-            "errors": errors,
-            "calls_used": calls_used,
-        }
-        last_completed_job = completed_job
-        # Update last success timestamp
-        last_success_at = completed_ts
-        # Set debounce_until BEFORE clearing current_running_job
-        debounce_until = time.time() + DEBOUNCE_SEC
-        current_running_job = None
+        _finalize_job(
+            job_id=job_id,
+            mode=mode,
+            window=window,
+            narratives_total=narratives_total,
+            narratives_done=narratives_done,
+            calls_used=calls_used,
+            errors=errors,
+        )
 
     except (ValueError, RuntimeError, OSError) as e:
         # Mark as error
@@ -445,7 +578,7 @@ async def start_or_get_job(
     async def _do() -> None:
         if mode in ["dev", "real", "real_cg"]:
             # Use new processing for dev and real modes
-            await _process_dev_mode_job(job_id, mode, window, narratives_total)
+            _process_dev_mode_job(job_id, mode, window, narratives_total)
         else:
             # Use existing refresh_all() for other modes (like prod)
             # pylint: disable=global-statement
