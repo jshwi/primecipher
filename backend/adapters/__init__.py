@@ -39,6 +39,12 @@ def get_adapter(mode: str) -> AdapterProtocol:  # pragma: no cover
     :param mode: The mode to get adapter for.
     :return: Adapter instance.
     """
+    if mode == "real_cg":
+        # Import here to avoid circular imports
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from .coingecko import CoinGeckoAdapter
+
+        return CoinGeckoAdapter()
     if mode == "real":
         # Import here to avoid circular imports
         # pylint: disable=import-outside-toplevel,cyclic-import

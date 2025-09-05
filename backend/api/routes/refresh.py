@@ -88,17 +88,19 @@ def _process_narrative_dev_mode(narrative: str) -> list[dict]:
 def _process_narrative_real_mode(
     narrative: str,
     terms: list[str],
+    mode: str = "real",
 ) -> list[dict]:
     """Process a single narrative in real mode using adapter.
 
     :param narrative: The narrative name to process.
     :param terms: List of search terms for the narrative.
+    :param mode: The mode to determine which adapter to use.
     :return: List of parent items for the narrative.
     """
     from ...adapters import get_adapter
 
-    # Get the appropriate adapter for real mode
-    adapter = get_adapter("real")
+    # Get the appropriate adapter based on mode
+    adapter = get_adapter(mode)
 
     # Fetch parents using the adapter
     items = adapter.fetch_parents(narrative, terms)
@@ -168,8 +170,8 @@ def _process_single_narrative(
                 current_running_job["calls_used"] = calls_used
 
             # Process the narrative based on mode
-            if mode == "real" and terms is not None:
-                items = _process_narrative_real_mode(narrative, terms)
+            if mode in ["real", "real_cg"] and terms is not None:
+                items = _process_narrative_real_mode(narrative, terms, mode)
             else:
                 items = _process_narrative_dev_mode(narrative)
 
@@ -267,7 +269,7 @@ async def _process_dev_mode_job(
         _memo: dict[str, list[dict]] = {}
 
         # Get narratives with their terms for real mode
-        if mode == "real":
+        if mode in ["real", "real_cg"]:
             from ...seeds import load_seeds
 
             seeds_data = load_seeds()
@@ -333,7 +335,7 @@ async def _process_dev_mode_job(
                 job_id,
                 calls_used,
                 mode=mode,
-                terms=terms if mode == "real" else None,
+                terms=terms if mode in ["real", "real_cg"] else None,
                 _memo=_memo,
             )
 
@@ -441,7 +443,7 @@ async def start_or_get_job(
 
     # Start the actual refresh job
     async def _do() -> None:
-        if mode in ["dev", "real"]:
+        if mode in ["dev", "real", "real_cg"]:
             # Use new processing for dev and real modes
             await _process_dev_mode_job(job_id, mode, window, narratives_total)
         else:

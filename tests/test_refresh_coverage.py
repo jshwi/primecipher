@@ -22,7 +22,7 @@ def test_process_narrative_real_mode_coverage() -> None:
             ["term1", "term2"],
         )
 
-        assert result == []
+        assert not result
         mock_get_adapter.assert_called_once_with("real")
         mock_adapter.fetch_parents.assert_called_once_with(
             "test_narrative",
@@ -55,7 +55,11 @@ def test_process_single_narrative_real_mode_coverage() -> None:
             ["term1"],
         )
 
-        mock_process_real.assert_called_once_with("test_narrative", ["term1"])
+        mock_process_real.assert_called_once_with(
+            "test_narrative",
+            ["term1"],
+            "real",
+        )
         mock_write.assert_called_once_with("test_narrative", [])
 
 
@@ -126,6 +130,20 @@ def test_process_single_narrative_memo_cache_coverage() -> None:
         )
 
         # Should only call process_real once (first call)
-        mock_process_real.assert_called_once_with("test_narrative", ["term1"])
+        mock_process_real.assert_called_once_with(
+            "test_narrative",
+            ["term1"],
+            "real",
+        )
         # Should call write twice (both calls)
         assert mock_write.call_count == 2
+
+
+def test_coingecko_adapter_fetch_parents_coverage() -> None:
+    """Test CoinGeckoAdapter fetch_parents to improve coverage."""
+    from backend.adapters.coingecko import CoinGeckoAdapter
+
+    adapter = CoinGeckoAdapter()
+    result = adapter.fetch_parents("test_narrative", ["term1", "term2"])
+
+    assert not result
