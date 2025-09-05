@@ -2,6 +2,7 @@
 
 # pylint: disable=too-many-positional-arguments
 
+import logging
 import os
 import time
 import typing as t
@@ -234,6 +235,10 @@ def _make_cg() -> t.Any:
                         # Always add to search results for fallback
                         search_results.append(coin)
 
+                    # Log search results for this term
+                    ids_count = len([c for c in coins[:10] if c.get("id")])
+                    logging.info("[CG] term=%s ids=%d", term, ids_count)
+
                 except Exception:  # pylint: disable=broad-exception-caught
                     # Continue with other terms if one fails
                     continue
@@ -265,7 +270,10 @@ def _make_cg() -> t.Any:
                     response.raise_for_status()
                     data = response.json() or []
 
-                return data if isinstance(data, list) else []
+                rows = data if isinstance(data, list) else []
+                # Log market data results
+                logging.info("[CG] markets rows=%d", len(rows))
+                return rows
 
             except Exception:  # pylint: disable=broad-exception-caught
                 return []
@@ -439,7 +447,7 @@ def _make_cg() -> t.Any:
                 )
 
             raw = _memo_raw("coingecko", terms, _fetch)
-            return _apply_seed_semantics(
+            parents = _apply_seed_semantics(
                 narrative,
                 terms,
                 allow_name_match,
@@ -448,6 +456,9 @@ def _make_cg() -> t.Any:
                 require_all_terms,
                 cap=None,  # no cap for cg
             )
+            # Log final mapped parents count
+            logging.info("[CG] parents mapped=%d", len(parents))
+            return parents
 
     return _CGAdapter()
 
