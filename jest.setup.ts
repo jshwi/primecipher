@@ -1,5 +1,8 @@
 import "@testing-library/jest-dom";
 
+// Set up test environment variables
+process.env.NEXT_PUBLIC_REFRESH_TOKEN = "s3cr3t";
+
 // Polyfill fetch for Jest environment
 global.fetch = jest.fn(() =>
   Promise.resolve({

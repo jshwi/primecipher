@@ -58,7 +58,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     expect(mockStartRefreshJob).toHaveBeenCalledTimes(1);
   });
@@ -69,10 +71,14 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the async operation to complete
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
 
     expect(
       screen.getByText(/Refresh started \(job: test-job-123\)/),
@@ -98,16 +104,18 @@ describe("RefreshButton", () => {
     expect(errorContainer).toBeInTheDocument();
   });
 
-  it("handles multiple clicks gracefully", () => {
+  it("handles multiple clicks gracefully", async () => {
     mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
 
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
     // Multiple clicks should not crash
-    fireEvent.click(button);
-    fireEvent.click(button);
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+      fireEvent.click(button);
+      fireEvent.click(button);
+    });
 
     expect(mockStartRefreshJob).toHaveBeenCalledTimes(3);
   });
@@ -125,7 +133,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the job to start and status to be checked
     await waitFor(() => {
@@ -154,13 +164,17 @@ describe("RefreshButton", () => {
     const { unmount } = render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Unmount immediately to test cleanup
     unmount();
 
     // Should not cause errors after unmount
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
   });
 
   it("calls router.refresh when job completes successfully", async () => {
@@ -174,7 +188,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the job to complete and router.refresh to be called
     await waitFor(
@@ -196,7 +212,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the job to complete
     await waitFor(() => {
@@ -204,7 +222,9 @@ describe("RefreshButton", () => {
     });
 
     // Wait for the timeout to complete and router.refresh to be called
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    });
 
     expect(mockRouter.refresh).toHaveBeenCalled();
   });
@@ -222,7 +242,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the job to complete
     await waitFor(() => {
@@ -230,7 +252,9 @@ describe("RefreshButton", () => {
     });
 
     // Fast-forward timers to trigger the setTimeout
-    jest.advanceTimersByTime(150);
+    await act(async () => {
+      jest.advanceTimersByTime(150);
+    });
 
     expect(mockRouter.refresh).toHaveBeenCalled();
 
@@ -239,6 +263,11 @@ describe("RefreshButton", () => {
 
   it("handles button opacity changes based on state", async () => {
     mockStartRefreshJob.mockResolvedValue({ jobId: "test-job-123" });
+    mockGetRefreshStatus.mockResolvedValue({
+      id: "test-job-123",
+      state: "queued",
+      ts: Date.now(),
+    });
 
     render(<RefreshButton />);
     const button = screen.getByRole("button");
@@ -247,7 +276,9 @@ describe("RefreshButton", () => {
     expect(button).toHaveStyle({ opacity: 1 });
 
     // Start a job to change state
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the state to change to queued
     await waitFor(() => {
@@ -272,7 +303,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -292,7 +325,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the default error message
     await waitFor(() => {
@@ -317,7 +352,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Should call getRefreshStatus multiple times for polling
     await waitFor(
@@ -335,7 +372,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -350,7 +389,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -369,7 +410,9 @@ describe("RefreshButton", () => {
     const { unmount } = render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for polling to start
     await waitFor(() => {
@@ -380,7 +423,9 @@ describe("RefreshButton", () => {
     unmount();
 
     // Should not cause errors after unmount
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
   });
 
   it("disables button during different states", async () => {
@@ -393,7 +438,9 @@ describe("RefreshButton", () => {
     expect(button).not.toBeDisabled();
 
     // Click to start job
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for queued state
     await waitFor(() => {
@@ -416,7 +463,9 @@ describe("RefreshButton", () => {
     expect(button).toHaveTextContent("Refresh");
 
     // Click to start
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Queued state
     await waitFor(() => {
@@ -438,7 +487,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for error to be displayed
     await waitFor(() => {
@@ -465,7 +516,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for default error message to be displayed
     await waitFor(() => {
@@ -485,7 +538,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for default error message to be displayed
     await waitFor(() => {
@@ -508,7 +563,9 @@ describe("RefreshButton", () => {
     const { unmount } = render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for first polling call
     await waitFor(() => {
@@ -516,13 +573,17 @@ describe("RefreshButton", () => {
     });
 
     // Wait a bit for the second call to be scheduled
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
 
     // Unmount to set stop flag before the second call fails
     unmount();
 
     // Wait for the second call to potentially fail
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
   });
 
   it("handles stop flag during error handling with immediate unmount", async () => {
@@ -534,7 +595,9 @@ describe("RefreshButton", () => {
     const { unmount } = render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the first call to be made
     await waitFor(() => {
@@ -545,7 +608,9 @@ describe("RefreshButton", () => {
     unmount();
 
     // Wait a bit to ensure the error handling has a chance to run
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
   });
 
   it("handles error with empty error message during polling", async () => {
@@ -559,7 +624,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for default error message to be displayed
     await waitFor(() => {
@@ -573,7 +640,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -591,7 +660,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -607,7 +678,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -621,7 +694,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -635,7 +710,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -649,7 +726,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -666,7 +745,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
@@ -689,7 +770,9 @@ describe("RefreshButton", () => {
     render(<RefreshButton />);
     const button = screen.getByRole("button");
 
-    fireEvent.click(button);
+    await act(async () => {
+      fireEvent.click(button);
+    });
 
     // Wait for the error to be displayed
     await waitFor(() => {
