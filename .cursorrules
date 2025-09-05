@@ -1,0 +1,49 @@
+# PrimeCipher Coding Guide for Cursor
+
+## Project scope
+- Monorepo with Python backend in `backend/` and Next.js app in `src/`.
+- **Single source of truth:** `.pre-commit-config.yaml`, `pyproject.toml`, `.editorconfig`, `.eslintrc.json`.
+- All changes must pass: Black+isort (79), Flake8, Pylint (via `make`), Mypy, Prettier, ESLint (Next).
+
+## General rules
+- **Minimal diffs**: only touch lines required for the task; do not reformat entire files.
+- **No headers/banners**: do **not** add file headers or comment blocks to existing files.
+- Preserve public APIs and file structure unless explicitly asked.
+- Respect `.editorconfig` (LF, trim whitespace, final newline, 2-space indent; Python uses 4).
+
+## Python (backend/)
+- **Line length = 79** (see `[tool.black] line-length = 79`).
+- **Imports**: keep isort’s Black profile (multi-line output=3, trailing commas, line_length=79).
+- **Naming**: functions/vars **snake_case**; classes **PascalCase**.
+- **Type hints**: add when creating/altering public functions; fix obvious MyPy issues (ignore-missing-imports is enabled, do not add broad ignores).
+- **Lint expectations**: Flake8 (with bugbear/simplify), Pylint (run via `make .make/lint/py`).
+- **Docstrings**: keep concise; summaries wrap ~72 chars (see `tool.docformatter`), but do not add boilerplate to every function.
+
+## TypeScript/React (src/)
+- Use Next.js conventions; ESLint config is `next/core-web-vitals` + `next/typescript`.
+- Let **Prettier** format all TS/TSX/JS; do not hand-wrap beyond its defaults.
+- Components and hooks: prefer **camelCase** for variables/functions; **PascalCase** for React components.
+- Avoid adding comments/noise; match existing Tailwind/structure.
+
+## YAML/TOML/JSON/MD
+- YAML must satisfy yamllint line-length ~79 (keep lines short).
+- TOML is auto-sorted (toml-sort); don’t rearrange keys by hand.
+- Prettier runs on MD/TS/TSX (JSON mostly excluded by hook); avoid fighting its style.
+
+## Git & commits (Conform)
+- Follow `.conform.yaml`:
+  - Header ≤ **72** chars, **imperative, lower-case**.
+  - Use one of the allowed types (e.g., `feat`, `fix`, `refactor`, `chore`, `test`, `docs`, `add`, `remove`, `wip`, `style`, `security`, `deprecate`, `hack`).
+  - Keep descriptions concise (≤72).
+- Keep commits scoped to one logical change; do not modify unrelated files.
+- Do not add or modify Dockerfiles unless explicitly requested.
+
+## Don’ts
+- Don’t exceed 79 in Python files.
+- Don’t reorder imports manually contrary to isort.
+- Don’t introduce TODO/FIXME spam.
+- Don’t reflow markdown/README sections unnecessarily.
+
+## When in doubt
+- The linter **wins**. Match `pyproject.toml`, `.editorconfig`, `.eslintrc.json`, and the hooks in `.pre-commit-config.yaml`.
+- If a style choice is unclear, mirror the surrounding file.
