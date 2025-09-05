@@ -28,6 +28,11 @@ class Parent(BaseModel):
     address: str | None = None
     url: str | None = None
     children: list[Child] = Field(default_factory=list)
+    # Optional CoinGecko metadata fields
+    price: float | None = None
+    marketCap: float | None = None
+    vol24h: float | None = None
+    image: str | None = None
 
 
 class NarrativesResp(BaseModel):
