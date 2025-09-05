@@ -169,10 +169,10 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check first parent (matches=0 as per requirements)
+        # Check first parent (highest volume gets matches=100)
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 0
+        assert btc_parent["matches"] == 100  # highest volume
         assert btc_parent["vol24h"] == 1000000000
         assert btc_parent["marketCap"] == 800000000000
         assert btc_parent["price"] == 45000
@@ -183,10 +183,10 @@ class TestCGAdapterMethods:
         )
         assert btc_parent["source"] == "coingecko"
 
-        # Check second parent (matches=0 as per requirements)
+        # Check second parent (scaled based on volume)
         eth_parent = result[1]
         assert eth_parent["parent"] == "Ethereum"
-        assert eth_parent["matches"] == 0
+        assert eth_parent["matches"] == 50  # 500M/1000M * 100 = 50
 
     def test_map_market_to_parents_no_volume_fallback(self) -> None:
         """Test _map_market_to_parents fallback when no volume data."""
@@ -217,14 +217,14 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check matches=0 as per requirements
+        # Check matches=10 as per fallback when no volume
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 0
+        assert btc_parent["matches"] == 10  # fallback when no volume
 
         eth_parent = result[1]
         assert eth_parent["parent"] == "Ethereum"
-        assert eth_parent["matches"] == 0
+        assert eth_parent["matches"] == 10  # fallback when no volume
 
     def test_map_market_to_parents_no_volume_no_rank_fallback(self) -> None:
         """Test _map_market_to_parents fallback when no volume and no rank."""
@@ -246,7 +246,44 @@ class TestCGAdapterMethods:
         assert len(result) == 1
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 0  # as per requirements
+        assert btc_parent["matches"] == 10  # fallback when no volume
+
+    def test_map_market_to_parents_non_numeric_volume_fallback(self) -> None:
+        """Test _map_market_to_parents fallback when volume is non-numeric."""
+        market_data = [
+            {
+                "name": "Bitcoin",
+                "symbol": "btc",
+                "id": "bitcoin",
+                "total_volume": "invalid",  # Non-numeric volume
+                "market_cap": 800000000000,
+                "current_price": 45000,
+                "image": "https://example.com/btc.png",
+            },
+            {
+                "name": "Ethereum",
+                "symbol": "eth",
+                "id": "ethereum",
+                "total_volume": 500000000,  # Valid numeric volume
+                "market_cap": 400000000000,
+                "current_price": 3000,
+                "image": "https://example.com/eth.png",
+            },
+        ]
+
+        result = self.adapter._map_market_to_parents(market_data)
+
+        assert len(result) == 2
+
+        # Check first parent (highest volume gets matches=100)
+        eth_parent = result[0]
+        assert eth_parent["parent"] == "Ethereum"
+        assert eth_parent["matches"] == 100  # highest volume
+
+        # Check second parent (non-numeric volume gets fallback)
+        btc_parent = result[1]
+        assert btc_parent["parent"] == "Bitcoin"
+        assert btc_parent["matches"] == 10  # fallback for non-numeric volume
 
     def test_parents_for_search_results_fallback(self) -> None:
         """Test parents_for uses search results when no market data."""
@@ -662,7 +699,7 @@ class TestCGAdapterMethods:
         # Should use market data path (line 353)
         assert len(result) == 1
         assert result[0]["parent"] == "Bitcoin"
-        assert result[0]["matches"] == 0  # as per requirements
+        assert result[0]["matches"] == 100  # highest volume gets 100
         assert result[0]["vol24h"] == 1000000000
         assert result[0]["marketCap"] == 800000000000
         assert result[0]["price"] == 45000

@@ -377,6 +377,33 @@ def _make_cg() -> t.Any:
                 ):
                     parents.append(parent)
 
+            # Apply volume-based ranking logic
+            vols = [
+                p["vol24h"]
+                for p in parents
+                if isinstance(p["vol24h"], (int, float))
+            ]
+            max_v = max(vols) if vols else 0
+
+            if max_v > 0:
+                for p in parents:
+                    vol = p["vol24h"]
+                    if isinstance(vol, (int, float)):
+                        p["matches"] = int(round(100 * (vol / max_v)))
+                    else:
+                        p["matches"] = 10  # minimal fallback for non-numeric
+            else:
+                for p in parents:
+                    p["matches"] = 10  # minimal fallback
+
+            # Sort by matches descending and return top 25
+            # matches is guaranteed to be int at this point
+            parents.sort(
+                key=lambda x: int(x["matches"]),  # type: ignore[arg-type]
+                reverse=True,
+            )
+            parents = parents[:25]
+
             # Log parents mapped count
             logging.info("[CG] parents mapped=%d", len(parents))
             return parents
