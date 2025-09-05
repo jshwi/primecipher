@@ -206,11 +206,25 @@ def _make_cg() -> t.Any:
             self,
             terms: list[str],
         ) -> tuple[list[str], list[dict]]:
-            """Search for coins using terms and collect IDs and results."""
-            coin_ids = set()
-            search_results = []
+            """Search for coins using terms and collect IDs and results.
 
-            for term in terms:
+            For the first 3 seed terms:
+            - GET https://api.coingecko.com/api/v3/search?query={term}
+            - Collect up to 10 ids from .coins[].id
+            - Sleep ~250ms between terms
+            - Merge and dedupe ids; cap total to 30
+            - If no ids → return [] immediately
+            """
+            coin_ids: set[str] = set()
+            search_results: list[dict] = []
+
+            # Use only first 3 seed terms
+            search_terms = (terms or [])[:3]
+            if not search_terms:
+                logging.info("[CG] no search terms provided")
+                return [], []
+
+            for term in search_terms:
                 if not term or not term.strip():
                     continue
 
@@ -227,24 +241,52 @@ def _make_cg() -> t.Any:
                         data = response.json() or {}
 
                     coins = data.get("coins", [])
-                    # Limit to ~10 per term
-                    for coin in coins[:10]:
-                        coin_id = coin.get("id")
-                        if coin_id:
-                            coin_ids.add(coin_id)
-                        # Always add to search results for fallback
-                        search_results.append(coin)
+                    # Collect up to 10 ids per term and add to search results
+                    term_ids = self._process_search_coins(
+                        coins,
+                        coin_ids,
+                        search_results,
+                    )
 
                     # Log search results for this term
-                    ids_count = len([c for c in coins[:10] if c.get("id")])
-                    logging.info("[CG] term=%s ids=%d", term, ids_count)
+                    logging.info("[CG] term=%s ids=%d", term, len(term_ids))
 
                 except Exception:  # pylint: disable=broad-exception-caught
                     # Continue with other terms if one fails
+                    logging.warning("[CG] failed to search term=%s", term)
                     continue
 
-            # Cap total ids ~30/narrative
-            return list(coin_ids)[:30], search_results[:50]
+            # Merge and dedupe ids; cap total to 30
+            final_ids = list(coin_ids)[:30]
+            logging.info("[CG] final id count=%d", len(final_ids))
+
+            return final_ids, search_results[:50]
+
+        def _process_search_coins(
+            self,
+            coins: list[dict],
+            coin_ids: set[str],
+            search_results: list[dict],
+        ) -> list[str]:
+            """Process search results and collect coin IDs.
+
+            Args:
+                coins: List of coin data from search API
+                coin_ids: Set to add collected IDs to
+                search_results: List to add all coins to
+
+            Returns:
+                List of IDs collected from this batch
+            """
+            term_ids = []
+            for coin in coins[:10]:
+                coin_id = coin.get("id")
+                if coin_id:
+                    coin_ids.add(coin_id)
+                    term_ids.append(coin_id)
+                # Always add to search results for fallback
+                search_results.append(coin)
+            return term_ids
 
         def _get_market_data(self, coin_ids: list[str]) -> list[dict]:
             """Get detailed market data for coin IDs."""
@@ -460,8 +502,7 @@ def _make_cg() -> t.Any:
                 # Collect coin IDs and search results from search API
                 coin_ids, search_results = self._search_coins(search_terms)
                 if not coin_ids and not search_results:
-                    # Fallback to deterministic items when no search
-                    #  results noqa: E501
+                    # Fallback to deterministic items when no search results
                     q = (
                         " ".join(sorted({t for t in terms if t.strip()}))
                         or "sol"

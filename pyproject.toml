@@ -82,6 +82,7 @@ disable = [
   "consider-using-f-string",
   "fixme",
   "too-many-arguments",
+  "too-many-locals",
   "too-many-statements"
 ]
 ignore-patterns = [
