@@ -385,7 +385,7 @@ def _make_cg() -> t.Any:
         # pylint: disable=missing-function-docstring
 
         def _filter_terms(self, terms: list[str]) -> list[str]:
-            """Filter terms: take first 3, skip generic/short ones.
+            """Filter terms: take first 2, skip generic/short ones.
 
             :param terms: List of search terms.
             :return: Filtered list of terms.
@@ -394,10 +394,10 @@ def _make_cg() -> t.Any:
                 return []
 
             # Skip very generic/short terms
-            generic_terms = {"swap", "defi", "nft", "play", "fun"}
+            generic_terms = {"swap", "defi", "nft", "play", "fun", "meta"}
             filtered = []
 
-            for term in terms[:3]:  # Take first 3
+            for term in terms[:2]:  # Take first 2 only
                 if (
                     term
                     and term.strip()
@@ -417,10 +417,12 @@ def _make_cg() -> t.Any:
             coin_ids = set()
             failed_terms = []
 
-            for term in terms:
+            for i, term in enumerate(terms):
                 try:
-                    # Rate limit: sleep ~250ms between requests
-                    time.sleep(0.25)
+                    # Sleep ≥ 1.2s between /search calls
+                    # (in addition to token-bucket)
+                    if i > 0:
+                        time.sleep(1.2)
 
                     url = "https://api.coingecko.com/api/v3/search"
                     params = {"query": term.strip()}
@@ -431,8 +433,8 @@ def _make_cg() -> t.Any:
                     else:
                         coins = []
 
-                    # Collect up to 10 ids per term
-                    for coin in coins[:10]:
+                    # Collect at most 5 ids per term
+                    for coin in coins[:5]:
                         coin_id = coin.get("id")
                         if coin_id:
                             coin_ids.add(coin_id)
@@ -450,11 +452,10 @@ def _make_cg() -> t.Any:
                     failed_terms,
                 )
 
-            # Cap total ids to 30
-            return list(coin_ids)[:30]
+            return list(coin_ids)
 
         def _get_market_data(self, coin_ids: list[str]) -> list[dict]:
-            """Get detailed market data for coin IDs.
+            """Get detailed market data for coin IDs in batches.
 
             :param coin_ids: List of coin IDs to fetch data for.
             :return: List of market data dictionaries.
@@ -462,30 +463,44 @@ def _make_cg() -> t.Any:
             if not coin_ids:
                 return []
 
-            try:
-                # Rate limit: sleep ~250ms before request
-                time.sleep(0.25)
+            all_market_data = []
 
-                url = "https://api.coingecko.com/api/v3/coins/markets"
-                params = {
-                    "vs_currency": "usd",
-                    "ids": ",".join(coin_ids),
-                    "order": "market_cap_desc",
-                    "per_page": 250,
-                    "page": 1,
-                    "sparkline": "false",
-                }
+            # Batch ids into chunks of ≤10
+            batch_size = 10
+            for i in range(0, len(coin_ids), batch_size):
+                batch = coin_ids[slice(i, i + batch_size)]
+                try:
+                    url = "https://api.coingecko.com/api/v3/coins/markets"
+                    params = {
+                        "vs_currency": "usd",
+                        "ids": ",".join(batch),
+                        "order": "market_cap_desc",
+                        "per_page": 250,
+                        "page": 1,
+                        "sparkline": "false",
+                    }
 
-                data = _get_json(url, params) or []
-                rows = data if isinstance(data, list) else []
-                return rows
+                    data = _get_json(url, params) or []
+                    rows = data if isinstance(data, list) else []
 
-            except Exception:  # pylint: disable=broad-exception-caught
-                logger.debug(
-                    "[CG] market data fetch failed for %d coin IDs",
-                    len(coin_ids),
-                )
-                return []
+                    if rows:  # If we got data, add it
+                        all_market_data.extend(rows)
+                        # Stop after first non-empty batch
+                        break
+
+                except Exception:  # pylint: disable=broad-exception-caught
+                    logger.debug(
+                        "[CG] market data fetch failed for batch %d/%d",
+                        i // batch_size + 1,
+                        (len(coin_ids) + batch_size - 1) // batch_size,
+                    )
+                    continue
+
+                # Sleep ≥ 1.5s between batches (except for the last batch)
+                if i + batch_size < len(coin_ids):
+                    time.sleep(1.5)
+
+            return all_market_data
 
         def _map_market_to_items(self, market_data: list[dict]) -> list[dict]:
             """Map CoinGecko market rows to parent dicts with scoring.
@@ -543,7 +558,7 @@ def _make_cg() -> t.Any:
                 ),
             )
 
-            # Return top 25
+            # Cap: keep top 25 by matches after mapping
             return items[:25]
 
         def parents_for(

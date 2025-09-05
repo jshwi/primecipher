@@ -51,7 +51,35 @@ class TestCGAdapterMethods:
 
         # Verify API call was made
         mock_get_json.assert_called_once()
-        _mock_sleep.assert_called_once_with(0.25)
+        # No sleep for first term, only between terms
+        _mock_sleep.assert_not_called()
+
+    @patch("backend.adapters.source._get_json")
+    @patch("time.sleep")
+    def test_search_coins_multiple_terms_sleep(
+        self,
+        mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test _search_coins sleeps 1.2s between multiple terms.
+
+        Args:
+            mock_sleep: Mock for time.sleep function
+            mock_get_json: Mock for _get_json function
+        """
+        # Mock response
+        mock_get_json.return_value = {
+            "coins": [
+                {"name": "Bitcoin", "id": "bitcoin", "market_cap_rank": 1},
+            ],
+        }
+
+        # Test with multiple terms
+        coin_ids = self.adapter._search_coins(["bitcoin", "ethereum"])
+
+        # Should sleep 1.2s between terms (only once for 2 terms)
+        mock_sleep.assert_called_once_with(1.2)
+        assert len(coin_ids) == 1
 
     @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
@@ -109,12 +137,50 @@ class TestCGAdapterMethods:
 
         # Verify API call was made
         mock_get_json.assert_called_once()
-        mock_sleep.assert_called_once_with(0.25)
+        # No sleep for single batch, only between batches
+        mock_sleep.assert_not_called()
 
     def test_get_market_data_empty_ids(self) -> None:
         """Test _get_market_data with empty coin IDs list."""
         result = self.adapter._get_market_data([])
         assert not result
+
+    @patch("backend.adapters.source._get_json")
+    @patch("time.sleep")
+    def test_get_market_data_multiple_batches_sleep(
+        self,
+        mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test _get_market_data sleeps 1.5s between batches.
+
+        Args:
+            mock_sleep: Mock for time.sleep function
+            mock_get_json: Mock for _get_json function
+        """
+        # Mock response: empty first batch, data in second batch
+        mock_get_json.side_effect = [
+            [],  # First batch returns empty
+            [  # Second batch returns data
+                {
+                    "id": "bitcoin",
+                    "name": "Bitcoin",
+                    "symbol": "btc",
+                    "current_price": 45000,
+                    "market_cap": 800000000000,
+                    "total_volume": 1000000000,
+                    "image": "https://example.com/btc.png",
+                },
+            ],
+        ]
+
+        # Test with 15 coin IDs (will create 2 batches of 10 and 5)
+        coin_ids = [f"coin{str(i)}" for i in range(15)]
+        result = self.adapter._get_market_data(coin_ids)
+
+        # Should sleep 1.5s between batches (only once for 2 batches)
+        mock_sleep.assert_called_once_with(1.5)
+        assert len(result) == 1
 
     def test_map_market_to_items(self) -> None:
         """Test _map_market_to_items method."""
@@ -216,7 +282,7 @@ class TestCGAdapterMethods:
         # Test normal filtering
         terms = ["bitcoin", "ethereum", "dogecoin", "swap", "defi"]
         result = self.adapter._filter_terms(terms)
-        assert result == ["bitcoin", "ethereum", "dogecoin"]
+        assert result == ["bitcoin", "ethereum"]
 
         # Test empty terms
         result = self.adapter._filter_terms([])
@@ -225,7 +291,7 @@ class TestCGAdapterMethods:
         # Test short terms
         terms = ["bt", "eth", "bitcoin"]
         result = self.adapter._filter_terms(terms)
-        assert result == ["eth", "bitcoin"]
+        assert result == ["eth"]
 
         # Test generic terms
         terms = ["bitcoin", "swap", "defi"]
