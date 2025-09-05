@@ -51,4 +51,10 @@ def get_adapter(mode: str) -> AdapterProtocol:  # pragma: no cover
         from .dexscreener import DexScreenerAdapter
 
         return DexScreenerAdapter()
+    if mode == "real_mix":
+        # Import here to avoid circular imports
+        # pylint: disable=import-outside-toplevel,cyclic-import
+        from .mixed import MixedAdapter
+
+        return MixedAdapter()
     return NoopAdapter()

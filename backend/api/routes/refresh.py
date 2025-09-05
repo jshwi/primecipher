@@ -111,15 +111,20 @@ def _process_narrative_real_mode(
 def _check_budget_limits(
     calls_used: int,
     narrative: str,
+    mode: str = "real",
 ) -> tuple[bool, dict[str, str] | None]:
     """Check if budget limits are exceeded.
 
     :param calls_used: Current number of calls used.
     :param narrative: Current narrative being processed.
+    :param mode: The processing mode to determine call cost.
     :return: Tuple of (should_continue, error_dict_or_none).
     """
+    # Determine calls needed for this narrative
+    calls_needed = 2 if mode == "real_mix" else 1
+
     # Check if we would exceed the maximum calls budget
-    if calls_used + 1 > REFRESH_MAX_CALLS:
+    if calls_used + calls_needed > REFRESH_MAX_CALLS:
         budget_error = {
             "narrative": "*",
             "code": "BUDGET_EXCEEDED",
@@ -162,15 +167,16 @@ def _process_single_narrative(
         if _memo is not None and narrative in _memo:
             items = _memo[narrative]
         else:
-            # Spend the call for this narrative before processing
-            calls_used += 1
+            # Spend the calls for this narrative before processing
+            calls_needed = 2 if mode == "real_mix" else 1
+            calls_used += calls_needed
 
             # Update progress
             if current_running_job and current_running_job.get("id") == job_id:
                 current_running_job["calls_used"] = calls_used
 
             # Process the narrative based on mode
-            if mode in ["real", "real_cg"] and terms is not None:
+            if mode in ["real", "real_cg", "real_mix"] and terms is not None:
                 items = _process_narrative_real_mode(narrative, terms, mode)
             else:
                 items = _process_narrative_dev_mode(narrative)
@@ -384,7 +390,7 @@ def _process_dev_mode_job(
         _memo: dict[str, list[dict]] = {}
 
         # Get narratives with their terms for real mode
-        if mode in ["real", "real_cg"]:
+        if mode in ["real", "real_cg", "real_mix"]:
             from ...seeds import load_seeds
 
             seeds_data = load_seeds()
@@ -448,6 +454,7 @@ def _process_dev_mode_job(
             should_continue_other, budget_error_other = _check_budget_limits(
                 calls_used,
                 narrative,
+                mode,
             )
 
             if budget_error_other:
@@ -480,7 +487,9 @@ def _process_dev_mode_job(
                 job_id,
                 calls_used,
                 mode=mode,
-                terms=terms if mode in ["real", "real_cg"] else None,
+                terms=(
+                    terms if mode in ["real", "real_cg", "real_mix"] else None
+                ),
                 _memo=_memo,
             )
 
@@ -576,7 +585,7 @@ async def start_or_get_job(
 
     # Start the actual refresh job
     async def _do() -> None:
-        if mode in ["dev", "real", "real_cg"]:
+        if mode in ["dev", "real", "real_cg", "real_mix"]:
             # Use new processing for dev and real modes
             _process_dev_mode_job(job_id, mode, window, narratives_total)
         else:
