@@ -18,6 +18,7 @@
 - **Type hints**: add when creating/altering public functions; fix obvious MyPy issues (ignore-missing-imports is enabled, do not add broad ignores).
 - **Lint expectations**: Flake8 (with bugbear/simplify), Pylint (run via `make .make/lint/py`).
 - **Docstrings**: keep concise; summaries wrap ~72 chars (see `tool.docformatter`), but do not add boilerplate to every function.
+- **For unused arguments, prefix with _
 
 ## TypeScript/React (src/)
 - Use Next.js conventions; ESLint config is `next/core-web-vitals` + `next/typescript`.
