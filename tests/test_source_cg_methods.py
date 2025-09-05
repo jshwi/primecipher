@@ -169,10 +169,10 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check first parent (Bitcoin has highest volume, so matches=100)
+        # Check first parent (matches=0 as per requirements)
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 100
+        assert btc_parent["matches"] == 0
         assert btc_parent["vol24h"] == 1000000000
         assert btc_parent["marketCap"] == 800000000000
         assert btc_parent["price"] == 45000
@@ -183,10 +183,10 @@ class TestCGAdapterMethods:
         )
         assert btc_parent["source"] == "coingecko"
 
-        # Check second parent (Ethereum has half the volume, so matches=50)
+        # Check second parent (matches=0 as per requirements)
         eth_parent = result[1]
         assert eth_parent["parent"] == "Ethereum"
-        assert eth_parent["matches"] == 50
+        assert eth_parent["matches"] == 0
 
     def test_map_market_to_parents_no_volume_fallback(self) -> None:
         """Test _map_market_to_parents fallback when no volume data."""
@@ -217,14 +217,14 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check fallback scoring based on market cap rank
+        # Check matches=0 as per requirements
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 100  # rank 1 -> 100/1 = 100
+        assert btc_parent["matches"] == 0
 
         eth_parent = result[1]
         assert eth_parent["parent"] == "Ethereum"
-        assert eth_parent["matches"] == 50  # rank 2 -> 100/2 = 50
+        assert eth_parent["matches"] == 0
 
     def test_map_market_to_parents_no_volume_no_rank_fallback(self) -> None:
         """Test _map_market_to_parents fallback when no volume and no rank."""
@@ -246,23 +246,7 @@ class TestCGAdapterMethods:
         assert len(result) == 1
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 10  # fallback value
-
-    def test_find_market_cap_rank_no_url_or_name(self) -> None:
-        """Test _find_market_cap_rank when item has no url or name."""
-        item = {"parent": "", "url": ""}
-        market_data = [{"id": "bitcoin", "market_cap_rank": 1}]
-
-        result = self.adapter._find_market_cap_rank(item, market_data)
-        assert result is None
-
-    def test_find_market_cap_rank_no_slash_in_url(self) -> None:
-        """Test _find_market_cap_rank when url has no slash."""
-        item = {"parent": "Bitcoin", "url": "no-slash-here"}
-        market_data = [{"id": "bitcoin", "market_cap_rank": 1}]
-
-        result = self.adapter._find_market_cap_rank(item, market_data)
-        assert result is None
+        assert btc_parent["matches"] == 0  # as per requirements
 
     def test_parents_for_search_results_fallback(self) -> None:
         """Test parents_for uses search results when no market data."""
@@ -678,9 +662,7 @@ class TestCGAdapterMethods:
         # Should use market data path (line 353)
         assert len(result) == 1
         assert result[0]["parent"] == "Bitcoin"
-        assert (
-            result[0]["matches"] >= 99
-        )  # highest volume gets ~100 (may be 99 due to rounding)
+        assert result[0]["matches"] == 0  # as per requirements
         assert result[0]["vol24h"] == 1000000000
         assert result[0]["marketCap"] == 800000000000
         assert result[0]["price"] == 45000
