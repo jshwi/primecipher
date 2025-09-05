@@ -200,6 +200,124 @@ def _make_cg() -> t.Any:
     class _CGAdapter:  # pylint: disable=too-few-public-methods
         # pylint: disable=too-many-positional-arguments
         # pylint: disable=missing-function-docstring
+
+        def _search_coins(
+            self,
+            terms: list[str],
+        ) -> tuple[list[str], list[dict]]:
+            """Search for coins using terms and collect IDs and results."""
+            coin_ids = set()
+            search_results = []
+
+            for term in terms:
+                if not term or not term.strip():
+                    continue
+
+                try:
+                    # Rate limit: sleep ~250ms between requests
+                    time.sleep(0.25)
+
+                    url = "https://api.coingecko.com/api/v3/search"
+                    params = {"query": term.strip()}
+
+                    with httpx.Client(timeout=10.0) as client:
+                        response = client.get(url, params=params)
+                        response.raise_for_status()
+                        data = response.json() or {}
+
+                    coins = data.get("coins", [])
+                    # Limit to ~10 per term
+                    for coin in coins[:10]:
+                        coin_id = coin.get("id")
+                        if coin_id:
+                            coin_ids.add(coin_id)
+                        # Always add to search results for fallback
+                        search_results.append(coin)
+
+                except Exception:  # pylint: disable=broad-exception-caught
+                    # Continue with other terms if one fails
+                    continue
+
+            # Cap total ids ~30/narrative
+            return list(coin_ids)[:30], search_results[:50]
+
+        def _get_market_data(self, coin_ids: list[str]) -> list[dict]:
+            """Get detailed market data for coin IDs."""
+            if not coin_ids:
+                return []
+
+            try:
+                # Rate limit: sleep ~250ms before request
+                time.sleep(0.25)
+
+                url = "https://api.coingecko.com/api/v3/coins/markets"
+                params = {
+                    "vs_currency": "usd",
+                    "ids": ",".join(coin_ids),
+                    "order": "market_cap_desc",
+                    "per_page": 250,
+                    "page": 1,
+                    "sparkline": "false",
+                }
+
+                with httpx.Client(timeout=10.0) as client:
+                    response = client.get(url, params=params)
+                    response.raise_for_status()
+                    data = response.json() or []
+
+                return data if isinstance(data, list) else []
+
+            except Exception:  # pylint: disable=broad-exception-caught
+                return []
+
+        def _map_market_to_parents(
+            self,
+            market_data: list[dict],
+        ) -> list[dict]:
+            """Map CoinGecko market rows into parent dicts with metadata."""
+            parents = []
+            for market_row in market_data:
+                parent = {
+                    "parent": market_row.get("name", ""),
+                    "matches": 0,  # Set to 0 for now as requested
+                    "vol24h": market_row.get("total_volume", 0) or 0,
+                    "marketCap": market_row.get("market_cap", 0) or 0,
+                    "price": market_row.get("current_price", 0) or 0,
+                    "symbol": market_row.get("symbol", ""),
+                    "image": market_row.get("image", ""),
+                    "url": (
+                        f"https://www.coingecko.com/en/coins/"
+                        f"{market_row.get('id', '')}"
+                    ),
+                }
+                parents.append(parent)
+
+            return parents
+
+        def _map_search_to_parents(
+            self,
+            search_results: list[dict],
+        ) -> list[dict]:
+            """Map CoinGecko search results into parent dicts."""
+            parents = []
+            for i, search_result in enumerate(search_results):
+                name = (
+                    search_result.get("name")
+                    or search_result.get("id")
+                    or f"cg-{i}"
+                )
+                rank = search_result.get("market_cap_rank") or 1000
+                score = max(3, 100 - int(rank))
+                parent = {
+                    "parent": name,
+                    "matches": score,
+                }
+                parents.append(parent)
+
+            # Sort by matches descending
+            parents.sort(key=lambda x: -int(x["matches"]))
+            return parents
+
         def parents_for(
             self,
             narrative: str,
@@ -209,35 +327,40 @@ def _make_cg() -> t.Any:
             require_all_terms: bool = False,
         ) -> list[dict]:
             def _fetch() -> list[dict]:
-                try:
-                    q = (
-                        " ".join(sorted({t for t in terms if t.strip()}))
-                        or "sol"
-                    )
-                    url = "https://api.coingecko.com/api/v3/search"
-                    with httpx.Client(timeout=6.0) as cl:
-                        r = cl.get(url, params={"query": q})
-                        r.raise_for_status()
-                        js = r.json() or {}
-                    coins = js.get("coins") or []
-                    out: list[dict] = []
-                    for i, c in enumerate(
-                        coins[:50],
-                    ):  # keep many for pagination
-                        name = c.get("name") or c.get("id") or f"cg-{i}"
-                        rank = c.get("market_cap_rank") or 1000
-                        score = max(3, 100 - int(rank))
-                        out.append({"parent": name, "matches": score})
-                    if not out:
-                        out = _deterministic_items(q, terms)
-                    out.sort(key=lambda x: -x["matches"])
-                    return out  # no local trim
-                except Exception:  # pylint: disable=broad-exception-caught
+                # Use up to first 3 seed terms per narrative
+                search_terms = (terms or [])[:3]
+                if not search_terms:
+                    return []
+
+                # Collect coin IDs and search results from search API
+                coin_ids, search_results = self._search_coins(search_terms)
+                if not coin_ids and not search_results:
+                    # Fallback to deterministic items when no search
+                    #  results noqa: E501
                     q = (
                         " ".join(sorted({t for t in terms if t.strip()}))
                         or "sol"
                     )
                     return _deterministic_items(q, terms)
+
+                # Try to fetch market data for the coin IDs
+                market_data = (
+                    self._get_market_data(coin_ids) if coin_ids else []
+                )
+
+                if market_data:
+                    # Use market data if available (preferred approach)
+                    return self._map_market_to_parents(market_data)
+                if search_results:
+                    # Fall back to search results if no market data
+                    return self._map_search_to_parents(search_results)
+
+                # This should never be reached in normal circumstances
+                # as search_results will always be processed above
+                raise RuntimeError(  # pragma: no cover
+                    "Unexpected code path: no market data and no search"
+                    " results",
+                )
 
             raw = _memo_raw("coingecko", terms, _fetch)
             return _apply_seed_semantics(

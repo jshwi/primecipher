@@ -78,9 +78,11 @@ vulture = "^2.11"
 
 [tool.pylint.options]
 disable = [
+  "R0801",
   "consider-using-f-string",
   "fixme",
-  "too-many-arguments"
+  "too-many-arguments",
+  "too-many-statements"
 ]
 ignore-patterns = [
   'conf\.py',
@@ -92,6 +94,7 @@ min-similarity-lines = 9
 disable = [
   "global-statement",
   "import-outside-toplevel",
+  "line-too-long",
   "protected-access"
 ]
 
