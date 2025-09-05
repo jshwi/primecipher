@@ -296,6 +296,25 @@ def _make_cg() -> t.Any:
                 }
                 parents.append(parent)
 
+            # Filter out unusable data: missing name AND symbol AND zero
+            # marketCap+vol24h
+            filtered_parents = []
+            for parent in parents:
+                name = parent.get("parent", "").strip()
+                symbol = parent.get("symbol", "").strip()
+                market_cap = parent.get("marketCap", 0) or 0
+                vol24h = parent.get("vol24h", 0) or 0
+
+                # Keep if has name OR symbol OR has market value
+                if name or symbol or (market_cap + vol24h) > 0:
+                    filtered_parents.append(parent)
+
+            parents = filtered_parents
+
+            # If no usable data after filtering, return empty list
+            if not parents:
+                return []
+
             # Compute volume-based matches
             vols = [p["vol24h"] for p in parents]
             max_v = max(vols) if vols and max(vols) > 0 else None

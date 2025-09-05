@@ -635,3 +635,73 @@ class TestCGAdapterMethods:
         assert len(result) > 0
         # _deterministic_items should not be called in this path
         mock_deterministic.assert_not_called()
+
+    def test_map_market_to_parents_filters_unusable_data(self) -> None:
+        """Test _map_market_to_parents filters out unusable data."""
+        # Test data with unusable entries (missing name AND symbol AND zero
+        # market value)
+        market_data = [
+            {
+                "id": "bitcoin",
+                "name": "Bitcoin",
+                "symbol": "BTC",
+                "market_cap": 1000000000,
+                "total_volume": 50000000,
+                "current_price": 50000,
+            },
+            {
+                "id": "empty1",
+                "name": "",  # Missing name
+                "symbol": "",  # Missing symbol
+                "market_cap": 0,  # Zero market cap
+                "total_volume": 0,  # Zero volume
+                "current_price": 0,
+            },
+            {
+                "id": "ethereum",
+                "name": "Ethereum",
+                "symbol": "ETH",
+                "market_cap": 500000000,
+                "total_volume": 25000000,
+                "current_price": 3000,
+            },
+        ]
+
+        result = self.adapter._map_market_to_parents(market_data)
+
+        # Should have 2 items: bitcoin and ethereum (empty1 should be
+        # filtered out)
+        assert len(result) == 2
+        names = [item["parent"] for item in result]
+        assert "Bitcoin" in names
+        assert "Ethereum" in names
+
+    def test_map_market_to_parents_returns_empty_when_all_filtered(
+        self,
+    ) -> None:
+        """Test _map_market_to_parents returns empty list when all data is
+        unusable."""
+        # Test data with only unusable entries
+        market_data = [
+            {
+                "id": "empty1",
+                "name": "",  # Missing name
+                "symbol": "",  # Missing symbol
+                "market_cap": 0,  # Zero market cap
+                "total_volume": 0,  # Zero volume
+                "current_price": 0,
+            },
+            {
+                "id": "empty2",
+                "name": "",  # Missing name
+                "symbol": "",  # Missing symbol
+                "market_cap": 0,  # Zero market cap
+                "total_volume": 0,  # Zero volume
+                "current_price": 0,
+            },
+        ]
+
+        result = self.adapter._map_market_to_parents(market_data)
+
+        # Should return empty list when all data is filtered out
+        assert not result
