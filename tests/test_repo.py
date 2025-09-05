@@ -18,7 +18,21 @@ def test_replace_and_list_parents_roundtrip() -> None:
     replace_parents(narrative, items, ts)
 
     rows = list_parents(narrative)
-    assert rows == sorted(items, key=lambda x: -x["matches"])
+    expected = [
+        {
+            "parent": item["parent"],
+            "matches": item["matches"],
+            "symbol": None,
+            "source": None,
+            "price": None,
+            "marketCap": None,
+            "vol24h": None,
+            "image": None,
+            "url": None,
+        }
+        for item in sorted(items, key=lambda x: -x["matches"])
+    ]
+    assert rows == expected
 
 
 def test_replace_parents_overwrites_previous() -> None:
@@ -27,4 +41,17 @@ def test_replace_parents_overwrites_previous() -> None:
     replace_parents(narrative, [{"parent": "old", "matches": 1}], time())
     replace_parents(narrative, [{"parent": "new", "matches": 9}], time())
     rows = list_parents(narrative)
-    assert rows == [{"parent": "new", "matches": 9}]
+    expected = [
+        {
+            "parent": "new",
+            "matches": 9,
+            "symbol": None,
+            "source": None,
+            "price": None,
+            "marketCap": None,
+            "vol24h": None,
+            "image": None,
+            "url": None,
+        },
+    ]
+    assert rows == expected

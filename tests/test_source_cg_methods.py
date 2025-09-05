@@ -181,6 +181,7 @@ class TestCGAdapterMethods:
         assert (
             btc_parent["url"] == "https://www.coingecko.com/en/coins/bitcoin"
         )
+        assert btc_parent["source"] == "coingecko"
 
         # Check second parent (Ethereum has half the volume, so matches=50)
         eth_parent = result[1]
@@ -287,10 +288,13 @@ class TestCGAdapterMethods:
         # Check sorting (by matches descending)
         assert result[0]["parent"] == "Bitcoin"
         assert result[0]["matches"] == 99  # max(3, 100 - 1)
+        assert result[0]["source"] == "coingecko"
         assert result[1]["parent"] == "Ethereum"
         assert result[1]["matches"] == 98  # max(3, 100 - 2)
+        assert result[1]["source"] == "coingecko"
         assert result[2]["parent"] == "Dogecoin"
         assert result[2]["matches"] == 90  # max(3, 100 - 10)
+        assert result[2]["source"] == "coingecko"
 
     def test_map_search_to_parents_missing_fields(self) -> None:
         """Test _map_search_to_parents with missing fields."""

@@ -283,15 +283,16 @@ def _make_cg() -> t.Any:
                 parent = {
                     "parent": market_row.get("name", ""),
                     "matches": 0,  # Will be computed below
-                    "vol24h": market_row.get("total_volume", 0) or 0,
-                    "marketCap": market_row.get("market_cap", 0) or 0,
-                    "price": market_row.get("current_price", 0) or 0,
                     "symbol": market_row.get("symbol", ""),
+                    "price": market_row.get("current_price", 0) or 0,
+                    "marketCap": market_row.get("market_cap", 0) or 0,
+                    "vol24h": market_row.get("total_volume", 0) or 0,
                     "image": market_row.get("image", ""),
                     "url": (
                         f"https://www.coingecko.com/en/coins/"
                         f"{market_row.get('id', '')}"
                     ),
+                    "source": "coingecko",
                     "market_cap_rank": market_row.get("market_cap_rank"),
                 }
                 parents.append(parent)
@@ -375,6 +376,16 @@ def _make_cg() -> t.Any:
                 parent = {
                     "parent": name,
                     "matches": score,
+                    "symbol": search_result.get("symbol", ""),
+                    "price": 0,  # Not available in search results
+                    "marketCap": 0,  # Not available in search results
+                    "vol24h": 0,  # Not available in search results
+                    "image": search_result.get("large", ""),
+                    "url": (
+                        f"https://www.coingecko.com/en/coins/"
+                        f"{search_result.get('id', '')}"
+                    ),
+                    "source": "coingecko",
                 }
                 parents.append(parent)
 

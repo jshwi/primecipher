@@ -27,6 +27,13 @@ def replace_parents(narrative: str, items: list[dict], ts: float) -> None:
                     parent=it["parent"],
                     matches=int(it["matches"]),
                     ts=ts,
+                    symbol=it.get("symbol"),
+                    source=it.get("source"),
+                    price=it.get("price"),
+                    marketCap=it.get("marketCap"),
+                    vol24h=it.get("vol24h"),
+                    image=it.get("image"),
+                    url=it.get("url"),
                 ),
             )
         s.commit()
@@ -48,4 +55,17 @@ def list_parents(narrative: str) -> list[dict]:
             .scalars()
             .all()
         )
-        return [{"parent": r.parent, "matches": r.matches} for r in rows]
+        return [
+            {
+                "parent": r.parent,
+                "matches": r.matches,
+                "symbol": r.symbol,
+                "source": r.source,
+                "price": r.price,
+                "marketCap": r.marketCap,
+                "vol24h": r.vol24h,
+                "image": r.image,
+                "url": r.url,
+            }
+            for r in rows
+        ]
