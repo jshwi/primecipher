@@ -109,9 +109,23 @@ def test_cg_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
         _params: dict | None = None,
     ) -> dict | list | None:
         if "search" in url:
-            return {"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]}
+            return {
+                "coins": [
+                    {"name": "Foxtrot", "id": "foxtrot", "market_cap_rank": 8},
+                ],
+            }
         if "coins/markets" in url:
-            return []
+            return [
+                {
+                    "id": "foxtrot",
+                    "name": "Foxtrot",
+                    "symbol": "fox",
+                    "current_price": 100,
+                    "market_cap": 1000000,
+                    "total_volume": 500000,
+                    "image": "https://example.com/fox.png",
+                },
+            ]
         return None
 
     src = reload_src(
@@ -123,16 +137,17 @@ def test_cg_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
     assert isinstance(out, list)
+    assert len(out) > 0
     assert out[0]["parent"].lower() == "foxtrot"
 
 
 def test_cg_empty_results(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test CoinGecko fallback to deterministic when no results.
+    """Test CoinGecko returns empty when no results.
 
     :param monkeypatch: Pytest fixture for patching.
     """
 
-    # api returns no coins -> fallback to deterministic
+    # api returns no coins -> should return empty list
     def fake_get_json(
         url: str,
         _params: dict | None = None,
@@ -152,11 +167,11 @@ def test_cg_empty_results(monkeypatch: pytest.MonkeyPatch) -> None:
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
     assert isinstance(out, list)
-    assert len(out) > 0
+    assert len(out) == 0
 
 
 def test_cg_network_error_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Test CoinGecko fallback to deterministic on network error.
+    """Test CoinGecko returns empty on network error.
 
     :param monkeypatch: Pytest fixture for patching.
     """
@@ -176,6 +191,6 @@ def test_cg_network_error_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
-    # should not raise; should fallback to deterministic
+    # should not raise; should return empty list
     assert isinstance(out, list)
-    assert len(out) > 0
+    assert len(out) == 0

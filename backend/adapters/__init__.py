@@ -42,9 +42,9 @@ def get_adapter(mode: str) -> AdapterProtocol:  # pragma: no cover
     if mode == "real_cg":
         # Import here to avoid circular imports
         # pylint: disable=import-outside-toplevel,cyclic-import
-        from .coingecko import CoinGeckoAdapter
+        from .source import _make_cg
 
-        return CoinGeckoAdapter()
+        return _make_cg()
     if mode == "real":
         # Import here to avoid circular imports
         # pylint: disable=import-outside-toplevel,cyclic-import

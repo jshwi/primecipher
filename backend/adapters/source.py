@@ -260,32 +260,39 @@ def _make_cg() -> t.Any:
         # pylint: disable=too-many-positional-arguments
         # pylint: disable=missing-function-docstring
 
-        def _search_coins(
-            self,
-            terms: list[str],
-        ) -> tuple[list[str], list[dict]]:
-            """Search for coins using terms and collect IDs and results.
+        def _filter_terms(self, terms: list[str]) -> list[str]:
+            """Filter terms: take first 3, skip generic/short ones.
 
-            For the first 3 seed terms:
-            - GET https://api.coingecko.com/api/v3/search?query={term}
-            - Collect up to 10 ids from .coins[].id
-            - Sleep ~250ms between terms
-            - Merge and dedupe ids; cap total to 30
-            - If no ids → return [] immediately
+            :param terms: List of search terms.
+            :return: Filtered list of terms.
             """
-            coin_ids: set[str] = set()
-            search_results: list[dict] = []
+            if not terms:
+                return []
 
-            # Use only first 3 seed terms
-            search_terms = (terms or [])[:3]
-            if not search_terms:
-                logging.info("[CG] no search terms provided")
-                return [], []
+            # Skip very generic/short terms
+            generic_terms = {"swap", "defi", "nft", "play", "fun"}
+            filtered = []
 
-            for term in search_terms:
-                if not term or not term.strip():
-                    continue
+            for term in terms[:3]:  # Take first 3
+                if (
+                    term
+                    and term.strip()
+                    and len(term.strip()) >= 3
+                    and term.strip().lower() not in generic_terms
+                ):
+                    filtered.append(term.strip())
 
+            return filtered
+
+        def _search_coins(self, terms: list[str]) -> list[str]:
+            """Search for coins using terms and collect coin IDs.
+
+            :param terms: List of search terms.
+            :return: List of unique coin IDs.
+            """
+            coin_ids = set()
+
+            for term in terms:
                 try:
                     # Rate limit: sleep ~250ms between requests
                     time.sleep(0.25)
@@ -298,58 +305,25 @@ def _make_cg() -> t.Any:
                         coins = data.get("coins", [])
                     else:
                         coins = []
-                    # Collect up to 10 ids per term and add to search results
-                    term_ids = self._process_search_coins(
-                        coins,
-                        coin_ids,
-                        search_results,
-                    )
 
-                    # Log search results for this term
-                    logging.info("[CG] term=%s ids=%d", term, len(term_ids))
+                    # Collect up to 10 ids per term
+                    for coin in coins[:10]:
+                        coin_id = coin.get("id")
+                        if coin_id:
+                            coin_ids.add(coin_id)
 
                 except Exception:  # pylint: disable=broad-exception-caught
                     # Continue with other terms if one fails
-                    logging.warning("[CG] failed to search term=%s", term)
                     continue
 
-            # Merge and dedupe ids; cap total to 30
-            final_ids = list(coin_ids)[:30]
-            logging.info("[CG] final id count=%d", len(final_ids))
-
-            return final_ids, search_results[:50]
-
-        def _process_search_coins(
-            self,
-            coins: list[dict],
-            coin_ids: set[str],
-            search_results: list[dict],
-        ) -> list[str]:
-            """Process search results and collect coin IDs.
-
-            Args:
-                coins: List of coin data from search API
-                coin_ids: Set to add collected IDs to
-                search_results: List to add all coins to
-
-            Returns:
-                List of IDs collected from this batch
-            """
-            term_ids = []
-            for coin in coins[:10]:
-                coin_id = coin.get("id")
-                if coin_id:
-                    coin_ids.add(coin_id)
-                    term_ids.append(coin_id)
-                # Always add to search results for fallback
-                search_results.append(coin)
-            return term_ids
+            # Cap total ids to 30
+            return list(coin_ids)[:30]
 
         def _get_market_data(self, coin_ids: list[str]) -> list[dict]:
             """Get detailed market data for coin IDs.
 
-            Fetches market data from CoinGecko markets API with the specified
-            parameters.
+            :param coin_ids: List of coin IDs to fetch data for.
+            :return: List of market data dictionaries.
             """
             if not coin_ids:
                 return []
@@ -370,154 +344,69 @@ def _make_cg() -> t.Any:
 
                 data = _get_json(url, params) or []
                 rows = data if isinstance(data, list) else []
-                # Log market data results
-                logging.info("[CG] markets rows=%d", len(rows))
                 return rows
 
             except Exception:  # pylint: disable=broad-exception-caught
-                logging.warning("[CG] failed to fetch market data")
                 return []
 
-        def _map_market_to_parents(
-            self,
-            market_data: list[dict],
-        ) -> list[dict]:
-            """Map CoinGecko market rows to parent dicts with metadata.
+        def _map_market_to_items(self, market_data: list[dict]) -> list[dict]:
+            """Map CoinGecko market rows to parent dicts with scoring.
 
-            For each row M:
-            - name = M.get("name") or M.get("symbol") or "unknown"
-            - symbol = M.get("symbol")
-            - price = M.get("current_price") or 0.0
-            - marketCap = M.get("market_cap") or 0.0
-            - vol24h = M.get("total_volume") or 0.0
-            - image = M.get("image")
-            - url = "https://www.coingecko.com/en/coins/" + (M.get("id") or "")
-
-            Filter out rows where parent is missing AND marketCap==0 AND
-            vol24h==0.
+            :param market_data: List of market data from CoinGecko API.
+            :return: List of formatted parent dictionaries.
             """
-            parents = []
+            if not market_data:
+                return []
 
+            items = []
             for row in market_data:
                 # Extract fields as specified
-                name = row.get("name") or row.get("symbol") or "unknown"
-                symbol = row.get("symbol")
-                price = row.get("current_price") or 0.0
-                market_cap = row.get("market_cap") or 0.0
-                vol24h = row.get("total_volume") or 0.0
-                image = row.get("image")
-                url = "https://www.coingecko.com/en/coins/" + (
-                    row.get("id") or ""
-                )
+                name = (row.get("name") or "").strip()
+                if not name:
+                    continue
 
-                # Build parent dict as specified
-                parent = {
+                symbol = (row.get("symbol") or "").upper()
+                price = float(row.get("current_price") or 0)
+                market_cap = float(row.get("market_cap") or 0)
+                vol24h = float(row.get("total_volume") or 0)
+                image = row.get("image")
+                url = f"https://www.coingecko.com/en/coins/{row.get('id', '')}"
+
+                item = {
                     "parent": name,
-                    "matches": 0,  # set in next step
-                    "symbol": symbol,
-                    "price": price,
-                    "marketCap": market_cap,
-                    "vol24h": vol24h,
+                    "matches": 0,  # set below
+                    "symbol": symbol or None,
+                    "price": price if price else None,
+                    "marketCap": market_cap if market_cap else None,
+                    "vol24h": vol24h if vol24h else None,
                     "image": image,
                     "url": url,
                     "source": "coingecko",
                 }
+                items.append(item)
 
-                # Filter out rows where parent is missing AND marketCap==0 AND
-                # vol24h==0
-                if not (not name or name == "unknown") or (
-                    market_cap > 0 or vol24h > 0
-                ):
-                    parents.append(parent)
-
-            # Apply volume-based ranking logic
-            vols = [
-                p["vol24h"]
-                for p in parents
-                if isinstance(p["vol24h"], (int, float))
-            ]
-            max_v = max(vols) if vols else 0
-
-            if max_v > 0:
-                for p in parents:
-                    vol = p["vol24h"]
-                    if isinstance(vol, (int, float)):
-                        p["matches"] = int(round(100 * (vol / max_v)))
-                    else:
-                        p["matches"] = 10  # minimal fallback for non-numeric
+            # Apply volume-based scoring
+            vols = [float(it["vol24h"] or 0) for it in items]
+            if any(v > 0 for v in vols):
+                max_v = max(vols)
+                for it in items:
+                    vol = float(it["vol24h"] or 0)
+                    it["matches"] = int(round(100 * (vol / max_v)))
             else:
-                for p in parents:
-                    p["matches"] = 10  # minimal fallback
+                for it in items:
+                    it["matches"] = 10
 
-            # Sort by matches descending and return top 25
-            # matches is guaranteed to be int at this point
-            parents.sort(
-                key=lambda x: int(x["matches"]),  # type: ignore[arg-type]
-                reverse=True,
+            # Sort by matches desc, then marketCap desc, then parent asc
+            items.sort(
+                key=lambda x: (
+                    -int(x["matches"] or 0),
+                    -float(x["marketCap"] or 0),
+                    x["parent"],
+                ),
             )
-            parents = parents[:25]
 
-            # Log parents mapped count
-            logging.info("[CG] parents mapped=%d", len(parents))
-            return parents
-
-        def _map_market_to_raw_rows(
-            self,
-            market_data: list[dict],
-        ) -> list[dict]:
-            """Map CoinGecko market rows into raw market data rows.
-
-            Returns only the specified fields: name, symbol, image,
-            current_price, market_cap, total_volume, id
-            """
-            raw_rows = []
-            for market_row in market_data:
-                raw_row = {
-                    "name": market_row.get("name", ""),
-                    "symbol": market_row.get("symbol", ""),
-                    "image": market_row.get("image", ""),
-                    "current_price": market_row.get("current_price", 0) or 0,
-                    "market_cap": market_row.get("market_cap", 0) or 0,
-                    "total_volume": market_row.get("total_volume", 0) or 0,
-                    "id": market_row.get("id", ""),
-                }
-                raw_rows.append(raw_row)
-
-            return raw_rows
-
-        def _map_search_to_parents(
-            self,
-            search_results: list[dict],
-        ) -> list[dict]:
-            """Map CoinGecko search results into parent dicts."""
-            parents = []
-            for i, search_result in enumerate(search_results):
-                name = (
-                    search_result.get("name")
-                    or search_result.get("id")
-                    or f"cg-{i}"
-                )
-                rank = search_result.get("market_cap_rank") or 1000
-                score = max(3, 100 - int(rank))
-                parent = {
-                    "parent": name,
-                    "matches": score,
-                    "symbol": search_result.get("symbol", ""),
-                    "price": 0,  # Not available in search results
-                    "marketCap": 0,  # Not available in search results
-                    "vol24h": 0,  # Not available in search results
-                    "image": search_result.get("large", ""),
-                    "url": (
-                        f"https://www.coingecko.com/en/coins/"
-                        f"{search_result.get('id', '')}"
-                    ),
-                    "source": "coingecko",
-                }
-                parents.append(parent)
-
-            # Sort by matches descending
-            parents.sort(key=lambda x: -int(x["matches"]))
-            return parents
+            # Return top 25
+            return items[:25]
 
         def parents_for(
             self,
@@ -528,40 +417,34 @@ def _make_cg() -> t.Any:
             require_all_terms: bool = False,
         ) -> list[dict]:
             def _fetch() -> list[dict]:
-                # Use up to first 3 seed terms per narrative
-                search_terms = (terms or [])[:3]
+                # Filter terms: take first 3, skip generic/short ones
+                search_terms = self._filter_terms(terms)
                 if not search_terms:
                     return []
 
-                # Collect coin IDs and search results from search API
-                coin_ids, search_results = self._search_coins(search_terms)
-                if not coin_ids and not search_results:
-                    # Fallback to deterministic items when no search results
-                    q = (
-                        " ".join(sorted({t for t in terms if t.strip()}))
-                        or "sol"
-                    )
-                    return _deterministic_items(q, terms)
+                # Collect coin IDs from search API
+                coin_ids = self._search_coins(search_terms)
+                if not coin_ids:
+                    return []
 
-                # Try to fetch market data for the coin IDs
-                market_data = (
-                    self._get_market_data(coin_ids) if coin_ids else []
+                # Fetch market data for the coin IDs
+                market_data = self._get_market_data(coin_ids)
+                if not market_data:
+                    return []
+
+                # Map market data to parent dicts with scoring
+                items = self._map_market_to_items(market_data)
+
+                # Log once per narrative
+                logger.info(
+                    "[CG] %s ids=%d markets=%d mapped=%d",
+                    narrative,
+                    len(coin_ids),
+                    len(market_data),
+                    len(items),
                 )
 
-                if market_data:
-                    # Use market data if available (preferred approach)
-                    # Return parent dicts with metadata as requested
-                    return self._map_market_to_parents(market_data)
-                if search_results:
-                    # Fall back to search results if no market data
-                    return self._map_search_to_parents(search_results)
-
-                # This should never be reached in normal circumstances
-                # as search_results will always be processed above
-                raise RuntimeError(  # pragma: no cover
-                    "Unexpected code path: no market data and no search"
-                    " results",
-                )
+                return items
 
             raw = _memo_raw("coingecko", terms, _fetch)
             parents = _apply_seed_semantics(
@@ -573,13 +456,20 @@ def _make_cg() -> t.Any:
                 require_all_terms,
                 cap=None,  # no cap for cg
             )
-            # Log final mapped parents count
-            logging.info(
-                "[CG] mapped=%d first=%s",
-                len(parents),
-                (parents[0].get("symbol") if parents else "-"),
-            )
             return parents
+
+        def fetch_parents(
+            self,
+            narrative: str,
+            terms: list[str],
+        ) -> list[dict]:
+            """Fetch parent data for a narrative and terms.
+
+            :param narrative: The narrative to get parent data for.
+            :param terms: The terms to get parent data for.
+            :return: Parent data.
+            """
+            return self.parents_for(narrative, terms)
 
     return _CGAdapter()
 
