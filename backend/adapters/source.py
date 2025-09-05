@@ -510,7 +510,11 @@ def _make_cg() -> t.Any:
                 cap=None,  # no cap for cg
             )
             # Log final mapped parents count
-            logging.info("[CG] parents mapped=%d", len(parents))
+            logging.info(
+                "[CG] mapped=%d first=%s",
+                len(parents),
+                (parents[0].get("symbol") if parents else "-"),
+            )
             return parents
 
     return _CGAdapter()
