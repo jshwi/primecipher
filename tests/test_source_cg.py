@@ -3,7 +3,6 @@
 import importlib
 import typing as t
 
-import httpx
 import pytest
 
 
@@ -11,14 +10,16 @@ def reload_src(
     monkeypatch: pytest.MonkeyPatch,
     ttl: str = "60",
     mode: str = "test",
-    client_factory: t.Callable[[], t.Any] | None = None,
+    get_json_func: (
+        t.Callable[[str, dict | None], dict | list | None] | None
+    ) = None,
 ) -> t.Any:
     """Reload source module with new configuration.
 
     :param monkeypatch: Pytest fixture for patching.
     :param ttl: Time to live for cache.
     :param mode: Source mode to use.
-    :param client_factory: Optional factory for fake HTTP client.
+    :param get_json_func: Optional function to replace _get_json.
     :return: Source module with updated configuration.
     """
     monkeypatch.setenv("SOURCE_TTL", ttl)
@@ -28,9 +29,9 @@ def reload_src(
     importlib.reload(src)
     src._raw_cache.clear()
 
-    # if a fake client factory is passed, patch httpx.client
-    if client_factory:
-        monkeypatch.setattr(httpx, "Client", client_factory)
+    # if a fake get_json function is passed, patch _get_json
+    if get_json_func:
+        monkeypatch.setattr(src, "_get_json", get_json_func)
 
     return src
 
@@ -103,16 +104,21 @@ def test_cg_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
     """
 
     # normal case: coins returned
-    def fake_get(_: str, __: dict) -> FakeResponse:
-        return make_resp(
-            {"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]},
-        )
+    def fake_get_json(
+        url: str,
+        _params: dict | None = None,
+    ) -> dict | list | None:
+        if "search" in url:
+            return {"coins": [{"name": "Foxtrot", "market_cap_rank": 8}]}
+        if "coins/markets" in url:
+            return []
+        return None
 
     src = reload_src(
         monkeypatch,
         ttl="120",
         mode="coingecko",
-        client_factory=lambda *_, **__: FakeClient(fake_get),
+        get_json_func=fake_get_json,
     )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
@@ -127,14 +133,21 @@ def test_cg_empty_results(monkeypatch: pytest.MonkeyPatch) -> None:
     """
 
     # api returns no coins -> fallback to deterministic
-    def fake_get(_: str, __: dict) -> FakeResponse:
-        return make_resp({"coins": []})
+    def fake_get_json(
+        url: str,
+        _params: dict | None = None,
+    ) -> dict | list | None:
+        if "search" in url:
+            return {"coins": []}
+        if "coins/markets" in url:
+            return []
+        return None
 
     src = reload_src(
         monkeypatch,
         ttl="120",
         mode="coingecko",
-        client_factory=lambda *_, **__: FakeClient(fake_get),
+        get_json_func=fake_get_json,
     )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])
@@ -148,15 +161,18 @@ def test_cg_network_error_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     :param monkeypatch: Pytest fixture for patching.
     """
 
-    # simulate network failure by raising inside get()
-    def fake_get(_: str, __: dict) -> FakeResponse:
-        raise httpx.RequestError("boom", request=None)
+    # simulate network failure by returning None
+    def fake_get_json(
+        _url: str,
+        _params: dict | None = None,
+    ) -> dict | list | None:
+        return None
 
     src = reload_src(
         monkeypatch,
         ttl="120",
         mode="coingecko",
-        client_factory=lambda *_, **__: FakeClient(fake_get),
+        get_json_func=fake_get_json,
     )
     s = src.Source(provider="coingecko")
     out = s.parents_for("dogs", ["dog"])

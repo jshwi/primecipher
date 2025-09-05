@@ -1,8 +1,11 @@
 """Tests for CoinGecko adapter methods in source.py."""
 
-# pylint: disable=attribute-defined-outside-init
+# pylint: disable=attribute-defined-outside-init,too-many-lines
 
+import typing as t
 from unittest.mock import MagicMock, patch
+
+import requests
 
 from backend.adapters.source import _make_cg
 
@@ -20,35 +23,26 @@ class TestCGAdapterMethods:
         """Set up test fixtures."""
         self.adapter = _make_cg()  # type: ignore
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_search_coins_success(
         self,
         _mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test _search_coins with successful API response.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
         # Mock response
-        mock_response = MagicMock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
+        mock_get_json.return_value = {
             "coins": [
                 {"name": "Bitcoin", "id": "bitcoin", "market_cap_rank": 1},
                 {"name": "Ethereum", "id": "ethereum", "market_cap_rank": 2},
             ],
         }
-
-        # Mock client context manager
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.return_value = mock_response
-        mock_client.return_value = mock_client_instance
 
         # Test the method
         coin_ids, search_results = self.adapter._search_coins(["bitcoin"])
@@ -61,58 +55,48 @@ class TestCGAdapterMethods:
         assert search_results[0]["name"] == "Bitcoin"
 
         # Verify API call was made
-        mock_client_instance.get.assert_called_once()
+        mock_get_json.assert_called_once()
         _mock_sleep.assert_called_once_with(0.25)
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_search_coins_no_id(
         self,
         _mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test _search_coins with coins that have no ID.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
         # Mock response with coin without ID
-        mock_response = MagicMock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {
+        mock_get_json.return_value = {
             "coins": [
                 {"name": "Bitcoin", "market_cap_rank": 1},  # No ID field
             ],
         }
-
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.return_value = mock_response
-        mock_client.return_value = mock_client_instance
 
         coin_ids, search_results = self.adapter._search_coins(["bitcoin"])
 
         assert len(coin_ids) == 0  # No IDs collected
         assert len(search_results) == 1  # But search result still added
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_get_market_data_success(
         self,
         mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test _get_market_data with successful API response.
 
         Args:
             mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
-        mock_response = MagicMock()
-        mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = [
+        mock_get_json.return_value = [
             {
                 "name": "Bitcoin",
                 "symbol": "btc",
@@ -123,12 +107,6 @@ class TestCGAdapterMethods:
                 "image": "https://example.com/btc.png",
             },
         ]
-
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.return_value = mock_response
-        mock_client.return_value = mock_client_instance
 
         result = self.adapter._get_market_data(["bitcoin"])
 
@@ -285,35 +263,33 @@ class TestCGAdapterMethods:
         assert btc_parent["parent"] == "Bitcoin"
         assert btc_parent["matches"] == 10  # fallback for non-numeric volume
 
-    def test_parents_for_search_results_fallback(self) -> None:
-        """Test parents_for uses search results when no market data."""
+    @patch("backend.adapters.source._get_json")
+    def test_parents_for_search_results_fallback(
+        self,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test parents_for uses search results when no market data.
+
+        Args:
+            mock_get_json: Mock for _get_json function
+        """
         # Mock search response
-        mock_search_response = MagicMock()
-        mock_search_response.raise_for_status.return_value = None
-        mock_search_response.json.return_value = {
+        search_response = {
             "coins": [
                 {"name": "Bitcoin", "id": "bitcoin", "market_cap_rank": 1},
             ],
         }
 
         # Mock market data response (empty)
-        mock_market_response = MagicMock()
-        mock_market_response.raise_for_status.return_value = None
-        mock_market_response.json.return_value = []
-
-        # Mock client to return different responses for different calls
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
+        market_response: list[dict[str, t.Any]] = []
 
         # Set up the mock to return search response, then empty market response
-        mock_client_instance.get.side_effect = [
-            mock_search_response,  # First call in _search_coins
-            mock_market_response,  # Call in _get_market_data (empty)
+        mock_get_json.side_effect = [
+            search_response,  # First call in _search_coins
+            market_response,  # Call in _get_market_data (empty)
         ]
 
-        with patch("httpx.Client", return_value=mock_client_instance):
-            result = self.adapter.parents_for("test", ["bitcoin"])
+        result = self.adapter.parents_for("test", ["bitcoin"])
 
         # Should use search results fallback
         assert len(result) == 1
@@ -585,25 +561,21 @@ class TestCGAdapterMethods:
         assert not coin_ids
         assert not search_results
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_search_coins_api_error(
         self,
         _mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test _search_coins handles API errors gracefully.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
-        # Mock client that raises an exception
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.side_effect = Exception("API Error")
-        mock_client.return_value = mock_client_instance
+        # Mock _get_json to return None (error case)
+        mock_get_json.return_value = None
 
         # Should not raise, should return empty results
         coin_ids, search_results = self.adapter._search_coins(["bitcoin"])
@@ -611,24 +583,21 @@ class TestCGAdapterMethods:
         assert not coin_ids
         assert not search_results
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_get_market_data_api_error(
         self,
         _mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test _get_market_data handles API errors gracefully.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.side_effect = Exception("API Error")
-        mock_client.return_value = mock_client_instance
+        # Mock _get_json to return None (error case)
+        mock_get_json.return_value = None
 
         result = self.adapter._get_market_data(["bitcoin"])
         assert result == []
@@ -643,32 +612,28 @@ class TestCGAdapterMethods:
         result = self.adapter.parents_for("test", None)  # type: ignore
         assert not result
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_parents_for_market_data_path(
         self,
         _mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test parents_for uses market data when available.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
         # Mock search response
-        mock_search_response = MagicMock()
-        mock_search_response.raise_for_status.return_value = None
-        mock_search_response.json.return_value = {
+        search_response = {
             "coins": [
                 {"name": "Bitcoin", "id": "bitcoin", "market_cap_rank": 1},
             ],
         }
 
         # Mock market data response
-        mock_market_response = MagicMock()
-        mock_market_response.raise_for_status.return_value = None
-        mock_market_response.json.return_value = [
+        market_response = [
             {
                 "name": "Bitcoin",
                 "symbol": "btc",
@@ -680,19 +645,12 @@ class TestCGAdapterMethods:
             },
         ]
 
-        # Mock client to return different responses for different calls
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-
-        # Set up the mock to return search response, then market response,
-        # then search response again
-        mock_client_instance.get.side_effect = [
-            mock_search_response,  # First call in _search_coins
-            mock_market_response,  # Call in _get_market_data
-            mock_search_response,  # Second call in _search_coins
+        # Set up the mock to return different responses for different calls
+        mock_get_json.side_effect = [
+            search_response,  # First call in _search_coins
+            market_response,  # Call in _get_market_data
+            search_response,  # Second call in _search_coins
         ]
-        mock_client.return_value = mock_client_instance
 
         result = self.adapter.parents_for("test", ["bitcoin"])
 
@@ -707,48 +665,35 @@ class TestCGAdapterMethods:
         assert result[0]["image"] == "https://example.com/btc.png"
         assert result[0]["url"] == "https://www.coingecko.com/en/coins/bitcoin"
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_parents_for_final_fallback(
         self,
         _mock_sleep: MagicMock,  # noqa: ARG002
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test final fallback when search results exist but no market data.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
         # Mock search response with results but no IDs
-        mock_search_response = MagicMock()
-        mock_search_response.raise_for_status.return_value = None
-        mock_search_response.json.return_value = {
+        search_response = {
             "coins": [
                 {"name": "Bitcoin", "market_cap_rank": 1},  # No ID field
             ],
         }
 
         # Mock empty market data response
-        mock_market_response = MagicMock()
-        mock_market_response.raise_for_status.return_value = None
-        mock_market_response.json.return_value = []
+        market_response: list[dict[str, t.Any]] = []
 
-        def mock_get(
-            url: str,
-            _: dict | None = None,  # noqa: ARG002
-        ) -> MagicMock:
-            if "search" in url:
-                return mock_search_response
-            if "coins/markets" in url:
-                return mock_market_response
-            return MagicMock()
-
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.side_effect = mock_get
-        mock_client.return_value = mock_client_instance
+        # Set up the mock to return different responses for different calls
+        mock_get_json.side_effect = [
+            search_response,  # First call in _search_coins
+            market_response,  # Call in _get_market_data
+            search_response,  # Second call in _search_coins
+        ]
 
         # Mock _map_search_to_parents to raise an exception to trigger
         # final fallback
@@ -763,25 +708,21 @@ class TestCGAdapterMethods:
         assert isinstance(result, list)
         assert len(result) > 0
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_parents_for_exception_fallback(
         self,
         _mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test parents_for exception handling fallback.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
-        # Mock client that raises an exception
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.side_effect = Exception("API Error")
-        mock_client.return_value = mock_client_instance
+        # Mock _get_json to raise an exception
+        mock_get_json.side_effect = Exception("API Error")
 
         result = self.adapter.parents_for("test", ["bitcoin"])
 
@@ -798,29 +739,21 @@ class TestCGAdapterMethods:
         result = source.parents_for("test", [])
         assert result == []
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_parents_for_runtime_error_path(
         self,
         _mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """test parents_for error when no search results and no market data.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
         # Mock empty search response
-        mock_search_response = MagicMock()
-        mock_search_response.raise_for_status.return_value = None
-        mock_search_response.json.return_value = {"coins": []}
-
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.return_value = mock_search_response
-        mock_client.return_value = mock_client_instance
+        mock_get_json.return_value = {"coins": []}
 
         # This should trigger the RuntimeError path (lines 361-364)
         result = self.adapter.parents_for("test", ["nonexistent"])
@@ -829,27 +762,23 @@ class TestCGAdapterMethods:
         # Let's see what happens instead of expecting RuntimeError
         assert isinstance(result, list)
 
-    @patch("httpx.Client")
+    @patch("backend.adapters.source._get_json")
     @patch("time.sleep")
     def test_source_class_exception_fallback(
         self,
         _mock_sleep: MagicMock,
-        mock_client: MagicMock,
+        mock_get_json: MagicMock,
     ) -> None:
         """Test Source class exception handling to hit lines 365-371.
 
         Args:
             _mock_sleep: Mock for time.sleep function
-            mock_client: Mock for httpx.Client
+            mock_get_json: Mock for _get_json function
         """
         from backend.adapters.source import Source
 
-        # Mock client that raises an exception
-        mock_client_instance = MagicMock()
-        mock_client_instance.__enter__.return_value = mock_client_instance
-        mock_client_instance.__exit__.return_value = None
-        mock_client_instance.get.side_effect = Exception("API Error")
-        mock_client.return_value = mock_client_instance
+        # Mock _get_json to raise an exception
+        mock_get_json.side_effect = Exception("API Error")
 
         source = Source(provider="coingecko")
         result = source.parents_for("test", ["bitcoin"])
@@ -969,3 +898,129 @@ class TestCGAdapterMethods:
 
         # Should return empty list when all data is filtered out
         assert not result
+
+    @patch("backend.adapters.source._get_json")
+    def test_search_coins_non_dict_response(
+        self,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test _search_coins with non-dict response.
+
+        Args:
+            mock_get_json: Mock for _get_json function
+        """
+        # Mock non-dict response (list)
+        mock_get_json.return_value = ["invalid", "response"]
+
+        coin_ids, search_results = self.adapter._search_coins(["bitcoin"])
+
+        # Should handle non-dict response gracefully
+        assert not coin_ids
+        assert not search_results
+        mock_get_json.assert_called_once()
+
+    @patch("backend.adapters.source.sess")
+    def test_get_json_retry_after_header(self, mock_sess: MagicMock) -> None:
+        """Test _get_json with Retry-After header.
+
+        Args:
+            mock_sess: Mock for requests session
+        """
+        from backend.adapters.source import _get_json
+
+        # Mock response with Retry-After header
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.headers = {"Retry-After": "2"}
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {"test": "data"}
+
+        mock_sess.get.return_value = mock_response
+
+        with patch("time.sleep") as mock_sleep:
+            result = _get_json("https://api.coingecko.com/api/v3/test")
+
+        # Should sleep for 2 seconds and return data
+        mock_sleep.assert_called_once_with(2)
+        assert result == {"test": "data"}
+
+    @patch("backend.adapters.source.sess")
+    def test_get_json_retry_after_invalid(self, mock_sess: MagicMock) -> None:
+        """Test _get_json with invalid Retry-After header.
+
+        Args:
+            mock_sess: Mock for requests session
+        """
+        from backend.adapters.source import _get_json
+
+        # Mock response with invalid Retry-After header
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.headers = {"Retry-After": "invalid"}
+        mock_response.raise_for_status.return_value = None
+        mock_response.json.return_value = {"test": "data"}
+
+        mock_sess.get.return_value = mock_response
+
+        with patch("time.sleep") as mock_sleep:
+            result = _get_json("https://api.coingecko.com/api/v3/test")
+
+        # Should not sleep and return data
+        mock_sleep.assert_not_called()
+        assert result == {"test": "data"}
+
+    @patch("backend.adapters.source.sess")
+    def test_get_json_exception_handling(self, mock_sess: MagicMock) -> None:
+        """Test _get_json with exception handling.
+
+        Args:
+            mock_sess: Mock for requests session
+        """
+        from backend.adapters.source import _get_json
+
+        # Mock session to raise an exception
+        mock_sess.get.side_effect = requests.RequestException("Network error")
+
+        result = _get_json("https://api.coingecko.com/api/v3/test")
+
+        # Should return None on exception
+        assert result is None
+
+    @patch("backend.adapters.source._get_json")
+    def test_search_coins_exception_handling(
+        self,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test _search_coins with exception handling.
+
+        Args:
+            mock_get_json: Mock for _get_json function
+        """
+        # Mock _get_json to raise an exception
+        mock_get_json.side_effect = Exception("Network error")
+
+        coin_ids, search_results = self.adapter._search_coins(["bitcoin"])
+
+        # Should handle exception gracefully
+        assert not coin_ids
+        assert not search_results
+        mock_get_json.assert_called_once()
+
+    @patch("backend.adapters.source._get_json")
+    def test_get_market_data_exception_handling(
+        self,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test _get_market_data with exception handling.
+
+        Args:
+            mock_get_json: Mock for _get_json function
+        """
+        # Mock _get_json to raise an exception
+        mock_get_json.side_effect = Exception("Network error")
+
+        result = self.adapter._get_market_data(["bitcoin"])
+
+        # Should handle exception gracefully
+        assert result == []
+        mock_get_json.assert_called_once()

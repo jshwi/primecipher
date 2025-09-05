@@ -7,6 +7,10 @@ import os
 import time
 import typing as t
 
+import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+
 from .registry import get_adapter_names, make_adapter, register_adapter
 
 # global ttl for raw provider results (seconds)
@@ -17,6 +21,62 @@ TTL_SEC = int(os.getenv("SOURCE_TTL", "60"))
 _raw_cache: dict[tuple[str, tuple[str, ...]], tuple[float, list[dict]]] = {}
 # back-compat alias for older tests/helpers that expect `_cache`
 _cache = _raw_cache
+
+# Module-level logger
+logger = logging.getLogger(__name__)
+
+# Module-level Session for CoinGecko calls
+sess = requests.Session()
+sess.headers.update(
+    {
+        "accept": "application/json",
+        "user-agent": "primecipher/0.0.0 (+https://primecipher.local)",
+    },
+)
+adapter = HTTPAdapter(
+    max_retries=Retry(
+        total=3,
+        connect=2,
+        read=2,
+        status=3,
+        backoff_factor=0.6,
+        status_forcelist=(429, 500, 502, 503, 504),
+        raise_on_status=False,
+        respect_retry_after_header=True,
+    ),
+)
+sess.mount("https://", adapter)
+
+
+def _get_json(
+    url: str,
+    params: dict[str, t.Any] | None = None,
+) -> t.Optional[t.Union[dict, list]]:
+    """Get JSON data from URL with retry logic and proper error handling.
+
+    Args:
+        url: URL to fetch
+        params: Query parameters
+
+    Returns:
+        JSON data or None on error
+    """
+    try:
+        r = sess.get(url, params=params, timeout=10)
+        if r.status_code == 429:
+            ra = r.headers.get("Retry-After")
+            if ra and ra.isdigit():
+                time.sleep(int(ra))
+        r.raise_for_status()
+        return r.json()
+    except (requests.RequestException, ValueError, KeyError) as e:
+        logger.warning(
+            "[CG] http error url=%s params=%s err=%s",
+            url,
+            params,
+            e,
+        )
+        return None
 
 
 def _now() -> float:
@@ -196,8 +256,6 @@ def _make_dev() -> t.Any:
 
 @register_adapter("coingecko")
 def _make_cg() -> t.Any:
-    import httpx
-
     class _CGAdapter:  # pylint: disable=too-few-public-methods
         # pylint: disable=too-many-positional-arguments
         # pylint: disable=missing-function-docstring
@@ -235,12 +293,11 @@ def _make_cg() -> t.Any:
                     url = "https://api.coingecko.com/api/v3/search"
                     params = {"query": term.strip()}
 
-                    with httpx.Client(timeout=10.0) as client:
-                        response = client.get(url, params=params)
-                        response.raise_for_status()
-                        data = response.json() or {}
-
-                    coins = data.get("coins", [])
+                    data = _get_json(url, params) or {}
+                    if isinstance(data, dict):
+                        coins = data.get("coins", [])
+                    else:
+                        coins = []
                     # Collect up to 10 ids per term and add to search results
                     term_ids = self._process_search_coins(
                         coins,
@@ -311,11 +368,7 @@ def _make_cg() -> t.Any:
                     "sparkline": "false",
                 }
 
-                with httpx.Client(timeout=10.0) as client:
-                    response = client.get(url, params=params)
-                    response.raise_for_status()
-                    data = response.json() or []
-
+                data = _get_json(url, params) or []
                 rows = data if isinstance(data, list) else []
                 # Log market data results
                 logging.info("[CG] markets rows=%d", len(rows))
