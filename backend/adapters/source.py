@@ -4,6 +4,7 @@
 
 import logging
 import os
+import random
 import time
 import typing as t
 
@@ -16,6 +17,11 @@ from .registry import get_adapter_names, make_adapter, register_adapter
 # global ttl for raw provider results (seconds)
 TTL_SEC = int(os.getenv("SOURCE_TTL", "60"))
 
+# Rate limiting configuration
+CG_RPS = float(os.getenv("CG_RPS", "0.5"))  # max requests per second
+CG_BURST = int(os.getenv("CG_BURST", "1"))  # allow short bursts
+CG_JITTER_MS = int(os.getenv("CG_JITTER_MS", "250"))  # jitter in milliseconds
+
 # shared raw cache across providers: (provider, normalized_terms) ->
 # (ts, items)
 _raw_cache: dict[tuple[str, tuple[str, ...]], tuple[float, list[dict]]] = {}
@@ -24,6 +30,46 @@ _cache = _raw_cache
 
 # Module-level logger
 logger = logging.getLogger(__name__)
+
+
+class TokenBucket:  # pylint: disable=too-few-public-methods
+    """Simple token bucket rate limiter for CoinGecko requests.
+
+    :param rps: Requests per second (tokens per second).
+    :param burst: Maximum burst capacity.
+    """
+
+    def __init__(self, rps: float, burst: int) -> None:
+        """Initialize token bucket."""
+        self.rps = rps
+        self.capacity = burst
+        self.tokens = float(burst)
+        self.last_refill = time.monotonic()
+
+    def acquire(self) -> None:
+        """Acquire a token, blocking if necessary."""
+        now = time.monotonic()
+        # Refill tokens based on time elapsed
+        elapsed = now - self.last_refill
+        self.tokens = min(self.capacity, self.tokens + elapsed * self.rps)
+        self.last_refill = now
+
+        # If no tokens available, wait
+        if self.tokens < 1.0:
+            wait_time = (1.0 - self.tokens) / self.rps
+            time.sleep(wait_time)
+            # Update tokens after waiting
+            now = time.monotonic()
+            elapsed = now - self.last_refill
+            self.tokens = min(self.capacity, self.tokens + elapsed * self.rps)
+            self.last_refill = now
+
+        # Consume one token
+        self.tokens -= 1.0
+
+
+# Module-level rate limiter for CoinGecko
+_cg_limiter = TokenBucket(CG_RPS, CG_BURST)
 
 # Module-level Session for CoinGecko calls
 sess = requests.Session()
@@ -62,6 +108,12 @@ def _get_json(
         JSON data or None on error
     """
     try:
+        # Rate limit: acquire token before making request
+        _cg_limiter.acquire()
+
+        # Add small random jitter after acquiring token
+        jitter_ms = random.randint(0, CG_JITTER_MS)
+        time.sleep(jitter_ms / 1000.0)
         r = sess.get(url, params=params, timeout=10)
         if r.status_code == 429:
             ra = r.headers.get("Retry-After")
@@ -136,8 +188,6 @@ def _deterministic_items(narrative: str, terms: list[str]) -> list[dict]:
 
 def _random_items(terms: list[str]) -> list[dict]:
     # restore: small dev list (tests expect 2..6 items)
-    import random
-
     n = random.randint(2, 6)
     out: list[dict] = []
     for i in range(n):
