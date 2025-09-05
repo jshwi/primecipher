@@ -17,7 +17,7 @@ class CoinGeckoAdapter(
 
         :param narrative: The narrative name.
         :param terms: List of search terms.
-        :return: List of parent dictionaries with enriched data.
+        :return: List of candidate coin IDs (stubbed for now).
         """
         try:
             # Use up to first 3 seed terms per narrative
@@ -30,16 +30,11 @@ class CoinGeckoAdapter(
             if not coin_ids:
                 return []
 
-            # Get detailed market data
-            market_data = self._get_market_data(coin_ids)
-            if not market_data:
-                return []
-
-            # Convert to parent format with scoring
-            parents = self._format_parents(market_data)
-
-            # Return top 25 by score
-            return parents[:25]
+            # TODO: Map coin IDs to parent data (stubbed for now)
+            # For now, return the coin IDs as candidate data
+            return [
+                {"id": coin_id, "source": "coingecko"} for coin_id in coin_ids
+            ]
 
         except Exception:  # pylint: disable=broad-exception-caught
             # Return empty list on any error

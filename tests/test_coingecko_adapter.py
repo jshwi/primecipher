@@ -360,35 +360,19 @@ class TestCoinGeckoAdapter:  # pylint: disable=too-many-public-methods
         assert len(result) == 30
 
     def test_fetch_parents_integration_success(self) -> None:
-        """Test full integration of fetch_parents."""
+        """Test full integration of fetch_parents (stubbed behavior)."""
         adapter = CoinGeckoAdapter()
 
         with patch.object(adapter, "_search_coins") as mock_search:
-            with patch.object(adapter, "_get_market_data") as mock_market:
-                with patch.object(adapter, "_format_parents") as mock_format:
-                    mock_search.return_value = ["bitcoin", "ethereum"]
-                    mock_market.return_value = [
-                        {"id": "bitcoin"},
-                        {"id": "ethereum"},
-                    ]
-                    mock_format.return_value = [
-                        {"name": "Bitcoin"},
-                        {"name": "Ethereum"},
-                    ]
+            mock_search.return_value = ["bitcoin", "ethereum"]
 
-                    result = adapter.fetch_parents("test", ["bitcoin"])
+            result = adapter.fetch_parents("test", ["bitcoin"])
 
-                    assert result == [
-                        {"name": "Bitcoin"},
-                        {"name": "Ethereum"},
-                    ]
-                    mock_search.assert_called_once_with(["bitcoin"])
-                    mock_market.assert_called_once_with(
-                        ["bitcoin", "ethereum"],
-                    )
-                    mock_format.assert_called_once_with(
-                        [{"id": "bitcoin"}, {"id": "ethereum"}],
-                    )
+            assert result == [
+                {"id": "bitcoin", "source": "coingecko"},
+                {"id": "ethereum", "source": "coingecko"},
+            ]
+            mock_search.assert_called_once_with(["bitcoin"])
 
     def test_fetch_parents_search_returns_empty(self) -> None:
         """Test fetch_parents when search returns empty."""
@@ -402,17 +386,15 @@ class TestCoinGeckoAdapter:  # pylint: disable=too-many-public-methods
             assert not result
 
     def test_fetch_parents_market_returns_empty(self) -> None:
-        """Test fetch_parents when market data returns empty."""
+        """Test fetch_parents when search returns empty (stubbed behavior)."""
         adapter = CoinGeckoAdapter()
 
         with patch.object(adapter, "_search_coins") as mock_search:
-            with patch.object(adapter, "_get_market_data") as mock_market:
-                mock_search.return_value = ["bitcoin"]
-                mock_market.return_value = []
+            mock_search.return_value = []
 
-                result = adapter.fetch_parents("test", ["bitcoin"])
+            result = adapter.fetch_parents("test", ["bitcoin"])
 
-                assert not result
+            assert not result
 
     def test_fetch_parents_exception_handling(self) -> None:
         """Test fetch_parents handles exceptions gracefully."""
@@ -426,19 +408,13 @@ class TestCoinGeckoAdapter:  # pylint: disable=too-many-public-methods
             assert not result
 
     def test_fetch_parents_caps_at_25(self) -> None:
-        """Test fetch_parents caps results at 25."""
+        """Test fetch_parents caps results at 30 (stubbed behavior)."""
         adapter = CoinGeckoAdapter()
 
         with patch.object(adapter, "_search_coins") as mock_search:
-            with patch.object(adapter, "_get_market_data") as mock_market:
-                with patch.object(adapter, "_format_parents") as mock_format:
-                    mock_search.return_value = ["bitcoin"]
-                    mock_market.return_value = [{"id": "bitcoin"}]
-                    # Create 30 items to test capping
-                    mock_format.return_value = [
-                        {"name": f"Coin {i}"} for i in range(30)
-                    ]
+            # Create 30 coin IDs to test capping
+            mock_search.return_value = [f"coin{i}" for i in range(30)]
 
-                    result = adapter.fetch_parents("test", ["bitcoin"])
+            result = adapter.fetch_parents("test", ["bitcoin"])
 
-                    assert len(result) == 25
+            assert len(result) == 30
