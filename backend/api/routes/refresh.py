@@ -1,5 +1,6 @@
 """API routes for refresh operations."""
 
+import logging
 import os
 import time
 import typing as t
@@ -438,6 +439,13 @@ def _process_dev_mode_job(
                         errors=errors,
                     )
                     return  # Exit the function early
+
+                # Log before writing to storage
+                logging.info(
+                    "[REFRESH] %s parents_in=%s",
+                    narrative,
+                    len(items),
+                )
 
                 # Write to storage using current storage writer
                 _write_narrative_to_storage(narrative, items)

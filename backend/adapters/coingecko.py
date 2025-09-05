@@ -1,5 +1,6 @@
 """CoinGecko adapter for fetching parent data."""
 
+import logging
 import time
 
 import httpx
@@ -35,8 +36,11 @@ class CoinGeckoAdapter(
             if not market_data:
                 return []
 
-            # Return raw market data with requested fields
-            return self._format_raw_market_data(market_data)
+            # Format and return raw market data with requested fields
+            parents = self._format_raw_market_data(market_data)
+            # Log final mapped parents count
+            logging.info("[CG] parents mapped=%s", len(parents))
+            return parents
 
         except Exception:  # pylint: disable=broad-exception-caught
             # Return empty list on any error
@@ -73,6 +77,10 @@ class CoinGeckoAdapter(
                     if coin_id:
                         coin_ids.add(coin_id)
 
+                # Log search results for this term
+                ids_count = len([c for c in coins[:10] if c.get("id")])
+                logging.info("[CG] term=%s ids=%s", term, ids_count)
+
             except Exception:  # pylint: disable=broad-exception-caught
                 # Continue with other terms if one fails
                 continue
@@ -108,7 +116,10 @@ class CoinGeckoAdapter(
                 response.raise_for_status()
                 data = response.json() or []
 
-            return data if isinstance(data, list) else []
+            rows = data if isinstance(data, list) else []
+            # Log market data results
+            logging.info("[CG] markets rows=%s", len(rows))
+            return rows
 
         except Exception:  # pylint: disable=broad-exception-caught
             return []
