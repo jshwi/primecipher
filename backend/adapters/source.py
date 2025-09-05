@@ -98,7 +98,7 @@ def _get_json(
     url: str,
     params: dict[str, t.Any] | None = None,
 ) -> t.Optional[t.Union[dict, list]]:
-    """Get JSON data from URL with retry logic and proper error handling.
+    """Get JSON data from URL with exponential backoff retry logic.
 
     Args:
         url: URL to fetch
@@ -107,28 +107,102 @@ def _get_json(
     Returns:
         JSON data or None on error
     """
-    try:
-        # Rate limit: acquire token before making request
-        _cg_limiter.acquire()
+    # Backoff configuration
+    base_delay = 0.8  # base delay in seconds
+    max_backoff = 30.0  # maximum backoff in seconds
+    max_attempts = 3
 
-        # Add small random jitter after acquiring token
-        jitter_ms = random.randint(0, CG_JITTER_MS)
-        time.sleep(jitter_ms / 1000.0)
-        r = sess.get(url, params=params, timeout=10)
-        if r.status_code == 429:
-            ra = r.headers.get("Retry-After")
-            if ra and ra.isdigit():
-                time.sleep(int(ra))
-        r.raise_for_status()
-        return r.json()
-    except (requests.RequestException, ValueError, KeyError) as e:
-        logger.warning(
-            "[CG] http error url=%s params=%s err=%s",
-            url,
-            params,
-            e,
-        )
-        return None
+    for attempt in range(max_attempts):
+        try:
+            # Rate limit: acquire token before making request
+            _cg_limiter.acquire()
+
+            # Add small random jitter after acquiring token
+            jitter_ms = random.randint(0, CG_JITTER_MS)
+            time.sleep(jitter_ms / 1000.0)
+
+            r = sess.get(url, params=params, timeout=10)
+
+            # Handle 429 (rate limited) with Retry-After header
+            if r.status_code == 429:
+                retry_after = r.headers.get("Retry-After")
+                if retry_after and retry_after.isdigit():
+                    sleep_time = int(retry_after)
+                    logger.debug(
+                        "[CG] 429 rate limited, sleeping %ds (Retry-After)",
+                        sleep_time,
+                    )
+                    time.sleep(sleep_time)
+                else:
+                    # Calculate exponential backoff with jitter
+                    jitter = random.uniform(0, 0.3)
+                    backoff_delay = min(
+                        base_delay * (2**attempt) + jitter,
+                        max_backoff,
+                    )
+                    logger.debug(
+                        "[CG] 429 rate limited, sleeping %.2fs (backoff)",
+                        backoff_delay,
+                    )
+                    time.sleep(backoff_delay)
+
+                # Continue to next attempt
+                continue
+
+            # Handle 5xx server errors with exponential backoff
+            if 500 <= r.status_code < 600 and attempt < max_attempts - 1:
+                # Don't sleep on last attempt
+                jitter = random.uniform(0, 0.3)
+                backoff_delay = min(
+                    base_delay * (2**attempt) + jitter,
+                    max_backoff,
+                )
+                logger.debug(
+                    "[CG] %d server error, sleeping %.2fs (backoff)",
+                    r.status_code,
+                    backoff_delay,
+                )
+                time.sleep(backoff_delay)
+                continue
+
+            # For successful responses or non-retryable errors, raise
+            r.raise_for_status()
+            return r.json()
+
+        except (requests.RequestException, ValueError, KeyError) as e:
+            # Log debug for individual attempt failures
+            logger.debug(
+                "[CG] attempt %d/%d failed: %s",
+                attempt + 1,
+                max_attempts,
+                e,
+            )
+
+            # If this was the last attempt, log warning and return None
+            if attempt == max_attempts - 1:
+                logger.warning(
+                    "[CG] all %d attempts failed for url=%s params=%s",
+                    max_attempts,
+                    url,
+                    params,
+                )
+                return None
+
+            # Calculate backoff for next attempt
+            jitter = random.uniform(0, 0.3)
+            backoff_delay = min(
+                base_delay * (2**attempt) + jitter,
+                max_backoff,
+            )
+            logger.debug(
+                "[CG] sleeping %.2fs before retry %d/%d",
+                backoff_delay,
+                attempt + 2,
+                max_attempts,
+            )
+            time.sleep(backoff_delay)
+
+    return None
 
 
 def _now() -> float:
@@ -341,6 +415,7 @@ def _make_cg() -> t.Any:
             :return: List of unique coin IDs.
             """
             coin_ids = set()
+            failed_terms = []
 
             for term in terms:
                 try:
@@ -363,8 +438,17 @@ def _make_cg() -> t.Any:
                             coin_ids.add(coin_id)
 
                 except Exception:  # pylint: disable=broad-exception-caught
-                    # Continue with other terms if one fails
+                    # Track failed terms for logging
+                    failed_terms.append(term)
                     continue
+
+            # Log warning if all terms failed
+            if failed_terms and len(failed_terms) == len(terms):
+                logger.warning(
+                    "[CG] search failed for all %d terms: %s",
+                    len(terms),
+                    failed_terms,
+                )
 
             # Cap total ids to 30
             return list(coin_ids)[:30]
@@ -397,6 +481,10 @@ def _make_cg() -> t.Any:
                 return rows
 
             except Exception:  # pylint: disable=broad-exception-caught
+                logger.debug(
+                    "[CG] market data fetch failed for %d coin IDs",
+                    len(coin_ids),
+                )
                 return []
 
         def _map_market_to_items(self, market_data: list[dict]) -> list[dict]:
@@ -470,16 +558,30 @@ def _make_cg() -> t.Any:
                 # Filter terms: take first 3, skip generic/short ones
                 search_terms = self._filter_terms(terms)
                 if not search_terms:
+                    logger.debug(
+                        "[CG] %s: no valid search terms after filtering",
+                        narrative,
+                    )
                     return []
 
                 # Collect coin IDs from search API
                 coin_ids = self._search_coins(search_terms)
                 if not coin_ids:
+                    logger.warning(
+                        "[CG] %s: no coin IDs found for terms: %s",
+                        narrative,
+                        search_terms,
+                    )
                     return []
 
                 # Fetch market data for the coin IDs
                 market_data = self._get_market_data(coin_ids)
                 if not market_data:
+                    logger.warning(
+                        "[CG] %s: no market data found for %d coin IDs",
+                        narrative,
+                        len(coin_ids),
+                    )
                     return []
 
                 # Map market data to parent dicts with scoring
