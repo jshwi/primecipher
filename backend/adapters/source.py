@@ -278,28 +278,6 @@ def _make_cg() -> t.Any:
             except Exception:  # pylint: disable=broad-exception-caught
                 return []
 
-        def _build_parent_dict(self, market_row: dict) -> dict:
-            """Build a parent dict from a market row."""
-            name = market_row.get("name")
-            symbol = market_row.get("symbol")
-            price = market_row.get("current_price") or 0.0
-            market_cap = market_row.get("market_cap") or 0.0
-            vol24h = market_row.get("total_volume") or 0.0
-            image = market_row.get("image")
-            coin_id = market_row.get("id", "")
-
-            return {
-                "parent": name or symbol or "unknown",
-                "matches": 0,  # scoring in next step
-                "symbol": symbol,
-                "price": price,
-                "marketCap": market_cap,
-                "vol24h": vol24h,
-                "image": image,
-                "url": f"https://www.coingecko.com/en/coins/{coin_id}",
-                "source": "coingecko",
-            }
-
         def _filter_valid_parents(self, parents: list[dict]) -> list[dict]:
             """Filter out invalid parent entries."""
             filtered_parents = []
@@ -316,21 +294,6 @@ def _make_cg() -> t.Any:
                 ):
                     filtered_parents.append(parent)
             return filtered_parents
-
-        def _calculate_volume_matches(self, parents: list[dict]) -> None:
-            """Calculate volume-based matches for parents."""
-            vols = [
-                it["vol24h"]
-                for it in parents
-                if isinstance(it.get("vol24h"), (int, float))
-            ]
-            max_v = max(vols) if vols else 0
-
-            if max_v > 0:
-                # Use normalized volume for matches
-                for item in parents:
-                    vol24h = float(item.get("vol24h", 0) or 0)
-                    item["matches"] = int(round(100 * (vol24h / max_v)))
 
         def _calculate_fallback_matches(
             self,
@@ -379,21 +342,47 @@ def _make_cg() -> t.Any:
 
             Maps each market row M to parent dict with specified field mapping.
             """
-            # Build parent dicts
-            parents = [self._build_parent_dict(row) for row in market_data]
+            # Build parents list with exact field mapping as specified
+            parents = [
+                {
+                    "parent": row.get("name")
+                    or row.get("symbol")
+                    or "unknown",
+                    "matches": 0,  # Will be calculated below
+                    "vol24h": row.get("total_volume") or 0.0,
+                    "marketCap": row.get("market_cap") or 0.0,
+                    "price": row.get("current_price") or 0.0,
+                    "symbol": row.get("symbol", ""),
+                    "image": row.get("image", ""),
+                    "url": (
+                        f"https://www.coingecko.com/en/coins/"
+                        f"{row.get('id', '')}"
+                    ),
+                    "source": "coingecko",
+                }
+                for row in market_data
+            ]
 
-            # Filter valid parents
+            # Filter out invalid parent entries
             filtered_parents = self._filter_valid_parents(parents)
 
-            # Calculate volume-based matches
-            self._calculate_volume_matches(filtered_parents)
+            # Compute matches using volume-based scoring
+            vols = [
+                p["vol24h"]
+                for p in filtered_parents
+                if isinstance(p["vol24h"], (int, float))
+            ]
+            max_v = max(vols) if vols else 0
 
-            # If no volume data, use fallback
-            if not any(p.get("vol24h", 0) for p in filtered_parents):
+            if max_v > 0:
+                for p in filtered_parents:
+                    p["matches"] = int(round(100 * (p["vol24h"] / max_v)))
+            else:
+                # If no volume data, use fallback
                 self._calculate_fallback_matches(filtered_parents, market_data)
 
-            # Sort parents by matches desc and cap to top 25
-            filtered_parents.sort(key=lambda x: -int(x.get("matches", 0)))
+            # Sort by matches desc; cap to top 25
+            filtered_parents.sort(key=lambda x: -x["matches"])
             return filtered_parents[:25]
 
         def _map_market_to_raw_rows(
