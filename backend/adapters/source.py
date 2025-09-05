@@ -274,12 +274,15 @@ def _make_cg() -> t.Any:
             self,
             market_data: list[dict],
         ) -> list[dict]:
-            """Map CoinGecko market rows into parent dicts with metadata."""
+            """Map CoinGecko market rows with volume-based matching.
+
+            Computes matches based on vol24h normalization.
+            """
             parents = []
             for market_row in market_data:
                 parent = {
                     "parent": market_row.get("name", ""),
-                    "matches": 0,  # Set to 0 for now as requested
+                    "matches": 0,  # Will be computed below
                     "vol24h": market_row.get("total_volume", 0) or 0,
                     "marketCap": market_row.get("market_cap", 0) or 0,
                     "price": market_row.get("current_price", 0) or 0,
@@ -289,10 +292,28 @@ def _make_cg() -> t.Any:
                         f"https://www.coingecko.com/en/coins/"
                         f"{market_row.get('id', '')}"
                     ),
+                    "market_cap_rank": market_row.get("market_cap_rank"),
                 }
                 parents.append(parent)
 
-            return parents
+            # Compute volume-based matches
+            vols = [p["vol24h"] for p in parents]
+            max_v = max(vols) if vols and max(vols) > 0 else None
+
+            for parent in parents:
+                if max_v:
+                    # Volume-based matching: normalize to 0-100 scale
+                    parent["matches"] = int(
+                        round(100 * parent["vol24h"] / max_v),
+                    )
+                else:
+                    # Fallback: use market cap rank
+                    rank = parent.get("market_cap_rank") or 1000
+                    parent["matches"] = max(3, 100 - int(rank))
+
+            # Sort by matches descending and return top 25
+            parents.sort(key=lambda x: -x["matches"])
+            return parents[:25]
 
         def _map_market_to_raw_rows(
             self,

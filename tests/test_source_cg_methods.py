@@ -169,10 +169,10 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check first parent
+        # Check first parent (Bitcoin has highest volume, so matches=100)
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 0
+        assert btc_parent["matches"] == 100
         assert btc_parent["vol24h"] == 1000000000
         assert btc_parent["marketCap"] == 800000000000
         assert btc_parent["price"] == 45000
@@ -181,6 +181,49 @@ class TestCGAdapterMethods:
         assert (
             btc_parent["url"] == "https://www.coingecko.com/en/coins/bitcoin"
         )
+
+        # Check second parent (Ethereum has half the volume, so matches=50)
+        eth_parent = result[1]
+        assert eth_parent["parent"] == "Ethereum"
+        assert eth_parent["matches"] == 50
+
+    def test_map_market_to_parents_no_volume_fallback(self) -> None:
+        """Test _map_market_to_parents fallback when no volume data."""
+        market_data = [
+            {
+                "name": "Bitcoin",
+                "symbol": "btc",
+                "id": "bitcoin",
+                "total_volume": 0,  # No volume
+                "market_cap": 800000000000,
+                "current_price": 45000,
+                "image": "https://example.com/btc.png",
+                "market_cap_rank": 1,
+            },
+            {
+                "name": "Ethereum",
+                "symbol": "eth",
+                "id": "ethereum",
+                "total_volume": 0,  # No volume
+                "market_cap": 400000000000,
+                "current_price": 3000,
+                "image": "https://example.com/eth.png",
+                "market_cap_rank": 2,
+            },
+        ]
+
+        result = self.adapter._map_market_to_parents(market_data)
+
+        assert len(result) == 2
+
+        # Check fallback scoring based on market cap rank
+        btc_parent = result[0]
+        assert btc_parent["parent"] == "Bitcoin"
+        assert btc_parent["matches"] == 99  # max(3, 100 - 1)
+
+        eth_parent = result[1]
+        assert eth_parent["parent"] == "Ethereum"
+        assert eth_parent["matches"] == 98  # max(3, 100 - 2)
 
     def test_map_market_to_raw_rows(self) -> None:
         """Test _map_market_to_raw_rows method."""
@@ -392,7 +435,7 @@ class TestCGAdapterMethods:
         # Should use market data path (line 353)
         assert len(result) == 1
         assert result[0]["parent"] == "Bitcoin"
-        assert result[0]["matches"] == 0
+        assert result[0]["matches"] == 100
         assert result[0]["vol24h"] == 1000000000
         assert result[0]["marketCap"] == 800000000000
         assert result[0]["price"] == 45000
