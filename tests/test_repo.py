@@ -55,3 +55,60 @@ def test_replace_parents_overwrites_previous() -> None:
         },
     ]
     assert rows == expected
+
+
+def test_replace_parents_deduplicates_duplicates() -> None:
+    """Test that replace_parents deduplicates duplicate parents."""
+    narrative = list_narrative_names()[0]
+    # Create items with duplicates (case insensitive)
+    items: list[dict[str, t.Any]] = [
+        {"parent": "DOGE", "matches": 5},
+        {"parent": "doge", "matches": 7},  # duplicate (case insensitive)
+        {"parent": "BTC", "matches": 3},
+        {"parent": "btc", "matches": 8},  # duplicate (case insensitive)
+        {"parent": "ETH", "matches": 2},
+    ]
+    ts = time()
+    replace_parents(narrative, items, ts)
+
+    rows = list_parents(narrative)
+    # Should only have 3 unique parents (DOGE, BTC, ETH)
+    # First occurrence kept (DOGE with matches=5, BTC with matches=3)
+    # Results are ordered by matches descending
+    expected = [
+        {
+            "parent": "DOGE",
+            "matches": 5,
+            "symbol": None,
+            "source": None,
+            "price": None,
+            "marketCap": None,
+            "vol24h": None,
+            "image": None,
+            "url": None,
+        },
+        {
+            "parent": "BTC",
+            "matches": 3,
+            "symbol": None,
+            "source": None,
+            "price": None,
+            "marketCap": None,
+            "vol24h": None,
+            "image": None,
+            "url": None,
+        },
+        {
+            "parent": "ETH",
+            "matches": 2,
+            "symbol": None,
+            "source": None,
+            "price": None,
+            "marketCap": None,
+            "vol24h": None,
+            "image": None,
+            "url": None,
+        },
+    ]
+    assert len(rows) == 3
+    assert rows == expected

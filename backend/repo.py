@@ -18,9 +18,19 @@ def replace_parents(narrative: str, items: list[dict], ts: float) -> None:
     :param items: The new parent data to replace with.
     :param ts: The timestamp of the replacement.
     """
+    # Deduplicate items within the same narrative
+    seen = set()
+    filtered_items = []
+    for it in items:
+        k = (narrative, (it.get("parent") or "").strip().lower())
+        if k in seen:
+            continue
+        seen.add(k)
+        filtered_items.append(it)
+
     with SessionLocal() as s:
         s.execute(delete(ParentHit).where(ParentHit.narrative == narrative))
-        for it in items:
+        for it in filtered_items:
             s.add(
                 ParentHit(
                     narrative=narrative,
