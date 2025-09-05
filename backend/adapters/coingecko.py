@@ -17,7 +17,7 @@ class CoinGeckoAdapter(
 
         :param narrative: The narrative name.
         :param terms: List of search terms.
-        :return: List of candidate coin IDs (stubbed for now).
+        :return: List of raw market data rows.
         """
         try:
             # Use up to first 3 seed terms per narrative
@@ -30,11 +30,13 @@ class CoinGeckoAdapter(
             if not coin_ids:
                 return []
 
-            # TODO: Map coin IDs to parent data (stubbed for now)
-            # For now, return the coin IDs as candidate data
-            return [
-                {"id": coin_id, "source": "coingecko"} for coin_id in coin_ids
-            ]
+            # Fetch market data for the coin IDs
+            market_data = self._get_market_data(coin_ids)
+            if not market_data:
+                return []
+
+            # Return raw market data with requested fields
+            return self._format_raw_market_data(market_data)
 
         except Exception:  # pylint: disable=broad-exception-caught
             # Return empty list on any error
@@ -155,3 +157,28 @@ class CoinGeckoAdapter(
         # Sort by score (descending) and return top 25
         parents.sort(key=lambda x: x["score"], reverse=True)
         return parents
+
+    def _format_raw_market_data(self, market_data: list[dict]) -> list[dict]:
+        """Format market data into raw rows with requested fields.
+
+        :param market_data: List of market data from CoinGecko API.
+        :return: List of raw market data rows with fields: name, symbol, image,
+            current_price, market_cap, total_volume, id.
+        """
+        if not market_data:
+            return []
+
+        raw_rows = []
+        for item in market_data:
+            raw_row = {
+                "name": item.get("name", ""),
+                "symbol": item.get("symbol", ""),
+                "image": item.get("image", ""),
+                "current_price": item.get("current_price", 0) or 0,
+                "market_cap": item.get("market_cap", 0) or 0,
+                "total_volume": item.get("total_volume", 0) or 0,
+                "id": item.get("id", ""),
+            }
+            raw_rows.append(raw_row)
+
+        return raw_rows

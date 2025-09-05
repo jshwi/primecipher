@@ -359,20 +359,144 @@ class TestCoinGeckoAdapter:  # pylint: disable=too-many-public-methods
 
         assert len(result) == 30
 
+    def test_format_raw_market_data_empty_data(self) -> None:
+        """Test _format_raw_market_data with empty market data."""
+        adapter = CoinGeckoAdapter()
+        result = adapter._format_raw_market_data([])
+        assert not result
+
+    def test_format_raw_market_data_success(self) -> None:
+        """Test _format_raw_market_data successful formatting."""
+        adapter = CoinGeckoAdapter()
+
+        market_data = [
+            {
+                "id": "bitcoin",
+                "name": "Bitcoin",
+                "symbol": "btc",
+                "image": "https://example.com/bitcoin.png",
+                "market_cap": 1000000000,
+                "total_volume": 100000000,
+                "current_price": 50000,
+            },
+            {
+                "id": "ethereum",
+                "name": "Ethereum",
+                "symbol": "eth",
+                "image": "https://example.com/ethereum.png",
+                "market_cap": 500000000,
+                "total_volume": 50000000,
+                "current_price": 3000,
+            },
+        ]
+
+        result = adapter._format_raw_market_data(market_data)
+
+        assert len(result) == 2
+        assert result[0]["name"] == "Bitcoin"
+        assert result[0]["symbol"] == "btc"
+        assert result[0]["image"] == "https://example.com/bitcoin.png"
+        assert result[0]["current_price"] == 50000
+        assert result[0]["market_cap"] == 1000000000
+        assert result[0]["total_volume"] == 100000000
+        assert result[0]["id"] == "bitcoin"
+
+        assert result[1]["name"] == "Ethereum"
+        assert result[1]["symbol"] == "eth"
+        assert result[1]["id"] == "ethereum"
+
+    def test_format_raw_market_data_missing_fields(self) -> None:
+        """Test _format_raw_market_data handles missing fields gracefully."""
+        adapter = CoinGeckoAdapter()
+
+        market_data: list[dict[str, Any]] = [
+            {
+                "id": "bitcoin",
+                # Missing most fields
+            },
+            {
+                "id": "ethereum",
+                "name": "Ethereum",
+                "symbol": "eth",
+                "market_cap": None,  # None values
+                "total_volume": None,
+                "current_price": None,
+            },
+        ]
+
+        result = adapter._format_raw_market_data(market_data)
+
+        assert len(result) == 2
+        assert result[0]["name"] == ""
+        assert result[0]["symbol"] == ""
+        assert result[0]["image"] == ""
+        assert result[0]["current_price"] == 0
+        assert result[0]["market_cap"] == 0
+        assert result[0]["total_volume"] == 0
+        assert result[0]["id"] == "bitcoin"
+
+        assert result[1]["name"] == "Ethereum"
+        assert result[1]["symbol"] == "eth"
+        assert result[1]["current_price"] == 0
+        assert result[1]["market_cap"] == 0
+        assert result[1]["total_volume"] == 0
+
+    def test_fetch_parents_market_data_empty(self) -> None:
+        """Test fetch_parents when market data returns empty."""
+        adapter = CoinGeckoAdapter()
+
+        with patch.object(adapter, "_search_coins") as mock_search:
+            with patch.object(adapter, "_get_market_data") as mock_market:
+                mock_search.return_value = ["bitcoin", "ethereum"]
+                mock_market.return_value = []  # Empty market data
+
+                result = adapter.fetch_parents("test", ["bitcoin"])
+
+                assert not result
+                mock_search.assert_called_once_with(["bitcoin"])
+                mock_market.assert_called_once_with(["bitcoin", "ethereum"])
+
     def test_fetch_parents_integration_success(self) -> None:
         """Test full integration of fetch_parents (stubbed behavior)."""
         adapter = CoinGeckoAdapter()
 
         with patch.object(adapter, "_search_coins") as mock_search:
-            mock_search.return_value = ["bitcoin", "ethereum"]
+            with patch.object(adapter, "_get_market_data") as mock_market:
+                with patch.object(
+                    adapter,
+                    "_format_raw_market_data",
+                ) as mock_format:
+                    mock_search.return_value = ["bitcoin", "ethereum"]
+                    mock_market.return_value = [
+                        {"id": "bitcoin"},
+                        {"id": "ethereum"},
+                    ]
+                    mock_format.return_value = [
+                        {"name": "Bitcoin", "symbol": "btc", "id": "bitcoin"},
+                        {
+                            "name": "Ethereum",
+                            "symbol": "eth",
+                            "id": "ethereum",
+                        },
+                    ]
 
-            result = adapter.fetch_parents("test", ["bitcoin"])
+                    result = adapter.fetch_parents("test", ["bitcoin"])
 
-            assert result == [
-                {"id": "bitcoin", "source": "coingecko"},
-                {"id": "ethereum", "source": "coingecko"},
-            ]
-            mock_search.assert_called_once_with(["bitcoin"])
+                    assert result == [
+                        {"name": "Bitcoin", "symbol": "btc", "id": "bitcoin"},
+                        {
+                            "name": "Ethereum",
+                            "symbol": "eth",
+                            "id": "ethereum",
+                        },
+                    ]
+                    mock_search.assert_called_once_with(["bitcoin"])
+                    mock_market.assert_called_once_with(
+                        ["bitcoin", "ethereum"],
+                    )
+                    mock_format.assert_called_once_with(
+                        [{"id": "bitcoin"}, {"id": "ethereum"}],
+                    )
 
     def test_fetch_parents_search_returns_empty(self) -> None:
         """Test fetch_parents when search returns empty."""
@@ -412,9 +536,20 @@ class TestCoinGeckoAdapter:  # pylint: disable=too-many-public-methods
         adapter = CoinGeckoAdapter()
 
         with patch.object(adapter, "_search_coins") as mock_search:
-            # Create 30 coin IDs to test capping
-            mock_search.return_value = [f"coin{i}" for i in range(30)]
+            with patch.object(adapter, "_get_market_data") as mock_market:
+                with patch.object(
+                    adapter,
+                    "_format_raw_market_data",
+                ) as mock_format:
+                    # Create 30 coin IDs to test capping
+                    mock_search.return_value = [f"coin{i}" for i in range(30)]
+                    mock_market.return_value = [
+                        {"id": f"coin{i}"} for i in range(30)
+                    ]
+                    mock_format.return_value = [
+                        {"id": f"coin{i}"} for i in range(30)
+                    ]
 
-            result = adapter.fetch_parents("test", ["bitcoin"])
+                    result = adapter.fetch_parents("test", ["bitcoin"])
 
-            assert len(result) == 30
+                    assert len(result) == 30
