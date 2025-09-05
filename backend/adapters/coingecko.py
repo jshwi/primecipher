@@ -174,22 +174,41 @@ class CoinGeckoAdapter(
 
         :param market_data: List of market data from CoinGecko API.
         :return: List of raw market data rows with fields: name, symbol, image,
-            current_price, market_cap, total_volume, id.
+            current_price, market_cap, total_volume, id, matches.
         """
         if not market_data:
             return []
 
+        # Extract volumes and calculate max for ranking
+        vols = [
+            p["total_volume"]
+            for p in market_data
+            if isinstance(p.get("total_volume"), (int, float))
+        ]
+        max_v = max(vols) if vols else 0
+
         raw_rows = []
         for item in market_data:
+            vol24h = item.get("total_volume", 0) or 0
+
+            # Calculate matches based on volume ranking
+            if max_v > 0:
+                matches = int(round(100 * (vol24h / max_v)))
+            else:
+                matches = 10  # minimal fallback
+
             raw_row = {
                 "name": item.get("name", ""),
                 "symbol": item.get("symbol", ""),
                 "image": item.get("image", ""),
                 "current_price": item.get("current_price", 0) or 0,
                 "market_cap": item.get("market_cap", 0) or 0,
-                "total_volume": item.get("total_volume", 0) or 0,
+                "total_volume": vol24h,
                 "id": item.get("id", ""),
+                "matches": matches,
             }
             raw_rows.append(raw_row)
 
-        return raw_rows
+        # Sort by matches descending and return top 25
+        raw_rows.sort(key=lambda x: x["matches"], reverse=True)
+        return raw_rows[:25]
