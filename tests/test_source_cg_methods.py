@@ -182,6 +182,53 @@ class TestCGAdapterMethods:
             btc_parent["url"] == "https://www.coingecko.com/en/coins/bitcoin"
         )
 
+    def test_map_market_to_raw_rows(self) -> None:
+        """Test _map_market_to_raw_rows method."""
+        market_data = [
+            {
+                "name": "Bitcoin",
+                "symbol": "btc",
+                "id": "bitcoin",
+                "total_volume": 1000000000,
+                "market_cap": 800000000000,
+                "current_price": 45000,
+                "image": "https://example.com/btc.png",
+            },
+            {
+                "name": "Ethereum",
+                "symbol": "eth",
+                "id": "ethereum",
+                "total_volume": 500000000,
+                "market_cap": 400000000000,
+                "current_price": 3000,
+                "image": "https://example.com/eth.png",
+            },
+        ]
+
+        result = self.adapter._map_market_to_raw_rows(market_data)
+
+        assert len(result) == 2
+
+        # Check first raw row
+        btc_row = result[0]
+        assert btc_row["name"] == "Bitcoin"
+        assert btc_row["symbol"] == "btc"
+        assert btc_row["current_price"] == 45000
+        assert btc_row["market_cap"] == 800000000000
+        assert btc_row["total_volume"] == 1000000000
+        assert btc_row["id"] == "bitcoin"
+        assert btc_row["image"] == "https://example.com/btc.png"
+
+        # Check second raw row
+        eth_row = result[1]
+        assert eth_row["name"] == "Ethereum"
+        assert eth_row["symbol"] == "eth"
+        assert eth_row["current_price"] == 3000
+        assert eth_row["market_cap"] == 400000000000
+        assert eth_row["total_volume"] == 500000000
+        assert eth_row["id"] == "ethereum"
+        assert eth_row["image"] == "https://example.com/eth.png"
+
     def test_map_search_to_parents(self) -> None:
         """Test _map_search_to_parents method."""
         search_results = [
@@ -344,12 +391,13 @@ class TestCGAdapterMethods:
 
         # Should use market data path (line 353)
         assert len(result) == 1
-        assert result[0]["parent"] == "Bitcoin"
-        assert result[0]["matches"] == 0  # Market data sets matches to 0
-        assert result[0]["vol24h"] == 1000000000
-        assert result[0]["marketCap"] == 800000000000
-        assert result[0]["price"] == 45000
+        assert result[0]["name"] == "Bitcoin"
         assert result[0]["symbol"] == "btc"
+        assert result[0]["current_price"] == 45000
+        assert result[0]["market_cap"] == 800000000000
+        assert result[0]["total_volume"] == 1000000000
+        assert result[0]["id"] == "bitcoin"
+        assert result[0]["image"] == "https://example.com/btc.png"
 
     @patch("httpx.Client")
     @patch("time.sleep")

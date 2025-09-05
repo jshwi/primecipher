@@ -294,6 +294,30 @@ def _make_cg() -> t.Any:
 
             return parents
 
+        def _map_market_to_raw_rows(
+            self,
+            market_data: list[dict],
+        ) -> list[dict]:
+            """Map CoinGecko market rows into raw market data rows.
+
+            Returns only the specified fields: name, symbol, image,
+            current_price, market_cap, total_volume, id
+            """
+            raw_rows = []
+            for market_row in market_data:
+                raw_row = {
+                    "name": market_row.get("name", ""),
+                    "symbol": market_row.get("symbol", ""),
+                    "image": market_row.get("image", ""),
+                    "current_price": market_row.get("current_price", 0) or 0,
+                    "market_cap": market_row.get("market_cap", 0) or 0,
+                    "total_volume": market_row.get("total_volume", 0) or 0,
+                    "id": market_row.get("id", ""),
+                }
+                raw_rows.append(raw_row)
+
+            return raw_rows
+
         def _map_search_to_parents(
             self,
             search_results: list[dict],
@@ -350,7 +374,8 @@ def _make_cg() -> t.Any:
 
                 if market_data:
                     # Use market data if available (preferred approach)
-                    return self._map_market_to_parents(market_data)
+                    # Return raw market rows as requested
+                    return self._map_market_to_raw_rows(market_data)
                 if search_results:
                     # Fall back to search results if no market data
                     return self._map_search_to_parents(search_results)
