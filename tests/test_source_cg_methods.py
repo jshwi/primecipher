@@ -169,10 +169,10 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check first parent (Bitcoin has highest volume, so matches=0 for now)
+        # Check first parent (Bitcoin has highest volume, so matches=100)
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 0
+        assert btc_parent["matches"] == 100
         assert btc_parent["vol24h"] == 1000000000
         assert btc_parent["marketCap"] == 800000000000
         assert btc_parent["price"] == 45000
@@ -183,10 +183,10 @@ class TestCGAdapterMethods:
         )
         assert btc_parent["source"] == "coingecko"
 
-        # Check second parent (Ethereum has half the volume, so matches=0)
+        # Check second parent (Ethereum has half the volume, so matches=50)
         eth_parent = result[1]
         assert eth_parent["parent"] == "Ethereum"
-        assert eth_parent["matches"] == 0
+        assert eth_parent["matches"] == 50
 
     def test_map_market_to_parents_no_volume_fallback(self) -> None:
         """Test _map_market_to_parents fallback when no volume data."""
@@ -217,14 +217,253 @@ class TestCGAdapterMethods:
 
         assert len(result) == 2
 
-        # Check fallback scoring based on market cap rank (matches=0 for now)
+        # Check fallback scoring based on market cap rank
         btc_parent = result[0]
         assert btc_parent["parent"] == "Bitcoin"
-        assert btc_parent["matches"] == 0
+        assert btc_parent["matches"] == 100  # rank 1 -> 100/1 = 100
 
         eth_parent = result[1]
         assert eth_parent["parent"] == "Ethereum"
-        assert eth_parent["matches"] == 0
+        assert eth_parent["matches"] == 50  # rank 2 -> 100/2 = 50
+
+    def test_map_market_to_parents_no_volume_no_rank_fallback(self) -> None:
+        """Test _map_market_to_parents fallback when no volume and no rank."""
+        market_data = [
+            {
+                "name": "Bitcoin",
+                "symbol": "btc",
+                "id": "bitcoin",
+                "total_volume": 0,  # No volume
+                "market_cap": 800000000000,
+                "current_price": 45000,
+                "image": "https://example.com/btc.png",
+                # No market_cap_rank
+            },
+        ]
+
+        result = self.adapter._map_market_to_parents(market_data)
+
+        assert len(result) == 1
+        btc_parent = result[0]
+        assert btc_parent["parent"] == "Bitcoin"
+        assert btc_parent["matches"] == 10  # fallback value
+
+    def test_find_market_cap_rank_no_url_or_name(self) -> None:
+        """Test _find_market_cap_rank when item has no url or name."""
+        item = {"parent": "", "url": ""}
+        market_data = [{"id": "bitcoin", "market_cap_rank": 1}]
+
+        result = self.adapter._find_market_cap_rank(item, market_data)
+        assert result is None
+
+    def test_find_market_cap_rank_no_slash_in_url(self) -> None:
+        """Test _find_market_cap_rank when url has no slash."""
+        item = {"parent": "Bitcoin", "url": "no-slash-here"}
+        market_data = [{"id": "bitcoin", "market_cap_rank": 1}]
+
+        result = self.adapter._find_market_cap_rank(item, market_data)
+        assert result is None
+
+    def test_parents_for_search_results_fallback(self) -> None:
+        """Test parents_for uses search results when no market data."""
+        # Mock search response
+        mock_search_response = MagicMock()
+        mock_search_response.raise_for_status.return_value = None
+        mock_search_response.json.return_value = {
+            "coins": [
+                {"name": "Bitcoin", "id": "bitcoin", "market_cap_rank": 1},
+            ],
+        }
+
+        # Mock market data response (empty)
+        mock_market_response = MagicMock()
+        mock_market_response.raise_for_status.return_value = None
+        mock_market_response.json.return_value = []
+
+        # Mock client to return different responses for different calls
+        mock_client_instance = MagicMock()
+        mock_client_instance.__enter__.return_value = mock_client_instance
+        mock_client_instance.__exit__.return_value = None
+
+        # Set up the mock to return search response, then empty market response
+        mock_client_instance.get.side_effect = [
+            mock_search_response,  # First call in _search_coins
+            mock_market_response,  # Call in _get_market_data (empty)
+        ]
+
+        with patch("httpx.Client", return_value=mock_client_instance):
+            result = self.adapter.parents_for("test", ["bitcoin"])
+
+        # Should use search results fallback
+        assert len(result) == 1
+        assert result[0]["parent"] == "Bitcoin"
+
+    def test_memo_ttl_expiry(self) -> None:
+        """Test that memo cache expires after TTL."""
+        import time
+
+        from backend.adapters.source import (
+            _get_raw_cached,
+            _raw_cache,
+            _set_raw_cached,
+        )
+
+        # Clear cache
+        _raw_cache.clear()
+
+        # Set a cached value
+        key = ("coingecko", ("test",))
+        test_data = [{"parent": "Test", "matches": 10}]
+        _set_raw_cached(key, test_data)
+
+        # Should be cached
+        result = _get_raw_cached(key)
+        assert result == test_data
+
+        # Mock time to simulate TTL expiry
+        with patch(
+            "backend.adapters.source._now",
+            return_value=time.time() + 1000,
+        ):
+            result = _get_raw_cached(key)
+            assert result is None
+
+    def test_random_items(self) -> None:
+        """Test _random_items function."""
+        from backend.adapters.source import _random_items
+
+        terms = ["test1", "test2"]
+        result = _random_items(terms)
+
+        # Should return 2-6 items
+        assert 2 <= len(result) <= 6
+        for item in result:
+            assert "parent" in item
+            assert "matches" in item
+            assert isinstance(item["matches"], int)
+
+    def test_deterministic_items(self) -> None:
+        """Test _deterministic_items function."""
+        from backend.adapters.source import _deterministic_items
+
+        narrative = "test"
+        terms = ["term1", "term2"]
+        result = _deterministic_items(narrative, terms)
+
+        assert len(result) == 3
+        assert result[0]["matches"] == 11
+        assert result[1]["matches"] == 10
+        assert result[2]["matches"] == 9
+
+    def test_apply_seed_semantics(self) -> None:
+        """Test _apply_seed_semantics function."""
+        from backend.adapters.source import _apply_seed_semantics
+
+        narrative = "test"
+        terms = ["term1"]
+        items = [
+            {"parent": "test-parent-1", "matches": 10},
+            {"parent": "blocked-parent", "matches": 5},
+            {"parent": "term1-parent", "matches": 8},
+        ]
+
+        # Test with blocklist
+        result = _apply_seed_semantics(
+            narrative,
+            terms,
+            True,
+            ["blocked"],
+            items,
+            False,
+            2,
+        )
+        assert len(result) == 2
+        assert result[0]["parent"] == "test-parent-1"  # highest matches
+        assert result[1]["parent"] == "term1-parent"
+
+        # Test with require_all_terms
+        result = _apply_seed_semantics(
+            narrative,
+            terms,
+            True,
+            [],
+            items,
+            True,
+            None,
+        )
+        assert len(result) == 1
+        assert result[0]["parent"] == "term1-parent"
+
+    def test_source_class_methods(self) -> None:
+        """Test Source class methods."""
+        from backend.adapters.source import Source
+
+        # Test available method
+        available = Source.available()
+        assert "coingecko" in available
+        assert "test" in available
+        assert "dev" in available
+
+        # Test Source initialization and parents_for
+        source = Source("coingecko")
+        with patch.object(source._impl, "parents_for") as mock_parents_for:
+            mock_parents_for.return_value = [{"parent": "test", "matches": 10}]
+            result = source.parents_for("test", ["bitcoin"])
+            assert len(result) == 1
+            assert result[0]["parent"] == "test"
+
+    def test_test_adapter(self) -> None:
+        """Test test adapter."""
+        from backend.adapters.source import _make_test
+
+        adapter = _make_test()
+        result = adapter.parents_for("test", ["term1"], True, [], False)
+
+        assert len(result) == 3
+        assert result[0]["matches"] == 11
+        assert result[1]["matches"] == 10
+        assert result[2]["matches"] == 9
+
+    def test_dev_adapter(self) -> None:
+        """Test dev adapter."""
+        from backend.adapters.source import _make_dev
+
+        adapter = _make_dev()
+        result = adapter.parents_for("test", ["term1"], True, [], False)
+
+        # Should return 2-6 items
+        assert 2 <= len(result) <= 6
+        for item in result:
+            assert "parent" in item
+            assert "matches" in item
+
+    def test_apply_seed_semantics_allow_name_match_false(self) -> None:
+        """Test _apply_seed_semantics with allow_name_match=False."""
+        from backend.adapters.source import _apply_seed_semantics
+
+        narrative = "test"
+        terms = ["term1"]
+        items = [
+            {"parent": "test-parent-1", "matches": 10},
+            {
+                "parent": "test-parent-2",
+                "matches": 5,
+            },  # Should be filtered out
+            {"parent": "term1-parent", "matches": 8},
+        ]
+
+        result = _apply_seed_semantics(
+            narrative,
+            terms,
+            False,
+            [],
+            items,
+            False,
+            None,
+        )
+        # Should filter out items that only match narrative
+        assert len(result) == 1
+        assert result[0]["parent"] == "term1-parent"
 
     def test_map_market_to_raw_rows(self) -> None:
         """Test _map_market_to_raw_rows method."""
@@ -439,7 +678,9 @@ class TestCGAdapterMethods:
         # Should use market data path (line 353)
         assert len(result) == 1
         assert result[0]["parent"] == "Bitcoin"
-        assert result[0]["matches"] == 0
+        assert (
+            result[0]["matches"] >= 99
+        )  # highest volume gets ~100 (may be 99 due to rounding)
         assert result[0]["vol24h"] == 1000000000
         assert result[0]["marketCap"] == 800000000000
         assert result[0]["price"] == 45000

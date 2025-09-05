@@ -278,41 +278,30 @@ def _make_cg() -> t.Any:
             except Exception:  # pylint: disable=broad-exception-caught
                 return []
 
-        def _map_market_to_parents(
-            self,
-            market_data: list[dict],
-        ) -> list[dict]:
-            """Map CoinGecko market rows to parent dicts with real values.
+        def _build_parent_dict(self, market_row: dict) -> dict:
+            """Build a parent dict from a market row."""
+            name = market_row.get("name")
+            symbol = market_row.get("symbol")
+            price = market_row.get("current_price") or 0.0
+            market_cap = market_row.get("market_cap") or 0.0
+            vol24h = market_row.get("total_volume") or 0.0
+            image = market_row.get("image")
+            coin_id = market_row.get("id", "")
 
-            Maps each market row M to parent dict with specified field mapping.
-            """
-            parents = []
-            for market_row in market_data:
-                # Extract values using exact mapping specified
-                name = market_row.get("name")
-                symbol = market_row.get("symbol")
-                price = market_row.get("current_price") or 0.0
-                market_cap = market_row.get("market_cap") or 0.0
-                vol24h = market_row.get("total_volume") or 0.0
-                image = market_row.get("image")
-                coin_id = market_row.get("id", "")
+            return {
+                "parent": name or symbol or "unknown",
+                "matches": 0,  # scoring in next step
+                "symbol": symbol,
+                "price": price,
+                "marketCap": market_cap,
+                "vol24h": vol24h,
+                "image": image,
+                "url": f"https://www.coingecko.com/en/coins/{coin_id}",
+                "source": "coingecko",
+            }
 
-                # Build parent dict as specified
-                parent = {
-                    "parent": name or symbol or "unknown",
-                    "matches": 0,  # scoring in next step
-                    "symbol": symbol,
-                    "price": price,
-                    "marketCap": market_cap,
-                    "vol24h": vol24h,
-                    "image": image,
-                    "url": f"https://www.coingecko.com/en/coins/{coin_id}",
-                    "source": "coingecko",
-                }
-                parents.append(parent)
-
-            # Filter out rows where parent is missing AND vol24h and
-            # marketCap are both 0
+        def _filter_valid_parents(self, parents: list[dict]) -> list[dict]:
+            """Filter out invalid parent entries."""
             filtered_parents = []
             for parent in parents:
                 parent_name = str(parent.get("parent", "")).strip()
@@ -326,8 +315,86 @@ def _make_cg() -> t.Any:
                     or (vol24h + market_cap) > 0
                 ):
                     filtered_parents.append(parent)
-
             return filtered_parents
+
+        def _calculate_volume_matches(self, parents: list[dict]) -> None:
+            """Calculate volume-based matches for parents."""
+            vols = [
+                it["vol24h"]
+                for it in parents
+                if isinstance(it.get("vol24h"), (int, float))
+            ]
+            max_v = max(vols) if vols else 0
+
+            if max_v > 0:
+                # Use normalized volume for matches
+                for item in parents:
+                    vol24h = float(item.get("vol24h", 0) or 0)
+                    item["matches"] = int(round(100 * (vol24h / max_v)))
+
+        def _calculate_fallback_matches(
+            self,
+            parents: list[dict],
+            market_data: list[dict],
+        ) -> None:
+            """Calculate fallback matches using market cap rank."""
+            for item in parents:
+                market_cap_rank = self._find_market_cap_rank(item, market_data)
+                if (
+                    market_cap_rank
+                    and isinstance(market_cap_rank, (int, float))
+                    and market_cap_rank > 0
+                ):
+                    # Use inverse rank for scoring (lower rank = higher score)
+                    item["matches"] = max(1, int(round(100 / market_cap_rank)))
+                else:
+                    # Minimal nonzero fallback to avoid all-zero UI
+                    item["matches"] = 10
+
+        def _find_market_cap_rank(
+            self,
+            item: dict,
+            market_data: list[dict],
+        ) -> t.Optional[t.Union[int, float]]:
+            """Find market cap rank for an item from market data."""
+            item_url = item.get("url", "")
+            item_name = item.get("parent", "")
+            if not item_url or not item_name:
+                return None
+
+            coin_id = item_url.split("/")[-1] if "/" in item_url else ""
+            for market_row in market_data:
+                if (
+                    market_row.get("id") == coin_id
+                    or market_row.get("name") == item_name
+                ):
+                    return market_row.get("market_cap_rank")
+            return None
+
+        def _map_market_to_parents(
+            self,
+            market_data: list[dict],
+        ) -> list[dict]:
+            """Map CoinGecko market rows to parent dicts with real values.
+
+            Maps each market row M to parent dict with specified field mapping.
+            """
+            # Build parent dicts
+            parents = [self._build_parent_dict(row) for row in market_data]
+
+            # Filter valid parents
+            filtered_parents = self._filter_valid_parents(parents)
+
+            # Calculate volume-based matches
+            self._calculate_volume_matches(filtered_parents)
+
+            # If no volume data, use fallback
+            if not any(p.get("vol24h", 0) for p in filtered_parents):
+                self._calculate_fallback_matches(filtered_parents, market_data)
+
+            # Sort parents by matches desc and cap to top 25
+            filtered_parents.sort(key=lambda x: -int(x.get("matches", 0)))
+            return filtered_parents[:25]
 
         def _map_market_to_raw_rows(
             self,
