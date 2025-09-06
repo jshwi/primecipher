@@ -14,6 +14,7 @@ export type ParentItem = {
   // Optional fields that may be present in real mode
   symbol?: string;
   source?: string;
+  sources?: string[]; // debug field for provenance tracking
   chain?: string;
   address?: string;
   url?: string;
@@ -45,14 +46,15 @@ export async function getNarratives(): Promise<NarrativesResp> {
   return r.json();
 }
 
-/** GET /parents/:narrative?limit&cursor */
+/** GET /parents/:narrative?limit&cursor&debug */
 export async function getParents(
   narrative: string,
-  opts?: { limit?: number; cursor?: string | null },
+  opts?: { limit?: number; cursor?: string | null; debug?: boolean },
 ): Promise<ParentsResp> {
   const u = new URL(`${BASE}/parents/${encodeURIComponent(narrative)}`);
   u.searchParams.set("limit", String(opts?.limit ?? 25));
   if (opts?.cursor) u.searchParams.set("cursor", opts.cursor);
+  if (opts?.debug) u.searchParams.set("debug", "true");
   const r = await fetch(u.toString(), { cache: "no-store" });
   if (!r.ok) throw new Error(`GET /parents/${narrative} ${r.status}`);
   return r.json();

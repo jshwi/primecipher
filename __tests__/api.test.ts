@@ -121,6 +121,80 @@ describe("API Functions", () => {
       );
     });
 
+    it("fetches parents with debug parameter", async () => {
+      const mockResponse = {
+        narrative: "test",
+        window: "24h",
+        items: [
+          {
+            parent: "parent1",
+            matches: 5,
+            score: 0.8,
+            sources: ["coingecko", "dexscreener"],
+          },
+        ],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      } as Response);
+
+      const result = await getParents("test", {
+        limit: 10,
+        debug: true,
+      });
+
+      expect(result).toEqual(mockResponse);
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("/parents/test?limit=10&debug=true"),
+        { cache: "no-store" },
+      );
+    });
+
+    it("excludes debug parameter when debug=false", async () => {
+      const mockResponse = {
+        narrative: "test",
+        window: "24h",
+        items: [],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      } as Response);
+
+      await getParents("test", {
+        limit: 10,
+        debug: false,
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.not.stringContaining("debug=true"),
+        { cache: "no-store" },
+      );
+    });
+
+    it("excludes debug parameter when debug is undefined", async () => {
+      const mockResponse = {
+        narrative: "test",
+        window: "24h",
+        items: [],
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockResponse),
+      } as Response);
+
+      await getParents("test", { limit: 10 });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.not.stringContaining("debug=true"),
+        { cache: "no-store" },
+      );
+    });
+
     it("throws error on non-ok response", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,

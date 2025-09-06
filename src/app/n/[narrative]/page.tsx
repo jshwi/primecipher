@@ -4,11 +4,15 @@ import ParentsList from "./_components/ParentsList";
 
 export default async function NarrativePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ narrative: string }>;
+  searchParams: Promise<{ debug?: string }>;
 }) {
   const { narrative } = await params;
-  const initial = await getParents(narrative, { limit: 25 });
+  const { debug } = await searchParams;
+  const isDebug = debug === "1";
+  const initial = await getParents(narrative, { limit: 25, debug: isDebug });
   return (
     <div style={{ padding: "20px" }}>
       <div
@@ -29,10 +33,11 @@ export default async function NarrativePage({
             }}
           >
             {initial.items.length} parents loaded
+            {isDebug && <span style={{ marginLeft: "8px" }}>• Debug mode</span>}
           </p>
         </div>
       </div>
-      <ParentsList narrative={narrative} initial={initial} />
+      <ParentsList narrative={narrative} initial={initial} debug={isDebug} />
     </div>
   );
 }

@@ -10,9 +10,14 @@ interface ParentsListProps {
     items: ParentItem[];
     nextCursor?: string | null;
   };
+  debug?: boolean;
 }
 
-export default function ParentsList({ narrative, initial }: ParentsListProps) {
+export default function ParentsList({
+  narrative,
+  initial,
+  debug = false,
+}: ParentsListProps) {
   const [items, setItems] = useState<ParentItem[]>(initial.items);
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(
     initial.nextCursor,
@@ -27,9 +32,14 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
     setError(null);
 
     try {
-      const response = await fetch(
-        `${API_BASE}/parents/${narrative}?limit=25&cursor=${encodeURIComponent(nextCursor)}`,
-      );
+      const url = new URL(`${API_BASE}/parents/${narrative}`);
+      url.searchParams.set("limit", "25");
+      url.searchParams.set("cursor", nextCursor);
+      if (debug) {
+        url.searchParams.set("debug", "true");
+      }
+
+      const response = await fetch(url.toString());
 
       if (!response.ok) {
         if (response.status === 400) {
@@ -71,6 +81,23 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
       return `$${(marketCap / 1e3).toFixed(1)}K`;
     } else {
       return `$${marketCap.toFixed(0)}`;
+    }
+  };
+
+  const renderSources = (sources?: string[]): string => {
+    if (!sources || sources.length === 0) return "";
+
+    const hasCoingecko = sources.includes("coingecko");
+    const hasDexscreener = sources.includes("dexscreener");
+
+    if (hasCoingecko && hasDexscreener) {
+      return "C+D";
+    } else if (hasCoingecko) {
+      return "C";
+    } else if (hasDexscreener) {
+      return "D";
+    } else {
+      return "";
     }
   };
 
@@ -160,7 +187,29 @@ export default function ParentsList({ narrative, initial }: ParentsListProps) {
               color: "var(--fg-muted)",
             }}
           >
-            <div>Matches: {item.matches}</div>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+              <span>Matches: {item.matches}</span>
+              {debug && (
+                <span
+                  style={{
+                    backgroundColor: renderSources(item.sources)
+                      ? "rgba(59, 130, 246, 0.1)"
+                      : "transparent",
+                    color: renderSources(item.sources)
+                      ? "var(--fg)"
+                      : "var(--fg-muted)",
+                    padding: renderSources(item.sources) ? "2px 6px" : "0",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    minWidth: "24px",
+                    textAlign: "center",
+                  }}
+                >
+                  {renderSources(item.sources) || "—"}
+                </span>
+              )}
+            </div>
             {typeof item.score === "number" ? (
               <div>Score: {item.score.toFixed(4)}</div>
             ) : null}
