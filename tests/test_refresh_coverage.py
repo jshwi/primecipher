@@ -50,9 +50,8 @@ def test_process_single_narrative_real_mode_coverage() -> None:
         _process_single_narrative(
             "test_narrative",
             "test_job",
-            0,
-            "real",
-            ["term1"],
+            mode="real",
+            terms=["term1"],
         )
 
         mock_process_real.assert_called_once_with(
@@ -75,7 +74,7 @@ def test_process_dev_mode_job_real_mode_coverage() -> None:
         mock_load_seeds.return_value = {
             "narratives": [{"name": "test", "terms": ["term1"]}],
         }
-        mock_process_single.return_value = (True, 1, None)
+        mock_process_single.return_value = (True, None)
 
         _process_dev_mode_job("test_job", "real", "1h", 1)
 
@@ -101,7 +100,7 @@ def test_process_dev_mode_job_real_cg_mode_coverage() -> None:
         mock_load_seeds.return_value = {
             "narratives": [{"name": "test", "terms": ["term1"]}],
         }
-        mock_real_cg.return_value = (True, 1, [{"name": "test_item"}])
+        mock_real_cg.return_value = (True, [{"name": "test_item"}])
 
         _process_dev_mode_job("test_job", "real_cg", "1h", 1)
 
@@ -127,16 +126,14 @@ def test_process_narrative_real_cg_coverage() -> None:
         mock_get_adapter.return_value = mock_adapter
 
         # Test with memo cache miss
-        should_continue, calls_used, items = _process_narrative_real_cg(
+        should_continue, items = _process_narrative_real_cg(
             "test_narrative",
             ["term1"],
             {},
             "test_job",
-            0,
         )
 
         assert should_continue is True
-        assert calls_used == 1
         assert items == [{"name": "test_item"}]
         mock_get_adapter.assert_called_once_with("real_cg")
         mock_adapter.fetch_parents.assert_called_once_with(
@@ -146,16 +143,14 @@ def test_process_narrative_real_cg_coverage() -> None:
 
         # Test with memo cache hit
         memo = {"test_narrative": [{"name": "cached_item"}]}
-        should_continue, calls_used, items = _process_narrative_real_cg(
+        should_continue, items = _process_narrative_real_cg(
             "test_narrative",
             ["term1"],
             memo,
             "test_job",
-            0,
         )
 
         assert should_continue is True
-        assert calls_used == 0  # Should not increment
         assert items == [{"name": "cached_item"}]
 
 
@@ -163,14 +158,14 @@ def test_create_completed_job_coverage() -> None:
     """Test _create_completed_job to improve coverage."""
     from backend.api.routes.refresh import _create_completed_job
 
-    job = _create_completed_job("test_job", "real_cg", "1h", 10, 5, 3, [])
+    job = _create_completed_job("test_job", "real_cg", "1h", 10, 5, [])
 
     assert job["id"] == "test_job"
     assert job["state"] == "done"
     assert job["mode"] == "real_cg"
     assert job["narrativesTotal"] == 10
     assert job["narrativesDone"] == 5
-    assert job["calls_used"] == 3
+    assert job["calls_used"] == 0  # Counter starts at 0
 
 
 def test_finalize_job_coverage() -> None:
@@ -184,7 +179,7 @@ def test_finalize_job_coverage() -> None:
         patch("backend.api.routes.refresh.debounce_until", 0),
         patch("backend.api.routes.refresh.last_success_at", 0),
     ):
-        _finalize_job("test_job", "real_cg", "1h", 10, 5, 3, [])
+        _finalize_job("test_job", "real_cg", "1h", 10, 5, [])
 
         mock_mark.assert_called_once()
 
@@ -193,18 +188,21 @@ def test_process_narrative_real_cg_budget_exceeded_coverage() -> None:
     """Test _process_narrative_real_cg budget exceeded path for coverage."""
     from backend.api.routes.refresh import _process_narrative_real_cg
 
-    # Test budget exceeded path
-    should_continue, calls_used, items = _process_narrative_real_cg(
-        "test_narrative",
-        ["term1"],
-        {},
-        "test_job",
-        999999,  # High calls_used to trigger budget
-    )
+    # Mock get_cg_calls_count to return high value to trigger budget exceeded
+    with patch(
+        "backend.api.routes.refresh.get_cg_calls_count",
+    ) as mock_get_calls:
+        mock_get_calls.return_value = 999999
 
-    assert should_continue is False
-    assert calls_used == 999999  # Should not increment
-    assert items == []
+        should_continue, items = _process_narrative_real_cg(
+            "test_narrative",
+            ["term1"],
+            {},
+            "test_job",
+        )
+
+        assert should_continue is False
+        assert items == []
 
 
 def test_process_dev_mode_job_real_cg_budget_exceeded_coverage() -> None:
@@ -221,7 +219,7 @@ def test_process_dev_mode_job_real_cg_budget_exceeded_coverage() -> None:
             "narratives": [{"name": "test", "terms": ["term1"]}],
         }
         # Return budget exceeded
-        mock_real_cg.return_value = (False, 999999, [])
+        mock_real_cg.return_value = (False, [])
 
         _process_dev_mode_job("test_job", "real_cg", "1h", 1)
 
@@ -255,20 +253,18 @@ def test_process_single_narrative_memo_cache_coverage() -> None:
         _process_single_narrative(
             "test_narrative",
             "test_job",
-            0,
-            "real",
-            ["term1"],
-            memo,
+            mode="real",
+            terms=["term1"],
+            _memo=memo,
         )
 
         # Second call - should use cache (line 161)
         _process_single_narrative(
             "test_narrative",
             "test_job",
-            1,
-            "real",
-            ["term1"],
-            memo,
+            mode="real",
+            terms=["term1"],
+            _memo=memo,
         )
 
         # Should only call process_real once (first call)
@@ -289,3 +285,114 @@ def test_coingecko_adapter_fetch_parents_coverage() -> None:
     result = adapter.fetch_parents("test_narrative", ["term1", "term2"])
 
     assert not result
+
+
+def test_budget_exceeded_max_calls_coverage() -> None:
+    """Test budget exceeded max calls for coverage."""
+    from backend.api.routes.refresh import _check_budget_limits
+
+    # Mock get_cg_calls_count to return high value
+    with patch(
+        "backend.api.routes.refresh.get_cg_calls_count",
+    ) as mock_get_calls:
+        mock_get_calls.return_value = 999999
+
+        # Mock REFRESH_MAX_CALLS to be low
+        with patch("backend.api.routes.refresh.REFRESH_MAX_CALLS", 1):
+            should_continue, error = _check_budget_limits(
+                "test_narrative",
+                "real",
+            )
+
+            assert not should_continue
+            assert error is not None
+            assert error["code"] == "BUDGET_EXCEEDED"
+            assert error["detail"] == "max calls exceeded"
+            assert error["narrative"] == "*"
+
+
+def test_finalize_job_with_reason_coverage() -> None:
+    """Test _finalize_job with reason for coverage."""
+    from backend.api.routes.refresh import _finalize_job
+
+    with patch(
+        "backend.api.routes.refresh.get_cg_calls_count",
+    ) as mock_get_calls:
+        mock_get_calls.return_value = 0
+
+        with (
+            patch("backend.api.routes.refresh.current_running_job", None),
+            patch(
+                "backend.api.routes.refresh.last_completed_job",
+                None,
+            ),
+            patch("backend.api.routes.refresh.debounce_until", 0),
+            patch(
+                "backend.api.routes.refresh.last_success_at",
+                0,
+            ),
+            patch("backend.api.routes.refresh.mark_refreshed") as mock_mark,
+        ):
+            _finalize_job(
+                "test_job",
+                "real_cg",
+                "1h",
+                10,
+                5,
+                [],
+                reason="test_reason",
+            )
+
+            # Check that the global variable was set
+            from backend.api.routes.refresh import last_completed_job
+
+            assert last_completed_job is not None
+            assert last_completed_job["reason"] == "test_reason"
+            mock_mark.assert_called_once()
+
+
+def test_budget_exceeded_finalize_job_coverage() -> None:
+    """Test budget exceeded finalize job for coverage."""
+
+    # Mock get_cg_calls_count to return high value
+    with patch(
+        "backend.api.routes.refresh.get_cg_calls_count",
+    ) as mock_get_calls:
+        mock_get_calls.return_value = 999999
+
+        # Mock REFRESH_MAX_CALLS to be low
+        with (
+            patch(
+                "backend.api.routes.refresh.REFRESH_MAX_CALLS",
+                1,
+            ),
+            patch(
+                "backend.api.routes.refresh.list_narrative_names",
+            ) as mock_list,
+        ):
+            mock_list.return_value = ["narrative1", "narrative2"]
+
+            # Mock the job state
+            with patch(
+                "backend.api.routes.refresh.current_running_job",
+                {
+                    "id": "test_job",
+                    "state": "running",
+                    "ts": 0,
+                    "error": None,
+                    "jobId": "test_job",
+                    "mode": "real",
+                    "window": "1h",
+                    "narrativesTotal": 2,
+                    "narrativesDone": 0,
+                    "errors": [],
+                    "calls_used": 0,
+                },
+            ):
+                _process_dev_mode_job("test_job", "real", "1h", 2)
+
+                # Check that the job was finalized with budget_exhausted reason
+                from backend.api.routes.refresh import last_completed_job
+
+                assert last_completed_job is not None
+                assert last_completed_job["reason"] == "budget_exhausted"

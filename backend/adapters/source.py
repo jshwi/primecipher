@@ -31,6 +31,23 @@ _cache = _raw_cache
 # Module-level logger
 logger = logging.getLogger(__name__)
 
+# Module-level counter for CG API calls
+_CG_CALLS_COUNT = 0
+
+
+def get_cg_calls_count() -> int:
+    """Get the current number of CG API calls made.
+
+    :return: Current call count.
+    """
+    return _CG_CALLS_COUNT
+
+
+def reset_cg_calls_count() -> None:
+    """Reset the CG API calls counter to zero."""
+    global _CG_CALLS_COUNT  # pylint: disable=global-statement
+    _CG_CALLS_COUNT = 0
+
 
 class TokenBucket:  # pylint: disable=too-few-public-methods
     """Simple token bucket rate limiter for CoinGecko requests.
@@ -116,6 +133,10 @@ def _get_json(
         try:
             # Rate limit: acquire token before making request
             _cg_limiter.acquire()
+
+            # Increment CG calls counter
+            global _CG_CALLS_COUNT  # pylint: disable=global-statement
+            _CG_CALLS_COUNT += 1
 
             # Add small random jitter after acquiring token
             jitter_ms = random.randint(0, CG_JITTER_MS)

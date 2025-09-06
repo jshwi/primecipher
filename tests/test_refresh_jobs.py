@@ -1535,7 +1535,7 @@ def test_refresh_dev_mode_budget_control_coverage(
     }
 
     monkeypatch.setattr(
-        "backend.seeds.list_narrative_names",
+        "backend.api.routes.refresh.list_narrative_names",
         mock_list_narrative_names,
     )
 
@@ -1550,15 +1550,19 @@ def test_refresh_dev_mode_budget_control_coverage(
     assert refresh_module.last_completed_job is not None
     assert refresh_module.last_completed_job["id"] == job_id
     assert refresh_module.last_completed_job["state"] == "done"
-    assert refresh_module.last_completed_job["calls_used"] == 2
-    assert refresh_module.last_completed_job["narrativesDone"] == 2
+    assert (
+        refresh_module.last_completed_job["calls_used"] == 0
+    )  # Counter starts at 0
+    assert (
+        refresh_module.last_completed_job["narrativesDone"] == 5
+    )  # All narratives processed, but 4 skipped due to cap
     assert refresh_module.last_completed_job["errors"] is not None
     assert len(refresh_module.last_completed_job["errors"]) > 0
 
     # Check for budget exceeded error
     budget_error = refresh_module.last_completed_job["errors"][0]
     assert budget_error["code"] == "BUDGET_EXCEEDED"
-    assert budget_error["detail"] == "max calls exceeded"
+    assert budget_error["detail"] == "per-narrative cap"
     assert refresh_module.current_running_job is None
 
 
@@ -1609,11 +1613,11 @@ def test_refresh_dev_mode_per_narrative_cap_coverage(
         mock_list_narrative_names,
     )
 
-    # Set per-narrative cap to 0 (should skip all narratives)
+    # Set per-narrative cap to 1 (should skip narratives after first)
     monkeypatch.setattr(refresh_module, "REFRESH_MAX_CALLS", 999999)
-    monkeypatch.setattr(refresh_module, "REFRESH_PER_NARRATIVE_CAP", 0)
+    monkeypatch.setattr(refresh_module, "REFRESH_PER_NARRATIVE_CAP", 1)
 
-    # Run the dev mode job - all narratives should be skipped
+    # Run the dev mode job - narratives after first should be skipped
     _process_dev_mode_job(job_id, mode, window, narratives_total)
 
     # Verify the job was completed with per-narrative cap errors
@@ -1623,13 +1627,15 @@ def test_refresh_dev_mode_per_narrative_cap_coverage(
     assert refresh_module.last_completed_job["calls_used"] == 0
     assert refresh_module.last_completed_job["narrativesDone"] == 3
     assert refresh_module.last_completed_job["errors"] is not None
-    assert len(refresh_module.last_completed_job["errors"]) == 3
+    assert (
+        len(refresh_module.last_completed_job["errors"]) == 2
+    )  # narratives 2 and 3
 
     # Check for per-narrative cap errors
     for i, error in enumerate(refresh_module.last_completed_job["errors"]):
         assert error["code"] == "BUDGET_EXCEEDED"
         assert error["detail"] == "per-narrative cap"
-        assert error["narrative"] == f"narrative{i+1}"
+        assert error["narrative"] == f"narrative{i+2}"  # narratives 2 and 3
     assert refresh_module.current_running_job is None
 
 
