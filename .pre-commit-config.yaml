@@ -106,12 +106,14 @@ repos:
       - id: prettier
         args:
           - "--write"
+          - "--no-error-on-unmatched-pattern"
+          - "--ignore-unknown"
         exclude: |
           (?x)^(
             | CHANGELOG\.md
             | .*\.json
             | SECURITY\.md
-            | docs\/deprecated\/messages\.md
+            | docs/deprecated/messages\.md
           )$
   - repo: https://github.com/pappasam/toml-sort
     rev: "v0.24.2"
