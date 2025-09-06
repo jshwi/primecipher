@@ -99,6 +99,12 @@ def _process_narrative_real_mode(
     :param mode: The mode to determine which adapter to use.
     :return: List of parent items for the narrative.
     """
+    if mode == "real_ds":
+        # Use the Dexscreener function directly
+        from ...adapters.source import parents_for_dexscreener
+
+        return parents_for_dexscreener(narrative, terms)
+
     from ...adapters import get_adapter
 
     # Get the appropriate adapter based on mode
@@ -171,7 +177,10 @@ def _process_single_narrative(
             items = _memo[narrative]
         else:
             # Process the narrative based on mode
-            if mode in ["real", "real_cg", "real_mix"] and terms is not None:
+            if (
+                mode in ["real", "real_cg", "real_mix", "real_ds"]
+                and terms is not None
+            ):
                 items = _process_narrative_real_mode(narrative, terms, mode)
             else:
                 items = _process_narrative_dev_mode(narrative)
@@ -387,7 +396,7 @@ def _process_dev_mode_job(
         _memo: dict[str, list[dict]] = {}
 
         # Get narratives with their terms for real mode
-        if mode in ["real", "real_cg", "real_mix"]:
+        if mode in ["real", "real_cg", "real_mix", "real_ds"]:
             from ...seeds import load_seeds
 
             seeds_data = load_seeds()
@@ -485,7 +494,9 @@ def _process_dev_mode_job(
                 job_id,
                 mode=mode,
                 terms=(
-                    terms if mode in ["real", "real_cg", "real_mix"] else None
+                    terms
+                    if mode in ["real", "real_cg", "real_mix", "real_ds"]
+                    else None
                 ),
                 _memo=_memo,
             )
@@ -581,7 +592,7 @@ async def start_or_get_job(
 
     # Start the actual refresh job
     async def _do() -> None:
-        if mode in ["dev", "real", "real_cg", "real_mix"]:
+        if mode in ["dev", "real", "real_cg", "real_mix", "real_ds"]:
             # Use new processing for dev and real modes
             _process_dev_mode_job(job_id, mode, window, narratives_total)
         else:

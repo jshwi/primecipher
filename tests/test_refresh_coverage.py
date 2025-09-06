@@ -277,6 +277,17 @@ def test_process_single_narrative_memo_cache_coverage() -> None:
         assert mock_write.call_count == 2
 
 
+def test_process_narrative_real_ds_mode_coverage() -> None:
+    """Test _process_narrative_real_mode with real_ds mode."""
+    with patch("backend.adapters.source.parents_for_dexscreener") as mock_ds:
+        mock_ds.return_value = [{"parent": "test", "matches": 50}]
+
+        result = _process_narrative_real_mode("test", ["bitcoin"], "real_ds")
+
+        assert result == [{"parent": "test", "matches": 50}]
+        mock_ds.assert_called_once_with("test", ["bitcoin"])
+
+
 def test_coingecko_adapter_fetch_parents_coverage() -> None:
     """Test CoinGeckoAdapter fetch_parents to improve coverage."""
     from backend.adapters.coingecko import CoinGeckoAdapter

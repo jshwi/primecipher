@@ -711,6 +711,176 @@ def _make_cg() -> t.Any:
     return _CGAdapter()
 
 
+def parents_for_dexscreener(  # pylint: disable=too-many-branches
+    narrative: str,
+    terms: list[str],
+) -> list[dict]:
+    """Get parent data from Dexscreener API for given terms.
+
+    :param narrative: The narrative name (for logging).
+    :param terms: List of search terms.
+    :return: List of parent items with dexscreener data.
+    """
+    # Keep only first 3 terms; skip terms with len<3 or generic ones
+    generic_terms = {"swap", "defi", "nft", "play", "fun", "meta"}
+    filtered_terms = []
+
+    for term in terms[:3]:  # Take first 3 only
+        if (
+            term
+            and term.strip()
+            and len(term.strip()) >= 3
+            and term.strip().lower() not in generic_terms
+        ):
+            filtered_terms.append(term.strip())
+
+    if not filtered_terms:
+        logger.info("[DS] %s terms=0 parents=0", narrative)
+        return []
+
+    # Collect all results with deduplication by (chain, lowercase(address))
+    results_by_key: dict[tuple[str, str], dict] = {}
+
+    for term in filtered_terms:
+        try:
+            url = "https://api.dexscreener.com/latest/dex/search"
+            params = {"q": term}
+
+            data = _get_json(url, params)
+            if not data or not isinstance(data, dict):
+                continue
+
+            pairs = data.get("pairs", [])
+            if not pairs:
+                continue
+
+            for pair in pairs:
+                # Extract base token data
+                base_token = pair.get("baseToken", {})
+                if not base_token:
+                    continue
+
+                # Get required fields
+                name = base_token.get("name") or base_token.get("symbol")
+                symbol = base_token.get("symbol")
+                chain = pair.get("chainId")
+                address = base_token.get("address") or pair.get("pairAddress")
+
+                if not name or not chain or not address:
+                    continue
+
+                # Get optional numeric fields
+                price = None
+                try:
+                    price_usd = pair.get("priceUsd")
+                    if price_usd:
+                        price = float(price_usd)
+                except (ValueError, TypeError):
+                    pass
+
+                vol24h = None
+                try:
+                    # Try volume.h24 first, then volume24h
+                    volume = pair.get("volume", {})
+                    if isinstance(volume, dict) and "h24" in volume:
+                        vol24h = float(volume["h24"])
+                    elif "volume24h" in pair:
+                        vol24h = float(pair["volume24h"])
+                except (ValueError, TypeError):
+                    pass
+
+                fdv = None
+                try:
+                    fdv_val = pair.get("fdv")
+                    if fdv_val:
+                        fdv = float(fdv_val)
+                except (ValueError, TypeError):
+                    pass
+
+                liq = None
+                try:
+                    liquidity = pair.get("liquidity", {})
+                    if isinstance(liquidity, dict) and "usd" in liquidity:
+                        liq = float(liquidity["usd"])
+                except (ValueError, TypeError):
+                    pass
+
+                url_val = pair.get("url") or pair.get("pairUrl")
+
+                # Create deduplication key
+                key = (chain, address.lower())
+
+                # Check if we should keep this result (higher vol24h wins)
+                existing = results_by_key.get(key)
+                if existing:
+                    existing_vol = existing.get("vol24h") or 0
+                    current_vol = vol24h or 0
+                    if current_vol <= existing_vol:
+                        continue
+
+                # Store result
+                results_by_key[key] = {
+                    "parent": name,
+                    "matches": 0,  # set below
+                    "symbol": symbol or None,
+                    "price": price,
+                    "vol24h": vol24h,
+                    "marketCap": fdv,  # fdv as a cap proxy
+                    "liquidityUsd": liq,
+                    "chain": chain,
+                    "address": address,
+                    "url": url_val,
+                    "source": "dexscreener",
+                }
+
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Continue with next term on any error
+            continue
+
+        # Short sleep between calls (≥ 300ms)
+        time.sleep(0.3)
+
+    items = list(results_by_key.values())
+
+    # Apply scoring
+    vols = [it["vol24h"] or 0 for it in items]
+    if any(v > 0 for v in vols):
+        max_v = max(vols)
+        for it in items:
+            it["matches"] = int(round(100 * ((it["vol24h"] or 0) / max_v)))
+    elif any((it.get("liquidityUsd") or 0) > 0 for it in items):
+        liquidity_vals = [it["liquidityUsd"] or 0 for it in items]
+        max_l = max(liquidity_vals)
+        for it in items:
+            it["matches"] = int(
+                round(100 * ((it["liquidityUsd"] or 0) / max_l)),
+            )
+    else:
+        for it in items:
+            it["matches"] = 10
+
+    # Sort by matches desc, vol24h desc, liquidityUsd desc, parent asc
+    items.sort(
+        key=lambda x: (
+            -int(x["matches"] or 0),
+            -float(x["vol24h"] or 0),
+            -float(x["liquidityUsd"] or 0),
+            x["parent"],
+        ),
+    )
+
+    # Cap to 25
+    items = items[:25]
+
+    logger.info(
+        "[DS] %s terms=%d parents=%d",
+        narrative,
+        len(filtered_terms),
+        len(items),
+    )
+    return items
+
+
 # ---------------------------------
 # public façade (kept for callers)
 # ---------------------------------

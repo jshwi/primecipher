@@ -314,3 +314,348 @@ class TestCoinGeckoAdapterCoverage:
             # Should call parents_for with same arguments
             mock_parents_for.assert_called_once_with("test", ["bitcoin"])
             assert result == [{"parent": "test"}]
+
+
+class TestDexscreenerCoverage:
+    """Test coverage for parents_for_dexscreener function."""
+
+    @patch("backend.adapters.source._get_json")
+    @patch("backend.adapters.source.time.sleep")
+    def test_parents_for_dexscreener_basic(
+        self,
+        _mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test basic functionality of parents_for_dexscreener."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Mock API response
+        mock_get_json.return_value = {
+            "pairs": [
+                {
+                    "baseToken": {
+                        "name": "Test Token",
+                        "symbol": "TEST",
+                        "address": "0x123",
+                    },
+                    "chainId": "ethereum",
+                    "priceUsd": "1.5",
+                    "volume": {"h24": "1000.0"},
+                    "fdv": "50000.0",
+                    "liquidity": {"usd": "25000.0"},
+                    "url": "https://test.com",
+                },
+            ],
+        }
+
+        result = parents_for_dexscreener("test", ["bitcoin"])
+
+        # Should return properly formatted results
+        assert len(result) == 1
+        assert result[0]["parent"] == "Test Token"
+        assert result[0]["symbol"] == "TEST"
+        assert result[0]["price"] == 1.5
+        assert result[0]["vol24h"] == 1000.0
+        assert result[0]["source"] == "dexscreener"
+
+    @patch("backend.adapters.source._get_json")
+    def test_parents_for_dexscreener_empty_terms(
+        self,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test parents_for_dexscreener with empty/invalid terms."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Test with generic terms that should be filtered out
+        result = parents_for_dexscreener("test", ["swap", "defi", "ab"])
+
+        # Should return empty list without making API calls
+        assert not result
+        mock_get_json.assert_not_called()
+
+    @patch("backend.adapters.source._get_json")
+    @patch("backend.adapters.source.time.sleep")
+    def test_parents_for_dexscreener_api_error(
+        self,
+        _mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test parents_for_dexscreener handles API errors."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Mock API error
+        mock_get_json.side_effect = Exception("API Error")
+
+        result = parents_for_dexscreener("test", ["bitcoin"])
+
+        # Should handle error and return empty list
+        assert not result
+
+    @patch("backend.adapters.source._get_json")
+    @patch("backend.adapters.source.time.sleep")
+    def test_parents_for_dexscreener_deduplication(
+        self,
+        _mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test deduplication logic in parents_for_dexscreener."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Mock API response with duplicate addresses
+        mock_get_json.return_value = {
+            "pairs": [
+                {
+                    "baseToken": {
+                        "name": "Test Token",
+                        "symbol": "TEST",
+                        "address": "0x123",
+                    },
+                    "chainId": "ethereum",
+                    "volume": {"h24": "1000.0"},
+                },
+                {
+                    "baseToken": {
+                        "name": "Test Token 2",
+                        "symbol": "TEST2",
+                        "address": "0x123",  # Same address
+                    },
+                    "chainId": "ethereum",  # Same chain
+                    "volume": {"h24": "2000.0"},  # Higher volume
+                },
+            ],
+        }
+
+        result = parents_for_dexscreener("test", ["bitcoin"])
+
+        # Should keep only the one with higher volume
+        assert len(result) == 1
+        assert result[0]["parent"] == "Test Token 2"
+        assert result[0]["vol24h"] == 2000.0
+
+    @patch("backend.adapters.source._get_json")
+    @patch("backend.adapters.source.time.sleep")
+    def test_parents_for_dexscreener_edge_cases(
+        self,
+        _mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test edge cases in parents_for_dexscreener."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Mock API response with various edge cases
+        mock_get_json.side_effect = [
+            None,  # First call returns None
+            {"pairs": []},  # Second call returns empty pairs
+            {  # Third call returns data with missing fields
+                "pairs": [
+                    {
+                        "baseToken": {},  # Empty base token
+                    },
+                    {
+                        "baseToken": {
+                            "name": "Test Token",
+                            "symbol": "TEST",
+                            "address": "0x123",
+                        },
+                        "chainId": "ethereum",
+                        # Missing price, volume, etc.
+                    },
+                    {
+                        "baseToken": {
+                            "symbol": "TEST2",  # No name, use symbol
+                            "address": "0x456",
+                        },
+                        "chainId": "ethereum",
+                        "priceUsd": "invalid",  # Invalid price
+                        "volume": {"h24": "invalid"},  # Invalid volume
+                        "fdv": "invalid",  # Invalid fdv
+                        "liquidity": {"usd": "invalid"},  # Invalid liquidity
+                        "pairAddress": "0x789",  # Use pairAddress as fallback
+                    },
+                ],
+            },
+        ]
+
+        result = parents_for_dexscreener(
+            "test",
+            ["bitcoin", "ethereum", "solana"],
+        )
+
+        # Should handle all edge cases and return valid results
+        assert len(result) == 2
+        # Check that both tokens are present
+        parents = [r["parent"] for r in result]
+        assert "Test Token" in parents
+        assert "TEST2" in parents
+        # Check that the TEST2 token uses address as fallback
+        test2_token = next(r for r in result if r["parent"] == "TEST2")
+        assert test2_token["address"] == "0x456"
+
+    @patch("backend.adapters.source._get_json")
+    @patch("backend.adapters.source.time.sleep")
+    def test_parents_for_dexscreener_liquidity_scoring(
+        self,
+        _mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test liquidity-based scoring in parents_for_dexscreener."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Mock API response with no volume but liquidity
+        mock_get_json.return_value = {
+            "pairs": [
+                {
+                    "baseToken": {
+                        "name": "Token A",
+                        "symbol": "A",
+                        "address": "0x123",
+                    },
+                    "chainId": "ethereum",
+                    "liquidity": {"usd": "10000.0"},
+                },
+                {
+                    "baseToken": {
+                        "name": "Token B",
+                        "symbol": "B",
+                        "address": "0x456",
+                    },
+                    "chainId": "ethereum",
+                    "liquidity": {"usd": "20000.0"},
+                },
+            ],
+        }
+
+        result = parents_for_dexscreener("test", ["test"])
+
+        # Should score based on liquidity
+        assert len(result) == 2
+        assert result[0]["parent"] == "Token B"  # Higher liquidity first
+        assert result[0]["matches"] == 100
+        assert result[1]["parent"] == "Token A"
+        assert result[1]["matches"] == 50
+
+    @patch("backend.adapters.source._get_json")
+    @patch("backend.adapters.source.time.sleep")
+    def test_parents_for_dexscreener_fallback_scoring(
+        self,
+        _mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test fallback scoring in parents_for_dexscreener."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Mock API response with no volume or liquidity
+        mock_get_json.return_value = {
+            "pairs": [
+                {
+                    "baseToken": {
+                        "name": "Token A",
+                        "symbol": "A",
+                        "address": "0x123",
+                    },
+                    "chainId": "ethereum",
+                },
+            ],
+        }
+
+        result = parents_for_dexscreener("test", ["test"])
+
+        # Should use fallback score of 10
+        assert len(result) == 1
+        assert result[0]["matches"] == 10
+
+    @patch("backend.adapters.source._get_json")
+    @patch("backend.adapters.source.time.sleep")
+    def test_parents_for_dexscreener_missing_fields_coverage(
+        self,
+        _mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test coverage for missing required fields."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Mock API response with missing required fields
+        mock_get_json.return_value = {
+            "pairs": [
+                {
+                    "baseToken": {
+                        "name": "Token A",
+                        "symbol": "A",
+                        # Missing address
+                    },
+                    "chainId": "ethereum",
+                },
+                {
+                    "baseToken": {
+                        "name": "Token B",
+                        "symbol": "B",
+                        "address": "0x123",
+                    },
+                    # Missing chainId
+                },
+                {
+                    # Missing name entirely
+                    "baseToken": {
+                        "address": "0x456",
+                    },
+                    "chainId": "ethereum",
+                },
+                {
+                    "baseToken": {
+                        "name": "Valid Token",
+                        "symbol": "VALID",
+                        "address": "0x789",
+                    },
+                    "chainId": "ethereum",
+                    "volume24h": "5000.0",  # Use volume24h instead
+                },
+            ],
+        }
+
+        result = parents_for_dexscreener("test", ["test"])
+
+        # Should only return the valid token
+        assert len(result) == 1
+        assert result[0]["parent"] == "Valid Token"
+        assert result[0]["vol24h"] == 5000.0
+
+    @patch("backend.adapters.source._get_json")
+    @patch("backend.adapters.source.time.sleep")
+    def test_parents_for_dexscreener_dedup_skip_lower_volume(
+        self,
+        _mock_sleep: MagicMock,
+        mock_get_json: MagicMock,
+    ) -> None:
+        """Test deduplication skips lower volume entries."""
+        from backend.adapters.source import parents_for_dexscreener
+
+        # Mock API response with same address but different volumes
+        mock_get_json.return_value = {
+            "pairs": [
+                {
+                    "baseToken": {
+                        "name": "Token High",
+                        "symbol": "HIGH",
+                        "address": "0x123",
+                    },
+                    "chainId": "ethereum",
+                    "volume": {"h24": "10000.0"},
+                },
+                {
+                    "baseToken": {
+                        "name": "Token Low",
+                        "symbol": "LOW",
+                        "address": "0x123",  # Same address
+                    },
+                    "chainId": "ethereum",  # Same chain
+                    "volume": {"h24": "5000.0"},  # Lower volume
+                },
+            ],
+        }
+
+        result = parents_for_dexscreener("test", ["test"])
+
+        # Should keep only the higher volume token
+        assert len(result) == 1
+        assert result[0]["parent"] == "Token High"
+        assert result[0]["vol24h"] == 10000.0
