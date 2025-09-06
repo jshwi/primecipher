@@ -1,7 +1,7 @@
 REGISTRY  # unused variable (backend/adapters/__init__.py:33)
 _make_test  # unused function (backend/adapters/source.py:379)
 _make_dev  # unused function (backend/adapters/source.py:410)
-get_heatmap  # unused function (backend/api/routes/heatmap.py:19)
+get_heatmap  # unused function (backend/api/routes/heatmap.py:18)
 list_narratives  # unused function (backend/api/routes/narratives.py:33)
 get_parents_for_narrative  # unused function (backend/api/routes/parents.py:37)
 last_started_ts  # unused variable (backend/api/routes/refresh.py:33)

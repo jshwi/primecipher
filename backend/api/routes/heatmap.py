@@ -5,7 +5,6 @@ import time
 
 from fastapi import APIRouter
 
-from ...parents import TOP_N, _with_scores
 from ...repo import list_parents
 from ...seeds import list_narrative_names
 from ...storage import get_meta, get_parents
@@ -24,21 +23,33 @@ def get_heatmap() -> dict:
     """
     items = []
     computed_at_values = []
+    top_k_count = 5  # Top-K parents for scoring
 
     for name in list_narrative_names():
         # Get parent data from database or storage
         parent_items = list_parents(name) or get_parents(name) or []
 
-        # Apply scoring and limit to TOP_N
-        scored = _with_scores(parent_items)[:TOP_N]
-        count = len(scored)
-
-        # Calculate average score
-        agg = (
-            sum(it.get("score", 0.0) for it in scored) / count
-            if count
-            else 0.0
+        # Sort by matches descending
+        sorted_parents = sorted(
+            parent_items,
+            key=lambda x: x.get("matches", 0),
+            reverse=True,
         )
+
+        # Take top K parents (or all if fewer)
+        top_k = sorted_parents[:top_k_count]
+
+        # Calculate score as average of top-K matches
+        if top_k:
+            score = round(
+                sum(p.get("matches", 0) for p in top_k) / len(top_k),
+                2,
+            )
+        else:
+            score = 0.0
+
+        # Count is total number of parents
+        count = len(parent_items)
 
         # Get metadata for this narrative
         meta = get_meta(name) or {}
@@ -53,7 +64,7 @@ def get_heatmap() -> dict:
         items.append(
             {
                 "name": name,
-                "score": round(agg, 4),
+                "score": score,
                 "count": count,
                 "lastUpdated": computed_at,
                 "stale": is_stale,

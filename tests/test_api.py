@@ -58,6 +58,45 @@ def test_heatmap_with_metadata(client) -> None:
     assert "lastUpdated" in js
 
 
+def test_heatmap_empty_parents(client) -> None:
+    """Test heatmap endpoint when narrative has no parents.
+
+    :param client: Pytest fixture for test client.
+    """
+    from backend.repo import replace_parents
+    from backend.seeds import list_narrative_names
+    from backend.storage import set_parents
+
+    # Get a narrative name and set up empty parent data
+    narrative_names = list_narrative_names()
+    if narrative_names:
+        # Set up empty parent data in both storage and database to test the
+        # else branch in heatmap
+        set_parents(narrative_names[0], [])
+        replace_parents(narrative_names[0], [], 0.0)  # Clear database as well
+
+    r = client.get("/heatmap")
+    assert r.status_code == 200
+    js = r.json()
+    assert "items" in js and isinstance(js["items"], list)
+    assert "stale" in js and isinstance(js["stale"], bool)
+    assert "lastUpdated" in js
+
+    # Find the narrative with empty parents and verify score is 0.0
+    if narrative_names:
+        empty_narrative = next(
+            (
+                item
+                for item in js["items"]
+                if item["name"] == narrative_names[0]
+            ),
+            None,
+        )
+        if empty_narrative:
+            assert empty_narrative["score"] == 0.0
+            assert empty_narrative["count"] == 0
+
+
 def test_narratives_list(client) -> None:
     """Test narratives list endpoint returns items list.
 
