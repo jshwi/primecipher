@@ -11,6 +11,9 @@
 - Preserve public APIs and file structure unless explicitly asked.
 - Respect `.editorconfig` (LF, trim whitespace, final newline, 2-space indent; Python uses 4).
 
+## Make
+- to find help, run `make --tasks`
+
 ## Python (backend/)
 - **Line length = 79** (see `[tool.black] line-length = 79`).
 - **Imports**: keep isort’s Black profile (multi-line output=3, trailing commas, line_length=79).
@@ -19,6 +22,7 @@
 - **Lint expectations**: Flake8 (with bugbear/simplify), Pylint (run via `make .make/lint/py`).
 - **Docstrings**: keep concise; summaries wrap ~72 chars (see `tool.docformatter`), but do not add boilerplate to every function.
 - **For unused arguments, prefix with _
+- **Never use tabs in python code, only whitespace
 
 ## TypeScript/React (src/)
 - Use Next.js conventions; ESLint config is `next/core-web-vitals` + `next/typescript`.
