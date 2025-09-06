@@ -32,6 +32,7 @@ class Parent(BaseModel):
     price: float | None = None
     marketCap: float | None = None
     vol24h: float | None = None
+    liquidityUsd: float | None = None
     image: str | None = None
 
 
