@@ -591,13 +591,6 @@ def _make_cg() -> t.Any:
 
                 # Fetch market data for the coin IDs
                 market_data = self._get_market_data(coin_ids)
-                if not market_data:
-                    logger.warning(
-                        "[CG] %s: no market data found for %d coin IDs",
-                        narrative,
-                        len(coin_ids),
-                    )
-                    return []
 
                 # Map market data to parent dicts with scoring
                 items = self._map_market_to_items(market_data)

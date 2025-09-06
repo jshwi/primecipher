@@ -93,6 +93,7 @@ min-similarity-lines = 9
 
 [tool.pylint."tests/*"]
 disable = [
+  "attribute-defined-outside-init",
   "global-statement",
   "import-outside-toplevel",
   "line-too-long",
