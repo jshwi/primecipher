@@ -64,3 +64,16 @@ def _clear_refresh_module_state() -> None:
     refresh_module.current_running_job = None
     refresh_module.last_completed_job = None
     refresh_module.last_started_ts = 0.0
+
+
+@pytest.fixture(autouse=True)
+def _clear_search_cache() -> None:
+    """Clear search cache between tests for isolation.
+
+    This ensures that cached search results don't leak between tests.
+    """
+    # Import here to avoid circular imports
+    from backend.adapters.source import clear_search_cache
+
+    # Clear the search cache
+    clear_search_cache()

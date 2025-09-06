@@ -28,6 +28,9 @@ _raw_cache: dict[tuple[str, tuple[str, ...]], tuple[float, list[dict]]] = {}
 # back-compat alias for older tests/helpers that expect `_cache`
 _cache = _raw_cache
 
+# search cache for individual terms: term_lower -> (ts, coin_ids)
+_search_cache: dict[str, tuple[float, list[str]]] = {}
+
 # Module-level logger
 logger = logging.getLogger(__name__)
 
@@ -251,6 +254,38 @@ def _set_raw_cached(key: tuple[str, tuple[str, ...]], val: list[dict]) -> None:
     _raw_cache[key] = (_now(), val)
 
 
+def _get_search_cached(term: str) -> t.Optional[list[str]]:
+    """Get cached search results for a term.
+
+    :param term: Search term (will be lowercased).
+    :return: Cached coin IDs or None if not found/expired.
+    """
+    term_lower = term.strip().lower()
+    hit = _search_cache.get(term_lower)
+    if not hit:
+        return None
+    ts, coin_ids = hit
+    # TTL = 15 minutes = 900 seconds
+    if _now() - ts > 900:
+        return None
+    return coin_ids
+
+
+def _set_search_cached(term: str, coin_ids: list[str]) -> None:
+    """Cache search results for a term.
+
+    :param term: Search term (will be lowercased).
+    :param coin_ids: List of coin IDs to cache.
+    """
+    term_lower = term.strip().lower()
+    _search_cache[term_lower] = (_now(), coin_ids)
+
+
+def clear_search_cache() -> None:
+    """Clear the search cache. Used for testing."""
+    _search_cache.clear()
+
+
 def _memo_raw(
     provider: str,
     terms: list[str],
@@ -437,12 +472,20 @@ def _make_cg() -> t.Any:
             """
             coin_ids = set()
             failed_terms = []
+            http_calls_made = 0
 
-            for i, term in enumerate(terms):
+            for term in terms:
                 try:
+                    # Check cache first
+                    cached_ids = _get_search_cached(term)
+                    if cached_ids is not None:
+                        logger.debug("[CG] cache hit for term: %s", term)
+                        coin_ids.update(cached_ids)
+                        continue
+
                     # Sleep ≥ 1.2s between /search calls
                     # (in addition to token-bucket)
-                    if i > 0:
+                    if http_calls_made > 0:
                         time.sleep(1.2)
 
                     url = "https://api.coingecko.com/api/v3/search"
@@ -455,10 +498,23 @@ def _make_cg() -> t.Any:
                         coins = []
 
                     # Collect at most 5 ids per term
+                    term_coin_ids = []
                     for coin in coins[:5]:
                         coin_id = coin.get("id")
                         if coin_id:
                             coin_ids.add(coin_id)
+                            term_coin_ids.append(coin_id)
+
+                    # Cache the results for this term
+                    if term_coin_ids:
+                        _set_search_cached(term, term_coin_ids)
+                        logger.debug(
+                            "[CG] cached %d ids for term: %s",
+                            len(term_coin_ids),
+                            term,
+                        )
+
+                    http_calls_made += 1
 
                 except Exception:  # pylint: disable=broad-exception-caught
                     # Track failed terms for logging
