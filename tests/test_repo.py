@@ -27,8 +27,11 @@ def test_replace_and_list_parents_roundtrip() -> None:
             "price": None,
             "marketCap": None,
             "vol24h": None,
-            "image": None,
+            "liquidityUsd": None,
+            "chain": None,
+            "address": None,
             "url": None,
+            "image": None,
         }
         for item in sorted(items, key=lambda x: -x["matches"])
     ]
@@ -50,8 +53,11 @@ def test_replace_parents_overwrites_previous() -> None:
             "price": None,
             "marketCap": None,
             "vol24h": None,
-            "image": None,
+            "liquidityUsd": None,
+            "chain": None,
+            "address": None,
             "url": None,
+            "image": None,
         },
     ]
     assert rows == expected
@@ -84,8 +90,11 @@ def test_replace_parents_deduplicates_duplicates() -> None:
             "price": None,
             "marketCap": None,
             "vol24h": None,
-            "image": None,
+            "liquidityUsd": None,
+            "chain": None,
+            "address": None,
             "url": None,
+            "image": None,
         },
         {
             "parent": "BTC",
@@ -95,8 +104,11 @@ def test_replace_parents_deduplicates_duplicates() -> None:
             "price": None,
             "marketCap": None,
             "vol24h": None,
-            "image": None,
+            "liquidityUsd": None,
+            "chain": None,
+            "address": None,
             "url": None,
+            "image": None,
         },
         {
             "parent": "ETH",
@@ -106,8 +118,11 @@ def test_replace_parents_deduplicates_duplicates() -> None:
             "price": None,
             "marketCap": None,
             "vol24h": None,
-            "image": None,
+            "liquidityUsd": None,
+            "chain": None,
+            "address": None,
             "url": None,
+            "image": None,
         },
     ]
     assert len(rows) == 3

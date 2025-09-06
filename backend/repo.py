@@ -1,9 +1,9 @@
 """Database repository operations for parent data."""
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 
 from .db import Base, SessionLocal, engine
-from .models import ParentHit
+from .models import ParentHit, ParentMeta
 
 
 def init_db() -> None:
@@ -29,8 +29,12 @@ def replace_parents(narrative: str, items: list[dict], ts: float) -> None:
         filtered_items.append(it)
 
     with SessionLocal() as s:
+        # Delete existing hits for this narrative
         s.execute(delete(ParentHit).where(ParentHit.narrative == narrative))
+
+        # Insert new hits and UPSERT metadata
         for it in filtered_items:
+            # Insert hit data
             s.add(
                 ParentHit(
                     narrative=narrative,
@@ -46,6 +50,46 @@ def replace_parents(narrative: str, items: list[dict], ts: float) -> None:
                     url=it.get("url"),
                 ),
             )
+
+            # UPSERT metadata into parent_meta table
+            s.execute(
+                text(
+                    """
+                    INSERT INTO parent_meta
+                    (narrative, parent, symbol, price, market_cap, vol24h,
+                    liquidity_usd, chain, address, url, source, updated_at)
+                    VALUES (:narrative, :parent, :symbol, :price, :market_cap,
+                            :vol24h, :liquidity_usd, :chain, :address, :url,
+                            :source, :updated_at)
+                    ON CONFLICT(narrative, parent)
+                    DO UPDATE SET
+                        symbol = EXCLUDED.symbol,
+                        price = EXCLUDED.price,
+                        market_cap = EXCLUDED.market_cap,
+                        vol24h = EXCLUDED.vol24h,
+                        liquidity_usd = EXCLUDED.liquidity_usd,
+                        chain = EXCLUDED.chain,
+                        address = EXCLUDED.address,
+                        url = EXCLUDED.url,
+                        source = EXCLUDED.source,
+                        updated_at = EXCLUDED.updated_at
+                """,
+                ),
+                {
+                    "narrative": narrative,
+                    "parent": it["parent"],
+                    "symbol": it.get("symbol"),
+                    "price": it.get("price"),
+                    "market_cap": it.get("marketCap"),
+                    "vol24h": it.get("vol24h"),
+                    "liquidity_usd": it.get("liquidityUsd"),
+                    "chain": it.get("chain"),
+                    "address": it.get("address"),
+                    "url": it.get("url"),
+                    "source": it.get("source"),
+                    "updated_at": ts,
+                },
+            )
         s.commit()
 
 
@@ -56,26 +100,51 @@ def list_parents(narrative: str) -> list[dict]:
     :return: List of parent data for the narrative.
     """
     with SessionLocal() as s:
-        rows = (
-            s.execute(
-                select(ParentHit)
-                .where(ParentHit.narrative == narrative)
-                .order_by(ParentHit.matches.desc()),
+        # JOIN parent_hits with parent_meta to get enriched data
+        rows = s.execute(
+            select(
+                ParentHit.parent,
+                ParentHit.matches,
+                ParentHit.symbol,
+                ParentHit.source,
+                ParentHit.price,
+                ParentHit.marketCap,
+                ParentHit.vol24h,
+                ParentHit.image,
+                ParentHit.url,
+                ParentMeta.symbol.label("meta_symbol"),
+                ParentMeta.price.label("meta_price"),
+                ParentMeta.market_cap.label("meta_market_cap"),
+                ParentMeta.vol24h.label("meta_vol24h"),
+                ParentMeta.liquidity_usd,
+                ParentMeta.chain,
+                ParentMeta.address,
+                ParentMeta.url.label("meta_url"),
+                ParentMeta.source.label("meta_source"),
             )
-            .scalars()
-            .all()
-        )
+            .select_from(ParentHit)
+            .outerjoin(
+                ParentMeta,
+                (ParentHit.narrative == ParentMeta.narrative)
+                & (ParentHit.parent == ParentMeta.parent),
+            )
+            .where(ParentHit.narrative == narrative)
+            .order_by(ParentHit.matches.desc()),
+        ).all()
         return [
             {
                 "parent": r.parent,
                 "matches": r.matches,
-                "symbol": r.symbol,
-                "source": r.source,
-                "price": r.price,
-                "marketCap": r.marketCap,
-                "vol24h": r.vol24h,
+                "symbol": r.meta_symbol or r.symbol,
+                "source": r.meta_source or r.source,
+                "price": r.meta_price or r.price,
+                "marketCap": r.meta_market_cap or r.marketCap,
+                "vol24h": r.meta_vol24h or r.vol24h,
+                "liquidityUsd": r.liquidity_usd,
+                "chain": r.chain,
+                "address": r.address,
+                "url": r.meta_url or r.url,
                 "image": r.image,
-                "url": r.url,
             }
             for r in rows
         ]
