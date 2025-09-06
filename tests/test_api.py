@@ -170,3 +170,57 @@ def test_refresh_then_parents_flow(client) -> None:
         assert isinstance(items, list) and len(items) > 0
         for it in items:
             assert "parent" in it and "matches" in it and "score" in it
+
+
+def test_parents_debug_mode(client) -> None:
+    """Test parents endpoint with debug mode includes sources field.
+
+    :param client: Pytest fixture for test client.
+    """
+    from unittest.mock import patch
+
+    from backend.seeds import list_narrative_names
+
+    # Get a narrative name and set up some data with sources
+    narrative_names = list_narrative_names()
+    if narrative_names:
+        test_narrative = narrative_names[0]
+
+        # Mock the data source to return data with sources field
+        mock_data = [
+            {
+                "parent": "test",
+                "matches": 1,
+                "score": 0.5,
+                "sources": ["coingecko", "dexscreener"],
+            },
+        ]
+
+        with (
+            patch(
+                "backend.api.routes.parents.list_parents_db",
+                return_value=[],
+            ),
+            patch(
+                "backend.api.routes.parents.get_parents",
+                return_value=mock_data,
+            ),
+        ):
+
+            # Test without debug mode (sources should be filtered out)
+            r = client.get(f"/parents/{test_narrative}")
+            assert r.status_code == 200
+            js = r.json()
+            items = js.get("items", [])
+            if items:
+                # In non-debug mode, sources should be filtered out
+                assert "sources" not in items[0] or items[0]["sources"] is None
+
+            # Test with debug mode (sources should be included)
+            r = client.get(f"/parents/{test_narrative}?debug=true")
+            assert r.status_code == 200
+            js = r.json()
+            items = js.get("items", [])
+            if items:
+                assert "sources" in items[0]
+                assert items[0]["sources"] == ["coingecko", "dexscreener"]

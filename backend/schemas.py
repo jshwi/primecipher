@@ -24,6 +24,7 @@ class Parent(BaseModel):
     # Optional fields that may be present in real mode
     symbol: str | None = None
     source: str | None = None
+    sources: list[str] | None = None  # debug field for provenance tracking
     chain: str | None = None
     address: str | None = None
     url: str | None = None

@@ -1,8 +1,24 @@
 """Mixed adapter that merges DexScreener and CoinGecko data."""
 
+import logging
+from dataclasses import dataclass
+
 from . import AdapterProtocol
 from .coingecko import CoinGeckoAdapter
 from .dexscreener import DexScreenerAdapter
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ContributionCounts:
+    """Data class for contribution counts logging."""
+
+    narrative: str
+    terms: list[str]
+    cg_data: list[dict]
+    ds_data: list[dict]
+    merged_items: list[dict]
 
 
 class MixedAdapter(AdapterProtocol):  # pylint: disable=too-few-public-methods
@@ -23,12 +39,26 @@ class MixedAdapter(AdapterProtocol):  # pylint: disable=too-few-public-methods
         if not terms:
             return []
 
-        # Fetch data from both sources
-        cg_data = self.cg_adapter.fetch_parents(narrative, terms)
-        ds_data = self.ds_adapter.fetch_parents(narrative, terms)
+        # Fetch data from both sources with error handling
+        cg_data = []
+        ds_data = []
+        cg_error = None
+        ds_error = None
+
+        try:
+            cg_data = self.cg_adapter.fetch_parents(narrative, terms)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            cg_error = str(e)
+            logger.warning("[MIXED] %s CG failed: %s", narrative, cg_error)
+
+        try:
+            ds_data = self.ds_adapter.fetch_parents(narrative, terms)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            ds_error = str(e)
+            logger.warning("[MIXED] %s DS failed: %s", narrative, ds_error)
 
         # Merge the data according to the specified rules
-        merged_data = self._merge_data(cg_data, ds_data)
+        merged_data = self._merge_data(cg_data, ds_data, narrative, terms)
 
         # Re-normalize scores within the merged set
         return self._renormalize_scores(merged_data)
@@ -38,37 +68,32 @@ class MixedAdapter(AdapterProtocol):  # pylint: disable=too-few-public-methods
         self,
         cg_data: list[dict],
         ds_data: list[dict],
+        narrative: str,
+        terms: list[str],
     ) -> list[dict]:
         """Merge CoinGecko and DexScreener data by symbol/address.
 
         :param cg_data: CoinGecko parent data.
         :param ds_data: DexScreener parent data.
+        :param narrative: The narrative name for logging.
+        :param terms: List of search terms for logging.
         :return: Merged parent data.
         """
-        # Create lookup dictionaries indexed by symbol (case-insensitive) and
-        # address
-        cg_by_symbol = {}
-        cg_by_address = {}
-        ds_by_symbol = {}
-        ds_by_address = {}
+        # Create lookup dictionaries indexed by stable unique keys
+        cg_by_key = {}
+        ds_by_key = {}
 
-        # Index CoinGecko data
+        # Index CoinGecko data with stable unique keys
         for item in cg_data:
-            symbol = item.get("symbol", "").lower()
-            address = item.get("address", "").lower()
-            if symbol:
-                cg_by_symbol[symbol] = item
-            if address:
-                cg_by_address[address] = item
+            key = self._get_stable_key(item)
+            if key:
+                cg_by_key[key] = item
 
-        # Index DexScreener data
+        # Index DexScreener data with stable unique keys
         for item in ds_data:
-            symbol = item.get("symbol", "").lower()
-            address = item.get("address", "").lower()
-            if symbol:
-                ds_by_symbol[symbol] = item
-            if address:
-                ds_by_address[address] = item
+            key = self._get_stable_key(item)
+            if key:
+                ds_by_key[key] = item
 
         # Track processed items to avoid duplicates
         processed_keys = set()
@@ -76,15 +101,12 @@ class MixedAdapter(AdapterProtocol):  # pylint: disable=too-few-public-methods
 
         # Process all CoinGecko items
         for item in cg_data:
-            symbol = item.get("symbol", "").lower()
-            address = item.get("address", "").lower()
+            key = self._get_stable_key(item)
+            if not key or key in processed_keys:
+                continue
 
             # Find matching DexScreener item
-            ds_item = None
-            if symbol and symbol in ds_by_symbol:
-                ds_item = ds_by_symbol[symbol]
-            elif address and address in ds_by_address:
-                ds_item = ds_by_address[address]
+            ds_item = ds_by_key.get(key)
 
             if ds_item:
                 # Both sources present - merge with score mixing
@@ -94,41 +116,112 @@ class MixedAdapter(AdapterProtocol):  # pylint: disable=too-few-public-methods
                     cg_data,
                     ds_data,
                 )
-                key = f"{symbol}_{address}"
-                if key not in processed_keys:
-                    processed_keys.add(key)
-                    # Also mark the DexScreener item as processed
-                    ds_symbol = ds_item.get("symbol", "").lower()
-                    ds_address = ds_item.get("address", "").lower()
-                    ds_key = f"{ds_symbol}_{ds_address}"
-                    processed_keys.add(ds_key)
-                    merged_items.append(merged_item)
+                # Add sources array for provenance tracking
+                merged_item["sources"] = ["coingecko", "dexscreener"]
+                processed_keys.add(key)
+                merged_items.append(merged_item)
             else:
                 # Only CoinGecko - keep as-is but add source and ensure score
-                key = f"{symbol}_{address}"
-                if key not in processed_keys:
-                    processed_keys.add(key)
-                    item["source"] = "coingecko"
-                    # Ensure score exists for normalization
-                    if "score" not in item:
-                        item["score"] = 0.0
-                    merged_items.append(item)
-
-        # Process remaining DexScreener items (not already matched)
-        for item in ds_data:
-            symbol = item.get("symbol", "").lower()
-            address = item.get("address", "").lower()
-            key = f"{symbol}_{address}"
-
-            if key not in processed_keys:
-                processed_keys.add(key)
-                item["source"] = "dexscreener"
+                item["source"] = "coingecko"
+                item["sources"] = ["coingecko"]
                 # Ensure score exists for normalization
                 if "score" not in item:
                     item["score"] = 0.0
+                processed_keys.add(key)
                 merged_items.append(item)
 
+        # Process remaining DexScreener items (not already matched)
+        for item in ds_data:
+            key = self._get_stable_key(item)
+            if not key or key in processed_keys:
+                continue
+
+            item["source"] = "dexscreener"
+            item["sources"] = ["dexscreener"]
+            # Ensure score exists for normalization
+            if "score" not in item:
+                item["score"] = 0.0
+            processed_keys.add(key)
+            merged_items.append(item)
+
+        # Log structured info per request
+        counts = ContributionCounts(
+            narrative=narrative,
+            terms=terms,
+            cg_data=cg_data,
+            ds_data=ds_data,
+            merged_items=merged_items,
+        )
+        self._log_contribution_counts(counts)
+
         return merged_items
+
+    def _get_stable_key(self, item: dict) -> str | None:
+        """Get a stable unique key for deduplication.
+
+        Prefer mint/address, fallback to composite key not colliding on symbol.
+
+        :param item: Item to generate key for.
+        :return: Stable unique key or None if no valid key can be generated.
+        """
+        # Prefer mint/address combination
+        address = item.get("address", "").strip().lower()
+        chain = item.get("chain", "").strip().lower()
+
+        if address and chain:
+            return f"{chain}:{address}"
+
+        # Fallback to composite key with symbol and name
+        symbol = item.get("symbol", "").strip().lower()
+        name = item.get("name", item.get("parent", "")).strip().lower()
+
+        if symbol and name:
+            return f"symbol:{symbol}:name:{name}"
+
+        # Last resort: just symbol if available
+        if symbol:
+            return f"symbol:{symbol}"
+
+        return None
+
+    def _log_contribution_counts(self, counts: ContributionCounts) -> None:
+        """Log structured contribution counts for debugging.
+
+        :param counts: ContributionCounts data class with all parameters.
+        """
+        # Count items by source
+        cg_count = len(counts.cg_data)
+        ds_count = len(counts.ds_data)
+
+        # Count merged items by source
+        cg_only = 0
+        ds_only = 0
+        both = 0
+
+        for item in counts.merged_items:
+            sources = item.get("sources", [])
+            if len(sources) == 2:
+                both += 1
+            elif "coingecko" in sources:
+                cg_only += 1
+            elif "dexscreener" in sources:
+                ds_only += 1
+
+        total = len(counts.merged_items)
+
+        # Log structured info
+        logger.info(
+            "[MIXED] narrative=%s parent=%s window=24h cg_count=%d "
+            "ds_count=%d cg_only=%d ds_only=%d both=%d total=%d",
+            counts.narrative,
+            counts.terms[0] if counts.terms else "unknown",
+            cg_count,
+            ds_count,
+            cg_only,
+            ds_only,
+            both,
+            total,
+        )
 
     def _merge_single_item(
         self,
@@ -171,6 +264,7 @@ class MixedAdapter(AdapterProtocol):  # pylint: disable=too-few-public-methods
             "address": cg_item.get("address", ds_item.get("address", "")),
             "chain": ds_item.get("chain", ""),
             "source": "coingecko+dexscreener",
+            "sources": ["coingecko", "dexscreener"],
             "score": mixed_score,
             "children": ds_item.get(
                 "children",

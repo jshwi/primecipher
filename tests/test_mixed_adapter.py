@@ -1,5 +1,6 @@
 """Tests for the mixed adapter."""
 
+from typing import Any
 from unittest.mock import Mock, patch
 
 from backend.adapters.mixed import MixedAdapter
@@ -43,6 +44,7 @@ class TestMixedAdapter:
                 "url": "https://coingecko.com/bitcoin",
                 "image": "btc.png",
                 "address": "btc_address",
+                "chain": "ethereum",
             },
         ]
         mock_cg_instance = Mock()
@@ -73,6 +75,7 @@ class TestMixedAdapter:
         assert item["name"] == "Bitcoin"
         assert item["symbol"] == "BTC"
         assert item["source"] == "coingecko+dexscreener"
+        assert item["sources"] == ["coingecko", "dexscreener"]
         assert item["marketCap"] == 50000000000
         assert item["price"] == 50000
         assert item["image"] == "btc.png"
@@ -120,6 +123,7 @@ class TestMixedAdapter:
         assert item["name"] == "Ethereum"
         assert item["symbol"] == "ETH"
         assert item["source"] == "coingecko"
+        assert item["sources"] == ["coingecko"]
         assert item["marketCap"] == 200000000000
 
     @patch("backend.adapters.mixed.CoinGeckoAdapter")
@@ -161,6 +165,7 @@ class TestMixedAdapter:
         assert item["name"] == "Uniswap"
         assert item["symbol"] == "UNI"
         assert item["source"] == "dexscreener"
+        assert item["sources"] == ["dexscreener"]
         assert item["chain"] == "ethereum"
 
     @patch("backend.adapters.mixed.CoinGeckoAdapter")
@@ -288,6 +293,7 @@ class TestMixedAdapter:
                 "url": "https://coingecko.com/bitcoin",
                 "image": "btc.png",
                 "address": "0x1234567890abcdef",
+                "chain": "ethereum",
             },
         ]
         mock_cg_instance = Mock()
@@ -319,6 +325,189 @@ class TestMixedAdapter:
         assert item["name"] == "Bitcoin"  # Prefer CoinGecko name
         assert item["symbol"] == "BTC"  # Prefer CoinGecko symbol
         assert item["source"] == "coingecko+dexscreener"
+        assert item["sources"] == ["coingecko", "dexscreener"]
         assert item["address"] == "0x1234567890abcdef"
         assert item["chain"] == "ethereum"  # Keep DexScreener chain
         assert item["children"] == [{"pair": "btc_pair", "vol24h": 800}]
+
+    def test_get_stable_key_with_address_and_chain(self) -> None:
+        """Test _get_stable_key with address and chain."""
+        adapter = MixedAdapter()
+        item = {
+            "address": "0x1234567890abcdef",
+            "chain": "ethereum",
+            "symbol": "BTC",
+            "name": "Bitcoin",
+        }
+        key = adapter._get_stable_key(item)
+        assert key == "ethereum:0x1234567890abcdef"
+
+    def test_get_stable_key_with_symbol_and_name(self) -> None:
+        """Test _get_stable_key with symbol and name fallback."""
+        adapter = MixedAdapter()
+        item = {
+            "symbol": "BTC",
+            "name": "Bitcoin",
+        }
+        key = adapter._get_stable_key(item)
+        assert key == "symbol:btc:name:bitcoin"
+
+    def test_get_stable_key_with_symbol_only(self) -> None:
+        """Test _get_stable_key with symbol only."""
+        adapter = MixedAdapter()
+        item = {
+            "symbol": "BTC",
+        }
+        key = adapter._get_stable_key(item)
+        assert key == "symbol:btc"
+
+    def test_get_stable_key_no_valid_key(self) -> None:
+        """Test _get_stable_key with no valid key."""
+        adapter = MixedAdapter()
+        item: dict[str, Any] = {}
+        key = adapter._get_stable_key(item)
+        assert key is None
+
+    @patch("backend.adapters.mixed.CoinGeckoAdapter")
+    @patch("backend.adapters.mixed.DexScreenerAdapter")
+    def test_fetch_parents_cg_error_handling(
+        self,
+        mock_ds_adapter,
+        mock_cg_adapter,
+    ) -> None:
+        """Test fetch_parents handles CoinGecko errors gracefully.
+
+        :param mock_ds_adapter: Mocked DexScreener adapter.
+        :param mock_cg_adapter: Mocked CoinGecko adapter.
+        """
+        # Mock CoinGecko to raise an exception
+        mock_cg_instance = Mock()
+        mock_cg_instance.fetch_parents.side_effect = Exception("CG API error")
+        mock_cg_adapter.return_value = mock_cg_instance
+
+        # Mock DexScreener data
+        ds_data = [
+            {
+                "name": "Uniswap",
+                "symbol": "UNI",
+                "vol24h": 500,
+                "url": "https://dexscreener.com/uni",
+                "chain": "ethereum",
+                "address": "uni_address",
+                "children": [{"pair": "uni_pair", "vol24h": 500}],
+            },
+        ]
+        mock_ds_instance = Mock()
+        mock_ds_instance.fetch_parents.return_value = ds_data
+        mock_ds_adapter.return_value = mock_ds_instance
+
+        adapter = MixedAdapter()
+        result = adapter.fetch_parents("test", ["uniswap"])
+
+        # Should still return DexScreener data
+        assert len(result) == 1
+        item = result[0]
+        assert item["name"] == "Uniswap"
+        assert item["sources"] == ["dexscreener"]
+
+    @patch("backend.adapters.mixed.CoinGeckoAdapter")
+    @patch("backend.adapters.mixed.DexScreenerAdapter")
+    def test_fetch_parents_ds_error_handling(
+        self,
+        mock_ds_adapter,
+        mock_cg_adapter,
+    ) -> None:
+        """Test fetch_parents handles DexScreener errors gracefully.
+
+        :param mock_ds_adapter: Mocked DexScreener adapter.
+        :param mock_cg_adapter: Mocked CoinGecko adapter.
+        """
+        # Mock CoinGecko data
+        cg_data = [
+            {
+                "name": "Ethereum",
+                "symbol": "ETH",
+                "vol24h": 2000,
+                "marketCap": 200000000000,
+                "price": 2000,
+                "url": "https://coingecko.com/ethereum",
+                "image": "eth.png",
+                "address": "eth_address",
+            },
+        ]
+        mock_cg_instance = Mock()
+        mock_cg_instance.fetch_parents.return_value = cg_data
+        mock_cg_adapter.return_value = mock_cg_instance
+
+        # Mock DexScreener to raise an exception
+        mock_ds_instance = Mock()
+        mock_ds_instance.fetch_parents.side_effect = Exception("DS API error")
+        mock_ds_adapter.return_value = mock_ds_instance
+
+        adapter = MixedAdapter()
+        result = adapter.fetch_parents("test", ["ethereum"])
+
+        # Should still return CoinGecko data
+        assert len(result) == 1
+        item = result[0]
+        assert item["name"] == "Ethereum"
+        assert item["sources"] == ["coingecko"]
+
+    @patch("backend.adapters.mixed.CoinGeckoAdapter")
+    @patch("backend.adapters.mixed.DexScreenerAdapter")
+    def test_fetch_parents_both_errors_handling(
+        self,
+        mock_ds_adapter,
+        mock_cg_adapter,
+    ) -> None:
+        """Test fetch_parents handles both source errors gracefully.
+
+        :param mock_ds_adapter: Mocked DexScreener adapter.
+        :param mock_cg_adapter: Mocked CoinGecko adapter.
+        """
+        # Mock both to raise exceptions
+        mock_cg_instance = Mock()
+        mock_cg_instance.fetch_parents.side_effect = Exception("CG API error")
+        mock_cg_adapter.return_value = mock_cg_instance
+
+        mock_ds_instance = Mock()
+        mock_ds_instance.fetch_parents.side_effect = Exception("DS API error")
+        mock_ds_adapter.return_value = mock_ds_instance
+
+        adapter = MixedAdapter()
+        result = adapter.fetch_parents("test", ["bitcoin"])
+
+        # Should return empty list when both sources fail
+        assert not result
+
+    @patch("backend.adapters.mixed.CoinGeckoAdapter")
+    @patch("backend.adapters.mixed.DexScreenerAdapter")
+    def test_fetch_parents_skips_items_without_valid_key(
+        self,
+        mock_ds_adapter,
+        mock_cg_adapter,
+    ) -> None:
+        """Test fetch_parents skips items without valid keys.
+
+        :param mock_ds_adapter: Mock DexScreener adapter.
+        :param mock_cg_adapter: Mock CoinGecko adapter.
+        """
+        # Mock data with items that have no valid keys
+        cg_data = [
+            {
+                "name": "Test Token",
+                "symbol": "",
+                "address": "",
+                "chain": "",
+            },
+        ]
+        ds_data: list[dict[str, Any]] = []
+
+        mock_cg_adapter.return_value.fetch_parents.return_value = cg_data
+        mock_ds_adapter.return_value.fetch_parents.return_value = ds_data
+
+        adapter = MixedAdapter()
+        result = adapter.fetch_parents("test", ["bitcoin"])
+
+        # Should return empty list since no items have valid keys
+        assert not result

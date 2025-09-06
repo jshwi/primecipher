@@ -47,6 +47,7 @@ def get_parents_for_narrative(
     window: str = Query(default="24h"),  # noqa: B008
     limit: int = Query(default=25),  # noqa: B008
     cursor: str | None = Query(default=None),  # noqa: B008
+    debug: bool = Query(default=False),  # noqa: B008
 ) -> dict[str, t.Any]:
     """Get parents data for a narrative with pagination.
 
@@ -54,6 +55,7 @@ def get_parents_for_narrative(
     :param window: The window to get parents data for.
     :param limit: The limit of parents data to get.
     :param cursor: The cursor to get parents data for.
+    :param debug: Whether to include debug fields like sources.
     :return: Parents data.
     """
     if narrative not in set(list_narrative_names()):
@@ -80,6 +82,11 @@ def get_parents_for_narrative(
 
     end = min(start + limit, len(items))
     page = items[start:end]
+
+    # Filter out debug fields if not in debug mode
+    if not debug:
+        for item in page:
+            item.pop("sources", None)
 
     next_cursor = _enc_cursor(end) if end < len(items) else None
 
