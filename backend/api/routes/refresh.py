@@ -178,7 +178,7 @@ def _process_single_narrative(
         else:
             # Process the narrative based on mode
             if (
-                mode in ["real", "real_cg", "real_mix", "real_ds"]
+                mode in ["real", "real_cg", "real_mix", "real_ds", "blend"]
                 and terms is not None
             ):
                 items = _process_narrative_real_mode(narrative, terms, mode)
@@ -396,7 +396,7 @@ def _process_dev_mode_job(
         _memo: dict[str, list[dict]] = {}
 
         # Get narratives with their terms for real mode
-        if mode in ["real", "real_cg", "real_mix", "real_ds"]:
+        if mode in ["real", "real_cg", "real_mix", "real_ds", "blend"]:
             from ...seeds import load_seeds
 
             seeds_data = load_seeds()
@@ -413,8 +413,8 @@ def _process_dev_mode_job(
         errors = []
 
         for narrative, terms in narratives_with_terms:
-            # Special handling for real_cg mode with per-run memo and budget
-            if mode == "real_cg":
+            # Special handling for real_cg and blend modes with per-run memo
+            if mode in ["real_cg", "blend"]:
                 should_continue, items = _process_narrative_real_cg(
                     narrative,
                     terms,
@@ -495,7 +495,8 @@ def _process_dev_mode_job(
                 mode=mode,
                 terms=(
                     terms
-                    if mode in ["real", "real_cg", "real_mix", "real_ds"]
+                    if mode
+                    in ["real", "real_cg", "real_mix", "real_ds", "blend"]
                     else None
                 ),
                 _memo=_memo,
@@ -592,7 +593,7 @@ async def start_or_get_job(
 
     # Start the actual refresh job
     async def _do() -> None:
-        if mode in ["dev", "real", "real_cg", "real_mix", "real_ds"]:
+        if mode in ["dev", "real", "real_cg", "real_mix", "real_ds", "blend"]:
             # Use new processing for dev and real modes
             _process_dev_mode_job(job_id, mode, window, narratives_total)
         else:
