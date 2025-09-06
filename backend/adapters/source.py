@@ -1,6 +1,7 @@
 """Data source adapters for different providers (test, dev, coingecko)."""
 
-# pylint: disable=too-many-positional-arguments
+# pylint: disable=too-many-positional-arguments,too-many-lines
+# pylint: disable=broad-exception-caught
 
 import logging
 import os
@@ -709,6 +710,290 @@ def _make_cg() -> t.Any:
             return self.parents_for(narrative, terms)
 
     return _CGAdapter()
+
+
+@register_adapter("blend")
+def _make_blend() -> t.Any:
+    class _BlendAdapter:  # pylint: disable=too-few-public-methods
+        # pylint: disable=too-many-positional-arguments
+        # pylint: disable=missing-function-docstring
+        def parents_for(
+            self,
+            narrative: str,
+            terms: list[str],
+            allow_name_match: bool = True,
+            block: list[str] | None = None,
+            require_all_terms: bool = False,
+        ) -> list[dict]:
+            def _fetch() -> list[dict]:
+                # Get both DexScreener and CoinGecko data
+                ds_items = []
+                cg_items = []
+
+                # Try DexScreener first
+                try:
+                    ds_items = parents_for_dexscreener(narrative, terms)
+                    logger.info(
+                        "[BLEND] %s DS: %d items",
+                        narrative,
+                        len(ds_items),
+                    )
+                except (
+                    Exception
+                ) as e:  # pylint: disable=broad-exception-caught
+                    logger.warning(
+                        "[BLEND] %s DS failed: %s",
+                        narrative,
+                        str(e),
+                    )
+
+                # Try CoinGecko second
+                try:
+                    cg_adapter = _make_cg()
+                    cg_items = cg_adapter.parents_for(
+                        narrative,
+                        terms,
+                        allow_name_match,
+                        block or [],
+                        require_all_terms,
+                    )
+                    logger.info(
+                        "[BLEND] %s CG: %d items",
+                        narrative,
+                        len(cg_items),
+                    )
+                except (
+                    Exception
+                ) as e:  # pylint: disable=broad-exception-caught
+                    logger.warning(
+                        "[BLEND] %s CG failed: %s",
+                        narrative,
+                        str(e),
+                    )
+
+                # Merge and deduplicate the lists
+                all_items = _merge_parents(ds_items, cg_items)
+
+                logger.info(
+                    "[BLEND] %s total: %d items (DS: %d, CG: %d, merged: %d)",
+                    narrative,
+                    len(all_items),
+                    len(ds_items),
+                    len(cg_items),
+                    len(all_items),
+                )
+
+                return all_items
+
+            raw = _memo_raw("blend", terms, _fetch)
+            return _apply_seed_semantics(
+                narrative,
+                terms,
+                allow_name_match,
+                block or [],
+                raw,
+                require_all_terms,
+                cap=None,  # no cap for blend
+            )
+
+        def fetch_parents(
+            self,
+            narrative: str,
+            terms: list[str],
+        ) -> list[dict]:
+            """Fetch parent data for a narrative and terms.
+
+            :param narrative: The narrative to get parent data for.
+            :param terms: The terms to get parent data for.
+            :return: Parent data.
+            """
+            return self.parents_for(narrative, terms)
+
+    return _BlendAdapter()
+
+
+def _merge_parents(
+    ds_items: list[dict],
+    cg_items: list[dict],
+) -> list[dict]:  # pylint: disable=too-many-branches
+    """Merge DexScreener and CoinGecko parent data with deduplication.
+
+    Dedup key: prefer (chain,address). Fallback: normalized symbol + fuzzy
+    name.
+    Field precedence:
+    • price: DS if present; else CG
+    • vol24h: DS if present; else CG total_volume
+    • liquidityUsd: DS only
+    • marketCap: CG only
+    • url: DS pair URL preferred; else CG coin page
+    • image: CG preferred
+    • source: for backward-compat keep a string; if both provided set to
+        "dexscreener,coingecko"
+    • (Optionally) add `sources: ["dexscreener", "coingecko"]` if both
+        contributed
+
+    :param ds_items: DexScreener parent items.
+    :param cg_items: CoinGecko parent items.
+    :return: Merged and deduplicated parent items.
+    """
+    # Create lookup dictionaries for deduplication
+    merged_by_key: dict[tuple[str, str], dict] = {}
+    merged_by_symbol_name: dict[tuple[str, str], dict] = {}
+
+    # Process DexScreener items first (they have priority for certain fields)
+    for item in ds_items:
+        # Extract dedup keys
+        chain = item.get("chain", "")
+        address = item.get("address", "").lower()
+        symbol = (item.get("symbol") or "").upper()
+        name = (item.get("parent") or "").strip()
+
+        # Primary key: (chain, address)
+        primary_key = (chain, address)
+
+        # Fallback key: (normalized_symbol, normalized_name)
+        normalized_symbol = symbol.lower().strip() if symbol else ""
+        normalized_name = name.lower().strip() if name else ""
+        fallback_key = (normalized_symbol, normalized_name)
+
+        # Store the item
+        if primary_key[0] and primary_key[1]:  # Both chain and address present
+            merged_by_key[primary_key] = item
+        elif (
+            fallback_key[0] and fallback_key[1]
+        ):  # Both symbol and name present
+            merged_by_symbol_name[fallback_key] = item
+
+    # Process CoinGecko items and merge with existing ones
+    for item in cg_items:
+        # Extract dedup keys
+        chain = item.get("chain", "")
+        address = item.get("address", "").lower()
+        symbol = (item.get("symbol") or "").upper()
+        name = (item.get("parent") or "").strip()
+
+        # Primary key: (chain, address)
+        primary_key = (chain, address)
+
+        # Fallback key: (normalized_symbol, normalized_name)
+        normalized_symbol = symbol.lower().strip() if symbol else ""
+        normalized_name = name.lower().strip() if name else ""
+        fallback_key = (normalized_symbol, normalized_name)
+
+        # Try to find existing item to merge with
+        existing_item = None
+        merge_key = None
+
+        # First try primary key
+        if primary_key[0] and primary_key[1] and primary_key in merged_by_key:
+            existing_item = merged_by_key[primary_key]
+            merge_key = primary_key
+        # Then try fallback key
+        elif (
+            fallback_key[0]
+            and fallback_key[1]
+            and fallback_key in merged_by_symbol_name
+        ):
+            existing_item = merged_by_symbol_name[fallback_key]
+            merge_key = fallback_key
+
+        if existing_item and merge_key:
+            # Merge the items according to field precedence rules
+            merged_item = _merge_single_parent(existing_item, item)
+
+            # Update the stored item
+            if merge_key in merged_by_key:
+                merged_by_key[merge_key] = merged_item
+            else:
+                merged_by_symbol_name[merge_key] = merged_item
+        else:
+            # No existing item found, add as new
+            if primary_key[0] and primary_key[1]:
+                merged_by_key[primary_key] = item
+            elif fallback_key[0] and fallback_key[1]:
+                merged_by_symbol_name[fallback_key] = item
+
+    # Collect all merged items
+    all_items = list(merged_by_key.values()) + list(
+        merged_by_symbol_name.values(),
+    )
+
+    # Sort by matches desc, then vol24h desc, then marketCap desc, then
+    # parent asc
+    all_items.sort(
+        key=lambda x: (
+            -int(x.get("matches", 0)),
+            -float(x.get("vol24h", 0)),
+            -float(x.get("marketCap", 0)),
+            x.get("parent", ""),
+        ),
+    )
+
+    return all_items
+
+
+def _merge_single_parent(
+    ds_item: dict,
+    cg_item: dict,
+) -> dict:
+    """Merge a single DexScreener and CoinGecko parent item.
+
+    :param ds_item: DexScreener parent item.
+    :param cg_item: CoinGecko parent item.
+    :return: Merged parent item with field precedence applied.
+    """
+    # pylint: disable=too-many-branches
+    # Start with DS item as base (it has priority for certain fields)
+    merged = dict(ds_item)
+
+    # Apply field precedence rules
+    # price: DS if present; else CG
+    if not merged.get("price") and cg_item.get("price"):
+        merged["price"] = cg_item["price"]
+
+    # vol24h: DS if present; else CG total_volume
+    if not merged.get("vol24h") and cg_item.get("vol24h"):
+        merged["vol24h"] = cg_item["vol24h"]
+
+    # liquidityUsd: DS only (already in merged from DS)
+    # marketCap: CG only
+    if cg_item.get("marketCap"):
+        merged["marketCap"] = cg_item["marketCap"]
+
+    # url: DS pair URL preferred; else CG coin page
+    if not merged.get("url") and cg_item.get("url"):
+        merged["url"] = cg_item["url"]
+
+    # image: CG preferred
+    if cg_item.get("image"):
+        merged["image"] = cg_item["image"]
+
+    # source: for backward-compat keep a string; if both provided set to
+    # "dexscreener,coingecko"
+    ds_source = ds_item.get("source", "dexscreener")
+    cg_source = cg_item.get("source", "coingecko")
+    if ds_source and cg_source:
+        merged["source"] = "dexscreener,coingecko"
+    elif ds_source:
+        merged["source"] = ds_source
+    elif cg_source:
+        merged["source"] = cg_source
+
+    # Add sources array if both contributed
+    sources = []
+    if ds_source:
+        sources.append("dexscreener")
+    if cg_source:
+        sources.append("coingecko")
+    if len(sources) > 1:
+        merged["sources"] = sources
+
+    # Preserve any extra keys from either source
+    for key, value in cg_item.items():
+        if key not in merged and value is not None:
+            merged[key] = value
+
+    return merged
 
 
 def parents_for_dexscreener(  # pylint: disable=too-many-branches

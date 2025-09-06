@@ -48,9 +48,9 @@ def get_adapter(mode: str) -> AdapterProtocol:  # pragma: no cover
     if mode == "blend":
         # Import here to avoid circular imports
         # pylint: disable=import-outside-toplevel,cyclic-import
-        from .source import _make_cg
+        from .source import _make_blend
 
-        return _make_cg()
+        return _make_blend()
     if mode == "real":
         # Import here to avoid circular imports
         # pylint: disable=import-outside-toplevel,cyclic-import

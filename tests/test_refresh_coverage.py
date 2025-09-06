@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, Mock, patch
 from backend.adapters import NoopAdapter
 from backend.api.routes.refresh import (
     _process_dev_mode_job,
+    _process_narrative_blend,
     _process_narrative_real_mode,
     _process_single_narrative,
 )
@@ -407,3 +408,101 @@ def test_budget_exceeded_finalize_job_coverage() -> None:
 
                 assert last_completed_job is not None
                 assert last_completed_job["reason"] == "budget_exhausted"
+
+
+def test_process_narrative_blend_coverage() -> None:
+    """Test _process_narrative_blend to improve coverage."""
+    with (
+        patch(
+            "backend.api.routes.refresh.get_cg_calls_count",
+        ) as mock_calls_count,
+        patch("backend.adapters.get_adapter") as mock_get_adapter,
+        patch(
+            "backend.api.routes.refresh.current_running_job",
+            {"id": "test_job", "calls_used": 0},
+        ),
+    ):
+        # Test successful blend mode processing
+        mock_calls_count.return_value = 0
+        mock_adapter = Mock()
+        mock_adapter.fetch_parents.return_value = [{"parent": "test_token"}]
+        mock_get_adapter.return_value = mock_adapter
+
+        _memo: dict[str, list[dict]] = {}
+        should_continue, items = _process_narrative_blend(
+            "test_narrative",
+            ["term1", "term2"],
+            _memo,
+            "test_job",
+        )
+
+        assert should_continue
+        assert len(items) == 1
+        assert items[0]["parent"] == "test_token"
+        assert "test_narrative" in _memo
+        mock_get_adapter.assert_called_once_with("blend")
+        mock_adapter.fetch_parents.assert_called_once_with(
+            "test_narrative",
+            ["term1", "term2"],
+        )
+
+
+def test_process_narrative_blend_memo_cache_coverage() -> None:
+    """Test _process_narrative_blend with memo cache to improve coverage."""
+    _memo = {"test_narrative": [{"parent": "cached_token"}]}
+
+    should_continue, items = _process_narrative_blend(
+        "test_narrative",
+        ["term1", "term2"],
+        _memo,
+        "test_job",
+    )
+
+    assert should_continue
+    assert len(items) == 1
+    assert items[0]["parent"] == "cached_token"
+
+
+def test_process_narrative_blend_budget_exceeded_coverage() -> None:
+    """Test _process_narrative_blend with budget exceeded."""
+    with patch(
+        "backend.api.routes.refresh.get_cg_calls_count",
+    ) as mock_calls_count:
+        # Set calls count to exceed budget (blend uses 2 calls)
+        mock_calls_count.return_value = 999  # Exceeds REFRESH_MAX_CALLS
+
+        _memo: dict[str, list[dict]] = {}
+        should_continue, items = _process_narrative_blend(
+            "test_narrative",
+            ["term1", "term2"],
+            _memo,
+            "test_job",
+        )
+
+        assert not should_continue
+        assert items == []
+
+
+def test_process_dev_mode_job_blend_mode_coverage() -> None:
+    """Test _process_dev_mode_job with blend mode to improve coverage."""
+    with (
+        patch(
+            "backend.api.routes.refresh._process_narrative_blend",
+        ) as mock_process_blend,
+        patch(
+            "backend.api.routes.refresh._write_narrative_to_storage",
+        ) as mock_write,
+        patch("backend.api.routes.refresh._finalize_job") as mock_finalize,
+        patch(
+            "backend.api.routes.refresh.current_running_job",
+            {"id": "test_job"},
+        ),
+    ):
+        mock_process_blend.return_value = (True, [{"parent": "test_token"}])
+
+        _process_dev_mode_job("test_job", "blend", "1h", 1)
+
+        # Verify blend mode was called (multiple times for narratives)
+        assert mock_process_blend.call_count > 0
+        mock_write.assert_called()
+        mock_finalize.assert_called_once()

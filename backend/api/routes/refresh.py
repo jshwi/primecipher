@@ -132,7 +132,7 @@ def _check_budget_limits(
     calls_used = get_cg_calls_count()
 
     # Determine calls needed for this narrative
-    calls_needed = 2 if mode == "real_mix" else 1
+    calls_needed = 2 if mode in ["real_mix", "blend"] else 1
 
     # Check if we would exceed the maximum calls budget
     if calls_used + calls_needed > REFRESH_MAX_CALLS:
@@ -293,6 +293,44 @@ def _process_narrative_real_cg(
     return True, items
 
 
+def _process_narrative_blend(
+    narrative: str,
+    terms: list[str],
+    _memo: dict[str, list[dict]],
+    job_id: str,
+) -> tuple[bool, list[dict]]:
+    """Process a narrative in blend mode with memo and budget checking.
+
+    :param narrative: The narrative name.
+    :param terms: List of search terms.
+    :param _memo: Per-run memo dict for caching results.
+    :param job_id: The job ID.
+    :return: Tuple of (should_continue, items).
+    """
+    if narrative in _memo:
+        # Use cached results from memo
+        items = _memo[narrative]
+        return True, items
+
+    # Check budget before making API calls (blend uses 2 calls)
+    calls_used = get_cg_calls_count()
+    if calls_used + 2 > REFRESH_MAX_CALLS:
+        return False, []
+
+    # Fetch data using BlendAdapter
+    from ...adapters import get_adapter
+
+    adapter = get_adapter("blend")
+    items = adapter.fetch_parents(narrative, terms)
+    _memo[narrative] = items
+
+    # Update progress in global job state
+    if current_running_job and current_running_job.get("id") == job_id:
+        current_running_job["calls_used"] = get_cg_calls_count()
+
+    return True, items
+
+
 def _create_completed_job(  # pylint: disable=too-many-positional-arguments
     job_id: str,
     mode: str,
@@ -415,12 +453,20 @@ def _process_dev_mode_job(
         for narrative, terms in narratives_with_terms:
             # Special handling for real_cg and blend modes with per-run memo
             if mode in ["real_cg", "blend"]:
-                should_continue, items = _process_narrative_real_cg(
-                    narrative,
-                    terms,
-                    _memo,
-                    job_id,
-                )
+                if mode == "real_cg":
+                    should_continue, items = _process_narrative_real_cg(
+                        narrative,
+                        terms,
+                        _memo,
+                        job_id,
+                    )
+                else:  # blend mode
+                    should_continue, items = _process_narrative_blend(
+                        narrative,
+                        terms,
+                        _memo,
+                        job_id,
+                    )
 
                 if not should_continue:
                     # Budget exceeded - add error and finalize
