@@ -53,22 +53,34 @@ describe("ParentsList", () => {
   });
 
   describe("Debug Mode", () => {
-    it("displays source badges when debug=true", () => {
+    it("displays table layout with Src column when debug=true", () => {
       render(
         <ParentsList narrative="crypto" initial={mockInitial} debug={true} />,
       );
 
-      // Check for source badges
+      // Check for table headers
+      expect(screen.getByText("Parent")).toBeInTheDocument();
+      expect(screen.getByText("Matches")).toBeInTheDocument();
+      expect(screen.getByText("Src")).toBeInTheDocument();
+      expect(screen.getByText("Details")).toBeInTheDocument();
+
+      // Check for source badges in the Src column
       expect(screen.getByText("C")).toBeInTheDocument(); // Bitcoin - coingecko only
       expect(screen.getByText("D")).toBeInTheDocument(); // Ethereum - dexscreener only
       expect(screen.getByText("C+D")).toBeInTheDocument(); // Solana - both
       expect(screen.getByText("—")).toBeInTheDocument(); // Cardano - no sources
     });
 
-    it("hides source badges when debug=false", () => {
+    it("hides table layout and shows card layout when debug=false", () => {
       render(
         <ParentsList narrative="crypto" initial={mockInitial} debug={false} />,
       );
+
+      // Check that table headers are not present
+      expect(screen.queryByText("Parent")).not.toBeInTheDocument();
+      expect(screen.queryByText("Matches")).not.toBeInTheDocument();
+      expect(screen.queryByText("Src")).not.toBeInTheDocument();
+      expect(screen.queryByText("Details")).not.toBeInTheDocument();
 
       // Check that source badges are not present
       expect(screen.queryByText("C")).not.toBeInTheDocument();
@@ -77,8 +89,14 @@ describe("ParentsList", () => {
       expect(screen.queryByText("—")).not.toBeInTheDocument();
     });
 
-    it("defaults to debug=false when debug prop is not provided", () => {
+    it("defaults to card layout when debug prop is not provided", () => {
       render(<ParentsList narrative="crypto" initial={mockInitial} />);
+
+      // Check that table headers are not present
+      expect(screen.queryByText("Parent")).not.toBeInTheDocument();
+      expect(screen.queryByText("Matches")).not.toBeInTheDocument();
+      expect(screen.queryByText("Src")).not.toBeInTheDocument();
+      expect(screen.queryByText("Details")).not.toBeInTheDocument();
 
       // Check that source badges are not present
       expect(screen.queryByText("C")).not.toBeInTheDocument();
@@ -166,7 +184,70 @@ describe("ParentsList", () => {
     });
   });
 
-  describe("Source Badge Rendering", () => {
+  describe("Table Layout in Debug Mode", () => {
+    it("renders table with proper structure when debug=true", () => {
+      const item: ParentItem = {
+        parent: "Test Coin",
+        matches: 5,
+        sources: ["coingecko"],
+        score: 0.8,
+        symbol: "TEST",
+        price: 100,
+        marketCap: 1000000,
+      };
+
+      render(
+        <ParentsList
+          narrative="test"
+          initial={{ items: [item], nextCursor: null }}
+          debug={true}
+        />,
+      );
+
+      // Check table structure
+      const table = screen.getByRole("table");
+      expect(table).toBeInTheDocument();
+
+      // Check headers
+      expect(screen.getByText("Parent")).toBeInTheDocument();
+      expect(screen.getByText("Matches")).toBeInTheDocument();
+      expect(screen.getByText("Src")).toBeInTheDocument();
+      expect(screen.getByText("Details")).toBeInTheDocument();
+
+      // Check data in table
+      expect(screen.getByText("Test Coin")).toBeInTheDocument();
+      expect(screen.getByText("5")).toBeInTheDocument();
+      expect(screen.getByText("C")).toBeInTheDocument();
+      expect(
+        screen.getByText("Score: 0.8000 • Symbol: TEST • $100.00 • $1.0M"),
+      ).toBeInTheDocument();
+    });
+
+    it("renders card layout when debug=false", () => {
+      const item: ParentItem = {
+        parent: "Test Coin",
+        matches: 5,
+        sources: ["coingecko"],
+      };
+
+      render(
+        <ParentsList
+          narrative="test"
+          initial={{ items: [item], nextCursor: null }}
+          debug={false}
+        />,
+      );
+
+      // Check that table is not present
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+
+      // Check that card layout elements are present
+      expect(screen.getByText("Test Coin")).toBeInTheDocument();
+      expect(screen.getByText("Matches: 5")).toBeInTheDocument();
+    });
+  });
+
+  describe("Source Badge Rendering in Table", () => {
     it("renders 'C' for coingecko-only sources", () => {
       const item: ParentItem = {
         parent: "Test Coin",
@@ -245,7 +326,7 @@ describe("ParentsList", () => {
       expect(dashElements).toHaveLength(2);
     });
 
-    it("renders empty string for unknown sources", () => {
+    it("renders '—' for unknown sources", () => {
       const item: ParentItem = {
         parent: "Test Coin",
         matches: 5,
@@ -261,6 +342,81 @@ describe("ParentsList", () => {
       );
 
       expect(screen.getByText("—")).toBeInTheDocument();
+    });
+
+    it("handles table row hover events", () => {
+      const item: ParentItem = {
+        parent: "Test Coin",
+        matches: 5,
+        sources: ["coingecko"],
+      };
+
+      render(
+        <ParentsList
+          narrative="test"
+          initial={{ items: [item], nextCursor: null }}
+          debug={true}
+        />,
+      );
+
+      const tableRow = screen.getByText("Test Coin").closest("tr");
+      expect(tableRow).toBeInTheDocument();
+
+      // Test mouse enter
+      fireEvent.mouseEnter(tableRow!);
+      expect(tableRow).toHaveStyle(
+        "background-color: rgba(255, 255, 255, 0.02)",
+      );
+
+      // Test mouse leave
+      fireEvent.mouseLeave(tableRow!);
+      expect(tableRow).toHaveStyle("background-color: rgba(0, 0, 0, 0)");
+    });
+
+    it("handles unexpected structure in table layout", () => {
+      const unexpectedItem = {
+        unexpected: "data",
+        // Missing expected structure
+      } as any;
+
+      render(
+        <ParentsList
+          narrative="test"
+          initial={{ items: [unexpectedItem], nextCursor: null }}
+          debug={true}
+        />,
+      );
+
+      // Should render fallback JSON display in table
+      expect(screen.getByText(/unexpected/)).toBeInTheDocument();
+    });
+
+    it("handles mouse hover events on table links", () => {
+      const item: ParentItem = {
+        parent: "Test Coin",
+        matches: 5,
+        sources: ["coingecko"],
+        url: "https://example.com",
+      };
+
+      render(
+        <ParentsList
+          narrative="test"
+          initial={{ items: [item], nextCursor: null }}
+          debug={true}
+        />,
+      );
+
+      const link = screen.getByRole("link");
+      expect(link).toBeInTheDocument();
+
+      // Test mouse enter
+      fireEvent.mouseEnter(link);
+      expect(link).toHaveStyle("text-decoration: underline");
+
+      // Test mouse leave
+      fireEvent.mouseLeave(link);
+      expect(link).toHaveStyle("text-decoration: none");
     });
   });
 
@@ -590,6 +746,26 @@ describe("ParentsList", () => {
       );
 
       expect(screen.getByText("Score: 0.9500")).toBeInTheDocument();
+    });
+
+    it("handles unexpected structure in card layout", () => {
+      const unexpectedItems: ParentItem[] = [
+        {
+          // Missing parent field to trigger fallback
+          matches: 5,
+        } as any,
+      ];
+
+      render(
+        <ParentsList
+          narrative="test"
+          initial={{ items: unexpectedItems, nextCursor: null }}
+          debug={false}
+        />,
+      );
+
+      // Should render fallback JSON display
+      expect(screen.getByText(/matches/)).toBeInTheDocument();
     });
 
     it("handles mouse hover events on links", () => {

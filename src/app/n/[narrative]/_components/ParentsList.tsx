@@ -306,6 +306,221 @@ export default function ParentsList({
         >
           No parents yet. Try Refresh on the homepage.
         </div>
+      ) : debug ? (
+        <div
+          style={{
+            border: "1px solid var(--border)",
+            borderRadius: "8px",
+            overflow: "hidden",
+            marginBottom: "20px",
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              fontSize: "14px",
+            }}
+          >
+            <thead>
+              <tr
+                style={{
+                  backgroundColor: "rgba(255, 255, 255, 0.05)",
+                  borderBottom: "1px solid var(--border)",
+                }}
+              >
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "left",
+                    fontWeight: "600",
+                    color: "var(--fg)",
+                    borderRight: "1px solid var(--border)",
+                  }}
+                >
+                  Parent
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "left",
+                    fontWeight: "600",
+                    color: "var(--fg)",
+                    borderRight: "1px solid var(--border)",
+                  }}
+                >
+                  Matches
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "center",
+                    fontWeight: "600",
+                    color: "var(--fg)",
+                    borderRight: "1px solid var(--border)",
+                    minWidth: "60px",
+                  }}
+                >
+                  Src
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "left",
+                    fontWeight: "600",
+                    color: "var(--fg)",
+                  }}
+                >
+                  Details
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, index) => {
+                if (item.parent && typeof item.matches === "number") {
+                  const nameElement = item.url ? (
+                    <a
+                      href={item.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: "var(--fg)",
+                        textDecoration: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.textDecoration = "underline";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.textDecoration = "none";
+                      }}
+                    >
+                      {item.parent}
+                      <span style={{ fontSize: "12px", opacity: 0.7 }}>↗</span>
+                    </a>
+                  ) : (
+                    item.parent
+                  );
+
+                  const sourceText = renderSources(item.sources);
+                  const details = [];
+
+                  if (typeof item.score === "number") {
+                    details.push(`Score: ${item.score.toFixed(4)}`);
+                  }
+
+                  if (item.symbol) {
+                    details.push(`Symbol: ${item.symbol}`);
+                  }
+
+                  if (item.price !== undefined && item.price !== null) {
+                    details.push(formatPrice(item.price));
+                  }
+
+                  if (item.marketCap !== undefined && item.marketCap !== null) {
+                    details.push(formatMarketCap(item.marketCap));
+                  }
+
+                  return (
+                    <tr
+                      key={`${item.parent}-${index}`}
+                      style={{
+                        borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                        transition: "background-color 0.2s ease",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          "rgba(255, 255, 255, 0.02)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          borderRight: "1px solid var(--border)",
+                          fontWeight: "500",
+                          color: "var(--fg)",
+                        }}
+                      >
+                        {nameElement}
+                      </td>
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          borderRight: "1px solid var(--border)",
+                          color: "var(--fg-muted)",
+                        }}
+                      >
+                        {item.matches}
+                      </td>
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          borderRight: "1px solid var(--border)",
+                          textAlign: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            backgroundColor: sourceText
+                              ? "rgba(59, 130, 246, 0.1)"
+                              : "transparent",
+                            color: sourceText ? "var(--fg)" : "var(--fg-muted)",
+                            padding: sourceText ? "2px 6px" : "0",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            fontWeight: "500",
+                            minWidth: "24px",
+                            display: "inline-block",
+                          }}
+                        >
+                          {sourceText || "—"}
+                        </span>
+                      </td>
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          color: "var(--fg-muted)",
+                          fontSize: "13px",
+                        }}
+                      >
+                        {details.join(" • ")}
+                      </td>
+                    </tr>
+                  );
+                }
+
+                // Fallback for unexpected structure
+                return (
+                  <tr
+                    key={`item-${index}`}
+                    style={{
+                      borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+                    }}
+                  >
+                    <td
+                      colSpan={4}
+                      style={{
+                        padding: "12px 16px",
+                        color: "var(--fg-muted)",
+                        fontFamily: "monospace",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <pre style={{ margin: 0 }}>
+                        {JSON.stringify(item, null, 2)}
+                      </pre>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div
           style={{
