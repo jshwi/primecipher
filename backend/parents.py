@@ -32,8 +32,17 @@ def _with_scores(items: list[dict]) -> list[dict]:
             z = (int(it["matches"]) - mean) / std
             # clamp
             z = 3.0 if z > 3 else -3.0 if z < -3 else z
+
+        # Add bounded boost based on liquidity and volume
+        liquidity_usd = it.get("liquidityUsd") or 0
+        vol_24h = it.get("vol24h") or 0
+        boost = min(0.3, 0.000000001 * liquidity_usd + 0.0000000005 * vol_24h)
+        score = z + boost
+        # Clamp final score to [-3.0, 3.0]
+        score = 3.0 if score > 3.0 else -3.0 if score < -3.0 else score
+
         it2 = dict(it)
-        it2["score"] = float(round(z, 4))
+        it2["score"] = float(round(score, 4))
         out.append(it2)
     # sort by score desc, then matches desc, then parent asc
     out.sort(
